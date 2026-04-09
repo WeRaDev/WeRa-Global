@@ -22,5 +22,5 @@ Unified umbrella repository for WeRa Global.
 Use recursive clone to pull all production repositories:
 
 ```bash
-git clone --recurse-submodules http://127.0.0.1:3000/mika/WeRa-Global.git
+git clone --recurse-submodules http://127.0.0.1:3000/wera-global/WeRa-Global.git
 ```

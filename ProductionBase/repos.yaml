@@ -1,34 +1,34 @@
 version: 1
-owner: mika
+owner: wera-global
 umbrella_repo: WeRa-Global
 repos:
   - id: SolarSeed-v3
     path: ProductionBase/SolarSeed-v3
-    gitea_url: http://127.0.0.1:3000/mika/SolarSeed-v3.git
+    gitea_url: http://127.0.0.1:3000/wera-global/SolarSeed-v3.git
     default_branch: main
     status: active
     role: sovereign edge-hosted TRL4 runtime stack
   - id: FilantropiaSolar
     path: ProductionBase/FilantropiaSolar
-    gitea_url: http://127.0.0.1:3000/mika/FilantropiaSolar.git
+    gitea_url: http://127.0.0.1:3000/wera-global/FilantropiaSolar.git
     default_branch: main
     status: active
     role: energy management platform and Nextcloud integration
   - id: FreeDoo
     path: ProductionBase/FreeDoo
-    gitea_url: http://127.0.0.1:3000/mika/FreeDoo.git
+    gitea_url: http://127.0.0.1:3000/wera-global/FreeDoo.git
     default_branch: master
     status: active
     role: outreach automation and lead processing platform
   - id: wera-contracts
     path: ProductionBase/wera-contracts
-    gitea_url: http://127.0.0.1:3000/mika/wera-contracts.git
+    gitea_url: http://127.0.0.1:3000/wera-global/wera-contracts.git
     default_branch: develop
     status: active
     role: smart contracts and staking/token mechanics
   - id: SolarSim
     path: ProductionBase/SolarSim
-    gitea_url: http://127.0.0.1:3000/mika/SolarSim.git
+    gitea_url: http://127.0.0.1:3000/wera-global/SolarSim.git
     default_branch: main
     status: active
     role: standalone energy simulation engine
