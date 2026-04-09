@@ -209,10 +209,10 @@ Beyond SolarSeed core, the marketplace includes partner services ordered through
 
 | Service | Category | Status |
 |---|---|---|
-| Landscaping / gardening | Property management | Partner (unnamed) |
-| Quinta management | Property management | Partner (unnamed) |
-| Pool management | Property management | Partner (unnamed) |
-| Irrigation systems | Agricultural | Partner (unnamed) |
+| Landscaping / gardening | Property management | Partner (gutmangardens) |
+| Quinta management | Property management | Partner (gutmangardens) |
+| Pool management | Property management | Partner (gutmangardens) |
+| Irrigation systems | Agricultural | Partner (gutmangardens) |
 | Energy-efficient appliances | Equipment lease | Roadmap |
 | Gaming consoles / industrial equipment | Equipment lease | Roadmap |
 | Water supply solutions | Utility | Roadmap |
@@ -225,9 +225,9 @@ Future vision: "We want to provide not only energy, but also water, everything n
 
 A secondary business model to be implemented after the base leasing model is established.
 
-- **Product**: SolarSeed installations focused purely on solar-powered server hosting (no household energy)
-- **Form factor**: Industrial containers with solar panels + compute infrastructure
-- **Target**: Customers who want solar-powered cloud/AI compute without residential energy use
+- **Product**: SolarCore installations focused purely on solar-powered server hosting in partnership with famrs/industrial sites
+- **Form factor**: Industrial containers with compute infrastructure + solar infrastructure
+- **Target**: Customers who want solar-powered cloud/AI compute on premisses in addition to energy provision
 - **Part of**: WeRa Cloud business model
 - **Status**: Conceptual — to be developed after base leasing model is validated
 - **Origin**: Identified through ambassador candidate #3 (connections in Germany/Poland for industrial installations)
@@ -267,9 +267,9 @@ Source: [wera.global/products](https://www.wera.global/products)
 |---|---|---|---|---|---|
 | **Freemium** | Visitors | Free | 0.1 GB | -€0.0005 | Newcomers |
 | **Premium** | Residents | €1/user/month (€12/yr) | 100 GB | €0.4655 | Small teams |
-| **Sovereign** | Royal | €12/user/month (€144/yr) | 1,000 GB | €4.6549 | Enterprises |
+| **Sovereign** | Citizens | €12/user/month (€144/yr) | 1,000 GB | €4.6549 | Enterprises |
 
-Revenue model: 80% Resident + 20% Royal blended mix (from P&L model).
+Revenue model: 80% Residents + 20% Citizens blended mix (from P&L model).
 
 ### Infrastructure Costs
 
