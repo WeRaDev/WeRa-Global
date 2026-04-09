@@ -1,0 +1,20 @@
+[submodule "ProductionBase/SolarSeed-v3"]
+	path = ProductionBase/SolarSeed-v3
+	url = http://127.0.0.1:3000/mika/SolarSeed-v3.git
+	branch = main
+[submodule "ProductionBase/FilantropiaSolar"]
+	path = ProductionBase/FilantropiaSolar
+	url = http://127.0.0.1:3000/mika/FilantropiaSolar.git
+	branch = main
+[submodule "ProductionBase/FreeDoo"]
+	path = ProductionBase/FreeDoo
+	url = http://127.0.0.1:3000/mika/FreeDoo.git
+	branch = master
+[submodule "ProductionBase/wera-contracts"]
+	path = ProductionBase/wera-contracts
+	url = http://127.0.0.1:3000/mika/wera-contracts.git
+	branch = develop
+[submodule "ProductionBase/SolarSim"]
+	path = ProductionBase/SolarSim
+	url = http://127.0.0.1:3000/mika/SolarSim.git
+	branch = main
