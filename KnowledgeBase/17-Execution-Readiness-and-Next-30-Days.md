@@ -107,3 +107,12 @@ Rule: long-horizon platform vision is strategic context, not the first conversio
   - narrative discipline adherence
 
 This cadence exists to prevent strategic clarity from collapsing back into narrative overload or serial waiting patterns.
+
+---
+
+## Version-Control Integrity Rule (Gitea)
+
+- Agent changes must follow **feature branch → pull request → merge**.
+- Direct pushes to `main` are disallowed except explicit emergency maintenance.
+- Every task delivery must be committed to the Gitea remote for auditability.
+- PR description must summarize scope, risks, and validation commands used.
