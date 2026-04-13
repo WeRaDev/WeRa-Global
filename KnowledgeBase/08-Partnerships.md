@@ -162,14 +162,25 @@ An 11-company ranked list was developed as alternatives to the primary installat
 
 ---
 
+## Delivery Readiness Gates (Before Scale Claims)
+
+- Validate at least one backup installer able to execute 10+ consecutive installs
+- Validate one backup equipment procurement path with realistic lead times
+- Confirm turnaround SLAs for proposal, site assessment, and installation start
+
+Without these gates, aggressive sales or fundraising claims create delivery-risk exposure.
+
+---
+
 ## Investment Partners
 
 ### Current Funding Structure
 
 | Stage | Instrument | Amount | Terms |
 |---|---|---|---|
-| **Stage 1** (Active) | Convertible Loan | €500,000 | 8% p.a. interest; converts at seed terms |
-| **Stage 2** (Post-acceleration) | Equity | €2,200,000 | 12% voting shares |
+| **Active tactical track** | Object-level financing | Per object | Financing package built from concrete installations and expected cashflow |
+| **Legacy company-level ask** | Convertible + Equity | €500k + €2.2M | Historical framing from earlier deck cycle |
+| **Model baseline (financial sheet)** | SAFE + Equity stages | €660,136 convertible stage + later rounds | Two SAFE tranches (€120k + €540,136) plus seed/Series structure |
 
 - Bond structure planned for later: YX Digital Impact Bonds
 - Family office bond structure referenced in transcripts

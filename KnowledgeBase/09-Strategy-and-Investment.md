@@ -48,6 +48,34 @@ Note: Phase 2 timeline corrected from "7–12" to "7–18" per the investor-faci
 
 ---
 
+## Execution Sequencing (Next 30 Days)
+
+The strategic session confirms a sequencing constraint: the immediate bottleneck is not deck quality, it is execution readiness under time pressure.
+
+### Sequence Order
+1. **Installer-backlog channel first (immediate)** — contact installers and recover declined clients who wanted solar but could not pay upfront.
+2. **Object pipeline assembly** — produce a qualified list of installable objects with cost and lease assumptions.
+3. **Investor re-engagement with object package** — return to investor conversations only after a minimum object-level package is assembled.
+
+### Pre-Investor Readiness Gates
+- Qualified pipeline of concrete customer objects (not generic TAM narrative)
+- At least one backup installer qualified for delivery capacity
+- At least one backup equipment procurement path validated
+
+If these gates are not met, investor conversations should be framed as exploratory only, not as a close-ready raise.
+
+---
+
+## Narrative Discipline Rule
+
+The session confirms an execution risk of narrative overload. Operationally:
+- **Primary story (now):** solar leasing + financing wedge + measurable customer economics
+- **Secondary story (later):** cloud/platform and broader sovereignty architecture
+
+Cloud/platform vision remains strategic upside, but should not displace the first investor conversation objective: financing concrete objects with transparent cashflow logic.
+
+---
+
 ## Golden Pass & Crisis Logic
 
 - **Golden Pass**: SolarSeed owners get full access to the ecosystem — energy, cloud, tokens, governance

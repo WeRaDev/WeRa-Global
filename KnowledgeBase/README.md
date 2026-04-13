@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.2 — April 2026  
+> **Version**: 1.3 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.2**: Full audit resolution (18 gaps + 9 discrepancies from v1.1 audit). Added: mutual leasing mechanism with PT/EU legal framework, bond mechanism (funding not product), CIC CELL sub-fund structure, prediction markets/futarchy governance, Y-Loyalty Impact NFTs, Sunified UNITY quantum-resistance file (345 lines), FilantropiaSolar platform file (339 lines), LOI template, SolarSeed marketplace/proposal calculator, server-focused secondary model, EU solar lead market data, batch acquisition via associations, Strategy PDF terminology. Applied all Section B corrections (Phase 2 timeline, discount guarantee, pipeline composition, expansion countries, Starbucks analogy, 8% return clarification, Bling Energy milestone reconciliation).
+> **Changelog v1.3**: Added strategic-session execution layer: 30-day sequencing, narrative discipline rule, object-level financing package requirements, delivery-readiness gates, and runway urgency framing. Added a dedicated execution file (`17-Execution-Readiness-and-Next-30-Days.md`) and aligned funding narrative to distinguish legacy company-level ask from current object-level financing track.
 
 ---
 
@@ -25,7 +25,7 @@
 | **Installation partner** | Iberia Renew Engineering ([renewiberia.com](https://renewiberia.com)) — signed |
 | **Pilot customer** | Off-grid micro-farm, Torres Vedras, Portugal |
 | **Current burn** | €2,000/month |
-| **Funding ask** | Stage 1: €500k convertible loan (8% p.a.) · Stage 2: €2.2M equity (12% voting shares) |
+| **Funding ask** | Active track: object-level financing proposals (per-install cashflow packages). Model baseline: SAFE €660,136 + seed/equity stages (see `09`, `13`). |
 | **Implied post-money** | ~€18.3M |
 | **Cloud pricing** | Free / €1/user/month / €12/user/month (Royal) |
 | **SolarSeed base CAPEX** | €5,001.26 (69% energy / 31% compute) |
@@ -71,6 +71,7 @@
 | 14 | `14-KB-Audit-v1.1.md` | Systematic audit of v1.1 against all 7 source documents |
 | 15 | `15-Sunified-Quantum-Resistance.md` | Sunified Group UNITY sensor, quantum resistance thesis, WeRa integration |
 | 16 | `16-FilantropiaSolar-Platform.md` | Platform architecture, map app, proposal calculator, ML pipeline |
+| 17 | `17-Execution-Readiness-and-Next-30-Days.md` | Immediate sequencing, investor gate criteria, and operational risk controls |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
 
 ---

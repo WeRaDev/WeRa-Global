@@ -46,7 +46,7 @@
 |---|---|---|---|
 | Q16 | Signed legal opinion document | 🟡 Claimed | Legal opinion on mutual leasing + tokenization compliance "obtained" but not included in KB. |
 | Q17 | Bond prospectus timeline | ⚪ Concept only | YX Digital Impact Bonds in concept stage. No prospectus or CMVM filing. Planned for acceleration phase. |
-| Q18 | Energy community license timeline | ℹ️ Deliberate delay | Not filing now — leasing model avoids license requirement. Will obtain when excess energy available for sale. |
+| Q18 | Energy community license timeline | 🟡 Partially resolved | Not filing now — leasing model avoids license requirement. Transcript references 12–18 months from company establishment for energy-sales licensing path when excess energy sale becomes relevant. |
 | Q19 | WiFi Map user count reconciliation | ℹ️ Noted | External: 170M+; WeRa docs: 180M. Both preserved with context. Likely reflects different reporting dates. |
 | Q20 | City of Light / gamification development timeline | ⚪ Conceptual | Gamified UX layer described in detail but no development timeline or resource allocation. |
 
@@ -75,6 +75,8 @@
 | Q24 | Base vs average config deployment mix | 🟡 Unclear | P&L uses €5,001.26/unit (base config) for 100-unit CapEx (€500,126). But avg config is €22,979.69. Which will actually be deployed? Mix ratio? |
 | Q25 | Team salary structure | 🟡 Needs detail | Model shows €60k/yr for technical and officer roles, €30k/yr for sales. Are these gross or net? Include social charges? Country of employment? |
 | Q26 | Cloud rented capacity scaling | 🟡 Cost risk | At 376k users, rented capacity costs €814k (Y2). If SolarSeed deployment lags, rented costs consume margin. |
+| Q27 | Runway operating reality vs model timeline | 🔴 Critical | Strategic session states founder runway is effectively exhausted (\"already finished, stretched to next month\"). Need contingency path if object-level financing is delayed 30+ days. |
+| Q28 | Execution anti-pattern: single-counterparty dependency | 🟡 Pattern risk | Repeated waiting on one actor (installer or investor) instead of parallel channel execution. Must be tracked as an operating risk, not only a founder coaching note. |
 
 ## Recommendations for Next KB Update
 
@@ -87,3 +89,5 @@
 7. **Clarify SAFE vs convertible loan** structure (Q21)
 8. **Add sensitivity analysis** — model P&L with 50% and 75% of projected WiFi Map users
 9. **Validate base vs avg deployment mix** and recalculate CapEx accordingly
+10. **Define contingency plan under short runway** if object pipeline does not convert in current cycle
+11. **Track and mitigate serial dependency risk** in GTM and fundraising execution

@@ -66,6 +66,24 @@ Cloud constitutes **91.6%** of total 2-year revenue — the business is fundamen
 
 ---
 
+## Object-Level Financing Playbook (Current Tactical Track)
+
+The strategic session reframed the near-term raise from a company-level abstract ask to object-level financing tied to specific installations.
+
+### Minimum Viable Investor Package (MVIP)
+- Qualified object list (customers/sites) with status and installation readiness
+- Install CAPEX estimate per object (equipment + install + contingency)
+- Lease structure per object (term, monthly payment, expected customer savings)
+- Expected cashflow per object (base case + downside/default case)
+- Delivery confirmation (installer availability + backup path)
+
+### Why This Matters
+- Converts investor discussion from narrative belief to measurable asset-backed cashflow
+- Reduces proof burden at pre-revenue stage
+- Creates a bridge from proxy assumptions to operating evidence
+
+---
+
 ## Dual-Proposal Close Strategy
 
 Sales process presents two proposals to each lead:

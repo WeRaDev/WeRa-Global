@@ -146,6 +146,24 @@ Note: Early map also includes training-data stations (not real proposals) used t
 - Aged/secondary leads: as low as €5–20 (30+ days old), conversion rate lower but cost dramatically reduced
 - WeRa's €100–200 secondary lead range is within normal EU market pricing
 
+### Channel Readiness Constraints (Execution Sequencing)
+
+| Channel | Readiness | Dependency | Immediate Action |
+|---|---|---|---|
+| Installer backlogs / declined clients | **Ready now** | None beyond outreach scripts and installer contacts | Call installers and request declined upfront-cost cases |
+| Associations / municipalities / SME batch entry | **Partially blocked** | Legal entity credibility and trust signal | Prioritize legal registration and institution-facing materials |
+| Partner-embedded B2B2C cloud | **Strategic, not immediate** | Formal partner activation and technical integration | Keep as medium-term scale layer, not first execution bet |
+
+Sequencing rule: run installer-backlog channel immediately while preparing institutional channel prerequisites in parallel.
+
+---
+
+## Operator Credibility Evidence
+
+- Founder assembled the first pilot hands-on end-to-end (equipment procurement, logistics, installation coordination)
+- This reduces execution-risk perception versus a purely conceptual founder profile
+- Should be explicitly included in investor and partner narratives as proof of operational capability
+
 ---
 
 ## Messaging Strategy
