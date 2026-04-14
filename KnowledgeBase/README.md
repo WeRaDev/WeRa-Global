@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.7 — April 2026  
+> **Version**: 1.8 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.7**: Implemented corrected-plan Phase 3 protocols: cross-domain integration matrix (`25`), validation protocol (`26`), and pilot cross-domain integration metadata/hooks applied to `03`, `07`, and `08`.
+> **Changelog v1.8**: Final critical review pass applied (naming/stale-reference fixes) and dedicated KB operating guidance added in `KnowledgeBase/WARP.md` with session reflection rules and PR checklist.
 
 ---
 
@@ -81,6 +81,7 @@
 | 24 | `24-KB-Governance-Workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
 | 25 | `25-KB-Cross-Domain-Integration-Matrix-v1.md` | Cross-domain integration patterns, matrix, and pilot operational link path |
 | 26 | `26-KB-Validation-Protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
+| — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
 | — | `templates/KB-Domain-Document-Template-v1.md` | Reusable metadata-first template for new domain documents |
 | — | `templates/KB-Governance-Event-Template-v1.md` | Reusable template for governance workflow event records |

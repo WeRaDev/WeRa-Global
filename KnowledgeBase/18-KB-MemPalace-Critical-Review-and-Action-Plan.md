@@ -17,7 +17,7 @@ This document reviews `KB-memPalace-upgrade.md` as a task specification, identif
 
 ### F2. Naming inconsistency with canonical KB
 - The source spec uses `Vera Cloud` and `Solar Seed`; canonical KB uses `WERA Cloud` and `SolarSeed`.
-- **Correction**: correct canonical names to be: `WeRaCloud` for digital product line where `CityLight` (wera-global/SolarSeed-v3/src/commit/2f68bc548636aa46b0e032e4f618f7f60bae7c9e#solarseed-v3--city-of-light-trl4) is the base product; `WeRaSolar` for physical product line where `SolarSeed` is the base product; enforce canonical names everywhere to prevent taxonomy drift.
+- **Correction**: enforce canonical names as `WERA Cloud` (digital platform) and `SolarSeed` (physical station). `City of Light` remains a conceptual/roadmap layer, not a replacement product name in core business-model docs.
 
 ### F3. Leasing formula inconsistency (logical conflict)
 - Source process defines:
@@ -30,7 +30,7 @@ This document reviews `KB-memPalace-upgrade.md` as a task specification, identif
 
 ### F4. Unsupported “hard” benchmark claims
 - The source file presents specific performance claims (e.g., LongMemEval and retrieval uplift) as established facts without in-repo evidence.
-- **Correction**: research https://github.com/mempalace/mempalace to verify the claims.
+- **Correction**: mark claims as `unverified` in WeRa context until reproducible benchmark evidence is stored in KB.
 
 ### F5. Over-prescriptive implementation commands without environment proof
 - Source includes CLI/API commands and MCP activation paths that are not validated against current WeRa environment.
@@ -130,9 +130,9 @@ Acceptance:
 ## Immediate KB Changes Required from This Review
 
 1. Keep MemPalace initiative as **candidate architecture**, not established baseline.
-2. Enforce canonical names: `WeRaCloud`:`CityLight` and `WeRaSolar`:`SolarSeed`.
+2. Enforce canonical names: `WERA Cloud` and `SolarSeed`.
 3. Correct leasing logic as qualification rule, not contradictory formula.
-4. Research to address questions for benchmark verification, tooling reality, and governance safety.
+4. Track benchmark/tooling/governance validation in `12-Open-Questions.md` before operational adoption.
 
 ---
 

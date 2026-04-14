@@ -13,8 +13,8 @@ Define canonical terminology and status enums for WeRa KB operations to prevent 
 |---|---|---|
 | `WeRaSolar` | Solar business line | Physical product line wrapper |
 | `SolarSeed` | Solar Seed, SolarSeat | Base physical product under WeRaSolar |
-| `WeRaCloud` | WERA Cloud, Vera Cloud | Digital product line wrapper |
-| `CityLight` | City of Light | Base product concept under WeRaCloud line context |
+| `WERA Cloud` | WeRaCloud, Vera Cloud | Digital product line wrapper |
+| `City of Light` | CityLight | Conceptual/roadmap layer, not replacement for WERA Cloud |
 
 Rule: deprecated aliases may appear only in historical notes with explicit “alias/deprecated” label.
 

@@ -8,7 +8,7 @@ This document verifies current KB structure and defines the canonical 12-domain 
 ---
 
 ## Verification Summary (Current State)
-- Current KB is organized as a numbered monograph set (`00` to `18`) plus templates.
+- Current KB is organized as a numbered monograph set (`00` to `26`) plus templates.
 - Coverage exists for most BMC/Lean topics, but not as explicit domain-governed modules.
 - Cross-domain ownership and controlled vocabulary were not formally codified.
 
