@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.3 — April 2026  
+> **Version**: 1.4 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.3**: Added strategic-session execution layer: 30-day sequencing, narrative discipline rule, object-level financing package requirements, delivery-readiness gates, and runway urgency framing. Added a dedicated execution file (`17-Execution-Readiness-and-Next-30-Days.md`) and aligned funding narrative to distinguish legacy company-level ask from current object-level financing track.
+> **Changelog v1.4**: Added critical review and correction plan for the MemPalace KB specification (`18-KB-MemPalace-Critical-Review-and-Action-Plan.md`), including contradiction fixes, claim-verification policy, and phased actionable upgrade workstreams for BMC+Lean restructuring.
 
 ---
 
@@ -72,6 +72,7 @@
 | 15 | `15-Sunified-Quantum-Resistance.md` | Sunified Group UNITY sensor, quantum resistance thesis, WeRa integration |
 | 16 | `16-FilantropiaSolar-Platform.md` | Platform architecture, map app, proposal calculator, ML pipeline |
 | 17 | `17-Execution-Readiness-and-Next-30-Days.md` | Immediate sequencing, investor gate criteria, and operational risk controls |
+| 18 | `18-KB-MemPalace-Critical-Review-and-Action-Plan.md` | Critical review of memPalace spec, corrected decisions, and actionable KB-upgrade workstreams |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
 
 ---

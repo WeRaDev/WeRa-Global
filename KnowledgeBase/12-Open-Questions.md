@@ -77,6 +77,10 @@
 | Q26 | Cloud rented capacity scaling | 🟡 Cost risk | At 376k users, rented capacity costs €814k (Y2). If SolarSeed deployment lags, rented costs consume margin. |
 | Q27 | Runway operating reality vs model timeline | 🔴 Critical | Strategic session states founder runway is effectively exhausted (\"already finished, stretched to next month\"). Need contingency path if object-level financing is delayed 30+ days. |
 | Q28 | Execution anti-pattern: single-counterparty dependency | 🟡 Pattern risk | Repeated waiting on one actor (installer or investor) instead of parallel channel execution. Must be tracked as an operating risk, not only a founder coaching note. |
+| Q29 | MemPalace benchmark claims verification | 🟡 Needs evidence | Performance claims from external spec are not yet validated in WeRa context. Require reproducible benchmark method + run logs before adopting as KB facts. |
+| Q30 | “Local-only” architecture consistency | 🟡 Contradiction risk | MemPalace draft includes Notion while requiring sovereign local storage. Need final architecture decision for human-facing layer consistent with self-hosting policy. |
+| Q31 | Leasing formula consistency in case-builder spec | 🔴 Logic conflict | Current draft formula can conflict with 20% discount constraint. Need single canonical qualification/pricing rule and exception path. |
+| Q32 | MemPalace CLI/MCP command compatibility | 🟡 Environment risk | Command examples in draft are not yet validated against current environment/tooling. Require dry-run validation before operational adoption. |
 
 ## Recommendations for Next KB Update
 
@@ -91,3 +95,5 @@
 9. **Validate base vs avg deployment mix** and recalculate CapEx accordingly
 10. **Define contingency plan under short runway** if object pipeline does not convert in current cycle
 11. **Track and mitigate serial dependency risk** in GTM and fundraising execution
+12. **Publish canonical memPalace adoption decision** (adopt/defer/replace) with evidence status labels
+13. **Validate and document executable command set** for KB tooling before rollout
