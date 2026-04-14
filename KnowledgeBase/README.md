@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.5 — April 2026  
+> **Version**: 1.6 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.5**: Implemented corrected-plan Phase 1 foundations: canonical 12-domain taxonomy map (`19`), file-to-domain ownership map (`20`), controlled vocabulary/entity standards (`21`), and anonymized case schema + lifecycle rules (`22`).
+> **Changelog v1.6**: Implemented corrected-plan Phase 2 governance artifacts: domain-specific template pack (`23`), governance workflow specification (`24`), and reusable templates for domain documents and governance events under `templates/`.
 
 ---
 
@@ -77,7 +77,11 @@
 | 20 | `20-KB-File-to-Domain-Ownership-Map-v1.md` | Mapped existing KB files to primary/secondary domains and ownership model |
 | 21 | `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md` | Canonical terminology, status enums, evidence labels, and provenance requirements |
 | 22 | `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md` | Privacy boundary contract, anonymized case schema, and lifecycle transition rules |
+| 23 | `23-KB-Domain-Template-Pack-v1.md` | Domain-specific template definitions for all canonical BMC+Lean domains |
+| 24 | `24-KB-Governance-Workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
+| — | `templates/KB-Domain-Document-Template-v1.md` | Reusable metadata-first template for new domain documents |
+| — | `templates/KB-Governance-Event-Template-v1.md` | Reusable template for governance workflow event records |
 
 ---
 
