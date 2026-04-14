@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.4 — April 2026  
+> **Version**: 1.5 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.4**: Added critical review and correction plan for the MemPalace KB specification (`18-KB-MemPalace-Critical-Review-and-Action-Plan.md`), including contradiction fixes, claim-verification policy, and phased actionable upgrade workstreams for BMC+Lean restructuring.
+> **Changelog v1.5**: Implemented corrected-plan Phase 1 foundations: canonical 12-domain taxonomy map (`19`), file-to-domain ownership map (`20`), controlled vocabulary/entity standards (`21`), and anonymized case schema + lifecycle rules (`22`).
 
 ---
 
@@ -73,6 +73,10 @@
 | 16 | `16-FilantropiaSolar-Platform.md` | Platform architecture, map app, proposal calculator, ML pipeline |
 | 17 | `17-Execution-Readiness-and-Next-30-Days.md` | Immediate sequencing, investor gate criteria, and operational risk controls |
 | 18 | `18-KB-MemPalace-Critical-Review-and-Action-Plan.md` | Critical review of memPalace spec, corrected decisions, and actionable KB-upgrade workstreams |
+| 19 | `19-KB-Domain-Taxonomy-Map-v1.md` | Verified current structure and defined canonical 12-domain BMC+Lean taxonomy |
+| 20 | `20-KB-File-to-Domain-Ownership-Map-v1.md` | Mapped existing KB files to primary/secondary domains and ownership model |
+| 21 | `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md` | Canonical terminology, status enums, evidence labels, and provenance requirements |
+| 22 | `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md` | Privacy boundary contract, anonymized case schema, and lifecycle transition rules |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
 
 ---
