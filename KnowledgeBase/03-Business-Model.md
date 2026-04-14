@@ -2,6 +2,20 @@
 
 ---
 
+## Domain Integration Metadata (Phase 3)
+
+- **Primary domain**: `domain_revenue`
+- **Secondary domains**: `domain_value_prop`, `domain_costs`, `domain_partners`, `domain_metrics`
+- **Upstream dependencies**: `07-Customers-and-GTM.md`, `08-Partnerships.md`
+- **Downstream dependencies**: `13-Financial-Model.md`, `12-Open-Questions.md`
+- **Evidence status baseline**: mixed (`verified` for spreadsheet-extracted values, `unverified/hypothesis` for assumption-driven projections)
+- **Validation hooks**:
+  - pricing/qualification consistency check against `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md`
+  - terminology consistency check against `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md`
+  - cross-domain chain check against `25-KB-Cross-Domain-Integration-Matrix-v1.md` and `26-KB-Validation-Protocol-v1.md`
+
+---
+
 ## Revenue Streams
 
 ### Stream 1: Physical — SolarSeed Leasing

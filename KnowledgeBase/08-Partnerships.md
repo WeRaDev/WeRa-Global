@@ -2,6 +2,20 @@
 
 ---
 
+## Domain Integration Metadata (Phase 3)
+
+- **Primary domain**: `domain_partners`
+- **Secondary domains**: `domain_channels`, `domain_activities`, `domain_revenue`, `domain_costs`
+- **Upstream dependencies**: `07-Customers-and-GTM.md`, `25-KB-Cross-Domain-Integration-Matrix-v1.md`
+- **Downstream dependencies**: `03-Business-Model.md`, `13-Financial-Model.md`, `12-Open-Questions.md`
+- **Evidence status baseline**: mixed (confirmed partner profiles + pending MoU assumptions)
+- **Validation hooks**:
+  - partner performance and readiness gate consistency with `24-KB-Governance-Workflows-v1.md`
+  - terminology/status consistency with `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md`
+  - pilot chain integration check against `26-KB-Validation-Protocol-v1.md`
+
+---
+
 ## Partner Engagement Status
 
 | Partner | Vertical | Status | Relationship Level |

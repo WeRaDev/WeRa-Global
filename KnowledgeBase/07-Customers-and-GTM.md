@@ -2,6 +2,20 @@
 
 ---
 
+## Domain Integration Metadata (Phase 3)
+
+- **Primary domain**: `domain_customers`
+- **Secondary domains**: `domain_channels`, `domain_relationships`, `domain_partners`, `domain_metrics`
+- **Upstream dependencies**: `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md`, `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md`
+- **Downstream dependencies**: `08-Partnerships.md`, `03-Business-Model.md`, `13-Financial-Model.md`
+- **Evidence status baseline**: mixed (validated transcript/market references + pipeline assumptions)
+- **Validation hooks**:
+  - case field and PII-boundary check against `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md`
+  - channel code and segment code consistency against `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md`
+  - pilot chain integration check against `25-KB-Cross-Domain-Integration-Matrix-v1.md` and `26-KB-Validation-Protocol-v1.md`
+
+---
+
 ## Customer Segments
 
 ### Segment 1: Ideological Prosumers

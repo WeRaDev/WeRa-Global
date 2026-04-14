@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.6 — April 2026  
+> **Version**: 1.7 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.6**: Implemented corrected-plan Phase 2 governance artifacts: domain-specific template pack (`23`), governance workflow specification (`24`), and reusable templates for domain documents and governance events under `templates/`.
+> **Changelog v1.7**: Implemented corrected-plan Phase 3 protocols: cross-domain integration matrix (`25`), validation protocol (`26`), and pilot cross-domain integration metadata/hooks applied to `03`, `07`, and `08`.
 
 ---
 
@@ -79,6 +79,8 @@
 | 22 | `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md` | Privacy boundary contract, anonymized case schema, and lifecycle transition rules |
 | 23 | `23-KB-Domain-Template-Pack-v1.md` | Domain-specific template definitions for all canonical BMC+Lean domains |
 | 24 | `24-KB-Governance-Workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
+| 25 | `25-KB-Cross-Domain-Integration-Matrix-v1.md` | Cross-domain integration patterns, matrix, and pilot operational link path |
+| 26 | `26-KB-Validation-Protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
 | — | `templates/KB-Domain-Document-Template-v1.md` | Reusable metadata-first template for new domain documents |
 | — | `templates/KB-Governance-Event-Template-v1.md` | Reusable template for governance workflow event records |
