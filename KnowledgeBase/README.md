@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.8 — April 2026  
+> **Version**: 2.0 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.8**: Final critical review pass applied (naming/stale-reference fixes) and dedicated KB operating guidance added in `KnowledgeBase/WARP.md` with session reflection rules and PR checklist.
+> **Changelog v2.0**: Hardened reproducibility controls (pinned image/commit/hash), added security-check script hardening, and logged governance incident/remediation event for benchmark-policy breach (`28`).
 
 ---
 
@@ -81,7 +81,11 @@
 | 24 | `24-KB-Governance-Workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
 | 25 | `25-KB-Cross-Domain-Integration-Matrix-v1.md` | Cross-domain integration patterns, matrix, and pilot operational link path |
 | 26 | `26-KB-Validation-Protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
+| 27 | `27-KB-Security-Policy-ONNX-and-Benchmark-Execution-v1.md` | Docker-only benchmark policy, ONNX CVE controls, security checks, and incident response triggers |
+| 28 | `28-KB-Governance-Event-2026-04-15-Benchmark-Execution-Breach-and-Remediation.md` | Formal governance incident log documenting host-execution breach, impact, and corrective controls |
 | — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
+| — | `tools/run_mempalace_longmemeval_docker.sh` | Docker-only LongMemEval dry-run runner for Q29 evidence collection |
+| — | `tools/security_checks_onnx.sh` | ONNX version/pattern security checks for CVE risk controls |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
 | — | `templates/KB-Domain-Document-Template-v1.md` | Reusable metadata-first template for new domain documents |
 | — | `templates/KB-Governance-Event-Template-v1.md` | Reusable template for governance workflow event records |

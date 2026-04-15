@@ -95,6 +95,23 @@ Exit criteria:
 
 ---
 
+## Workflow 7: Containerized Benchmark and Security Gate
+
+Trigger: any benchmark/tooling claim validation (including Q29/Q32 updates).
+
+1. Verify benchmark command path is containerized (Docker-only execution).
+2. Run ONNX baseline checks using `tools/security_checks_onnx.sh`.
+3. Enforce ONNX minimum version policy floor (`>=1.21.0`).
+4. Verify no prohibited `onnx.hub.load(..., silent=True)` usage in relevant tooling.
+5. Verify evidence metadata includes pinned image digest, benchmark commit, and dataset SHA256.
+6. Record command, container image, dependency versions, and output evidence in PR notes.
+
+Exit criteria:
+- No benchmark evidence sourced from direct host execution.
+- Security checks passed or explicit `unverified` label retained with blocker logged in `12`.
+
+---
+
 ## Governance Event Log Template
 
 ```yaml path=null start=null
