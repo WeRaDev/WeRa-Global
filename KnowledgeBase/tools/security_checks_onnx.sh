@@ -52,7 +52,6 @@ done < <(
     ! -path "*/.venv/*" -print0
 )
 if [[ "${TAR_WARN}" -eq 1 ]]; then
-if [[ -n "${CODE_FILES}" ]] && grep -nE "tarfile\.extractall" ${CODE_FILES}; then
   echo "[WARN] tarfile.extractall found; review for path traversal protections"
 else
   echo "[OK] no tarfile.extractall usage found in target tree"

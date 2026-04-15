@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 2.0 — April 2026  
+> **Version**: 2.1 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v2.0**: Hardened reproducibility controls (pinned image/commit/hash), added security-check script hardening, and logged governance incident/remediation event for benchmark-policy breach (`28`).
+> **Changelog v2.1**: Executed hardened container benchmark validation and documented evidence/results in `29-KB-Benchmark-Verification-Report-2026-04-15.md`.
 
 ---
 
@@ -83,6 +83,7 @@
 | 26 | `26-KB-Validation-Protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
 | 27 | `27-KB-Security-Policy-ONNX-and-Benchmark-Execution-v1.md` | Docker-only benchmark policy, ONNX CVE controls, security checks, and incident response triggers |
 | 28 | `28-KB-Governance-Event-2026-04-15-Benchmark-Execution-Breach-and-Remediation.md` | Formal governance incident log documenting host-execution breach, impact, and corrective controls |
+| 29 | `29-KB-Benchmark-Verification-Report-2026-04-15.md` | Evidence-backed verification report for hardened container benchmark controls and sample run results |
 | — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
 | — | `tools/run_mempalace_longmemeval_docker.sh` | Docker-only LongMemEval dry-run runner for Q29 evidence collection |
 | — | `tools/security_checks_onnx.sh` | ONNX version/pattern security checks for CVE risk controls |
