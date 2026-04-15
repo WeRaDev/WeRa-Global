@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 2.2 — April 2026  
+> **Version**: 2.4 — April 2026  
 > **Scope**: Complete machine-readable reference for the WeRa Global project  
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v2.2**: Added expanded-scope hardened benchmark verification (limit 100) and documented evidence/results in `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md`.
+> **Changelog v2.4**: Executed KB upgrade completion policy with deferred unresolved-questions track and TRL4-scoped MemPalace testing in `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md`; updated `31` and `12` for completion-state alignment.
 
 ---
 
@@ -85,6 +85,8 @@
 | 28 | `28-KB-Governance-Event-2026-04-15-Benchmark-Execution-Breach-and-Remediation.md` | Formal governance incident log documenting host-execution breach, impact, and corrective controls |
 | 29 | `29-KB-Benchmark-Verification-Report-2026-04-15.md` | Evidence-backed verification report for hardened container benchmark controls and sample run results |
 | 30 | `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` | Expanded-scope (100-question) verification report for hardened container benchmark controls |
+| 31 | `31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md` | KB-upgrade completion-state status and post-upgrade handoff summary |
+| 32 | `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md` | Canonical completion decision, unresolved-question deferral policy, and TRL4-scoped MemPalace integration rule |
 | — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
 | — | `tools/run_mempalace_longmemeval_docker.sh` | Docker-only LongMemEval dry-run runner for Q29 evidence collection |
 | — | `tools/security_checks_onnx.sh` | ONNX version/pattern security checks for CVE risk controls |

@@ -1,6 +1,8 @@
 # 12 — Open Questions and Due-Diligence Gaps
 
 > Items that remain unresolved or require additional documentation for full knowledge base integrity.
+>
+> **Policy note (2026-04-15)**: Per `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md`, unresolved questions are tracked as a post-upgrade execution lane and do not by themselves indicate KB-upgrade incompleteness.
 
 ---
 
@@ -77,10 +79,10 @@
 | Q26 | Cloud rented capacity scaling | 🟡 Cost risk | At 376k users, rented capacity costs €814k (Y2). If SolarSeed deployment lags, rented costs consume margin. |
 | Q27 | Runway operating reality vs model timeline | 🔴 Critical | Strategic session states founder runway is effectively exhausted (\"already finished, stretched to next month\"). Need contingency path if object-level financing is delayed 30+ days. |
 | Q28 | Execution anti-pattern: single-counterparty dependency | 🟡 Pattern risk | Repeated waiting on one actor (installer or investor) instead of parallel channel execution. Must be tracked as an operating risk, not only a founder coaching note. |
-| Q29 | MemPalace benchmark claims verification | 🟡 Partially resolved | Hardened container verification runs are completed and documented in `29-KB-Benchmark-Verification-Report-2026-04-15.md` (limit 20) and `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` (limit 100), including pinned image/commit/hash, security gate, and archived evidence artifacts. This verifies method stability under expanded scope; external headline claims remain `unverified` for WeRa baseline until full-scope reproducibility is executed. **Owner**: KB steward + technical steward. **Next action**: run full benchmark scope under same hardened flow and append final evidence delta. |
+| Q29 | MemPalace benchmark claims verification | 🟡 Deferred (post-upgrade) | Hardened container verification runs are completed and documented in `29-KB-Benchmark-Verification-Report-2026-04-15.md` (limit 20) and `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` (limit 100), including pinned image/commit/hash, security gate, and archived evidence artifacts. This verifies method stability under expanded scope; external headline claims remain `unverified` for WeRa baseline. **Owner**: KB steward + technical steward. **Next action**: execute full-scope reproducibility only within scheduled TRL4 test scope and append evidence delta without reopening KB-upgrade closure. |
 | Q30 | “Local-only” architecture consistency | ✅ Resolved v1.9 | Architecture decision is now consistent in operational KB: sovereign local/self-hosted tooling only for SSOT operations; Notion is rejected for the local-only baseline and retained only in source-spec history context. Canonical decision recorded by critical review (`18-KB-MemPalace-Critical-Review-and-Action-Plan.md`). |
 | Q31 | Leasing formula consistency in case-builder spec | ✅ Resolved v1.9 | Canonical qualification rule is adopted and conflict removed in operational schema (`22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md`): qualification requires `required_leasing ≤ avg_monthly_bill_eur * 0.80`, with explicit exception handling path (`NEGOTIATION`/`DECLINED`) instead of contradictory forced pricing. |
-| Q32 | MemPalace CLI/MCP command compatibility | 🟡 Partially resolved | Containerized benchmark/security workflow now verifies non-CLI hardening path; however, direct local CLI/MCP compatibility remains unverified because `mempalace` and `claude` CLIs are intentionally not present on host. **Owner**: technical steward. **Next action**: if local CLI/MCP operations are required, reinstall toolchain and run dedicated CLI/MCP smoke tests with archived evidence. |
+| Q32 | MemPalace CLI/MCP command compatibility | 🟡 Deferred (post-upgrade) | Containerized benchmark/security workflow verifies the non-CLI hardening path; direct local CLI/MCP compatibility remains unverified because `mempalace` and `claude` CLIs are intentionally not present on host baseline. **Owner**: technical steward. **Next action**: run dedicated local CLI/MCP smoke tests only if local path is explicitly required; otherwise retain containerized path as canonical for current cycle. |
 
 ## Recommendations for Next KB Update
 

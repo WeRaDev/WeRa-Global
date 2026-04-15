@@ -28,9 +28,11 @@ Exit criteria:
 2. Assign evidence label (`verified`, `unverified`, `hypothesis`).
 3. Attach source references and reproducibility notes where applicable.
 4. If label is `unverified` or `hypothesis`, add explicit validation task to `12`.
+5. If unresolved item is non-blocking for current deliverable scope, classify it as deferred post-upgrade work per `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md`.
 
 Exit criteria:
 - No unlabeled high-impact claim remains.
+- Unresolved claims are either scoped as immediate blockers or explicitly marked as deferred with owner and next action.
 
 ---
 
