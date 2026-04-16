@@ -32,3 +32,9 @@ repos:
     default_branch: main
     status: active
     role: standalone energy simulation engine
+  - id: Bild
+    path: ProductionBase/Bild
+    gitea_url: http://127.0.0.1:3000/wera-global/Bild.git
+    default_branch: main
+    status: incubation
+    role: AI procurement agent for Leroy Merlin PRO pilot operations
