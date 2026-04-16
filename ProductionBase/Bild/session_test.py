@@ -1,34 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
-from typing import Any
 
-
-def _load_session_state(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as file:
-        data = json.load(file)
-    if not isinstance(data, dict):
-        raise ValueError("Session state must be a JSON object.")
-    if "cookies" not in data:
-        raise ValueError("Session state missing 'cookies' key.")
-    if "origins" not in data:
-        raise ValueError("Session state missing 'origins' key.")
-    return data
-
-
-def _count_leroy_cookies(session_data: dict[str, Any]) -> int:
-    cookies = session_data.get("cookies", [])
-    if not isinstance(cookies, list):
-        raise ValueError("'cookies' must be a list.")
-    return sum(
-        1
-        for cookie in cookies
-        if isinstance(cookie, dict)
-        and "domain" in cookie
-        and "leroymerlin" in str(cookie["domain"]).lower()
-    )
+from src.bild.session_state import load_session_state, summarize_session
 
 
 def main() -> int:
@@ -55,11 +30,12 @@ def main() -> int:
         print("Create one via headed login capture and store it outside git.")
         return 1
 
-    session_data = _load_session_state(session_path)
-    leroy_cookie_count = _count_leroy_cookies(session_data)
+    session_data = load_session_state(session_path)
+    summary = summarize_session(session_data)
     print("Session structure: OK")
-    print(f"Cookie entries: {len(session_data.get('cookies', []))}")
-    print(f"Leroy Merlin cookie entries: {leroy_cookie_count}")
+    print(f"Cookie entries: {summary['cookie_entries']}")
+    print(f"Origin entries: {summary['origin_entries']}")
+    print(f"Leroy Merlin cookie entries: {summary['domain_cookie_entries']}")
 
     if args.dry_run:
         print("Dry-run mode: no network checks executed.")
@@ -72,4 +48,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -22,8 +22,9 @@ If `requirements.txt` does not exist yet, create it as part of Sprint 1 when ser
 ## Core workflows
 - Build: `python -m pip install -r requirements.txt`
 - Test: `python -m pytest -q`
-- Lint/typecheck: `ruff check . && ruff format --check . && mypy session_test.py`
+- Lint/typecheck: `ruff check . && ruff format --check . && mypy src session_test.py har_extract.py`
 - Run (Sprint 1 scaffold validation): `python session_test.py --dry-run`
+- Run (HAR endpoint extraction): `python har_extract.py --har-file /path/to/capture.har --output-markdown observed_endpoints.md`
 
 ## Constraints and known limits
 - Primary technical risk: DataDome + Cloudflare bot defenses may block standard headless automation.

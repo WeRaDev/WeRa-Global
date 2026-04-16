@@ -10,6 +10,9 @@ def test_required_scaffold_files_exist() -> None:
         root / "requirements.txt",
         root / "API_ENDPOINTS.md",
         root / "session_test.py",
+        root / "har_extract.py",
+        root / "src" / "bild" / "session_state.py",
+        root / "src" / "bild" / "har_endpoints.py",
         root / "docs" / "evidence-status.md",
         root / "tasks" / "execution-readiness.md",
         root / "docs" / "adr" / "0001-session-architecture.md",
@@ -18,4 +21,3 @@ def test_required_scaffold_files_exist() -> None:
     ]
     for path in required:
         assert path.exists(), f"Missing expected scaffold file: {path}"
-

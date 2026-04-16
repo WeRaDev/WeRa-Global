@@ -36,6 +36,6 @@ jobs:
       - name: Format check
         run: ruff format --check .
       - name: Type check
-        run: mypy session_test.py
+        run: mypy src session_test.py har_extract.py
       - name: Tests
         run: pytest -q
