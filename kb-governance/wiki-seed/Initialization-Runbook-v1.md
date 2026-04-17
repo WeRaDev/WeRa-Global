@@ -1,6 +1,6 @@
 # Gitea Wiki Initialization Runbook v1
-version: 1.0
-status: partial-ready
+version: 1.1
+status: completed-in-sprint-2026-17
 owner: governance steward
 scope: REALIGN-07
 
@@ -8,12 +8,20 @@ scope: REALIGN-07
 Initialize the wiki git repository and publish seed navigation pages from `kb-governance/wiki-seed/`.
 
 ## Execution status
-- Endpoint probe attempted:
-  - `git --no-pager ls-remote http://127.0.0.1:3000/wera-global/WeRa-Global.wiki.git`
-- Result at execution time:
-  - `fatal: Could not read from remote repository.`
-- Interpretation:
-  - wiki git endpoint is not yet available, so direct initialization was not completed in this sprint.
+- Initial state at prior sprint closure:
+  - direct wiki endpoint probe failed (`Could not read from remote repository`).
+- Sprint `2026-17` execution path:
+  - wiki seed pages were published via Gitea API endpoint `POST /repos/{owner}/{repo}/wiki/new`.
+- Published pages:
+  - `Home`
+  - `Domain-Index`
+  - `Governance-Index`
+- Verification evidence:
+  - pages are listed by `GET /repos/wera-global/WeRa-Global/wiki/pages`,
+  - page retrieval works via `GET /repos/wera-global/WeRa-Global/wiki/page/{pageName}`,
+  - wiki git endpoint is now reachable:
+    - `git --no-pager ls-remote http://127.0.0.1:3000/wera-global/WeRa-Global.wiki.git`
+    - returns `refs/heads/main`.
 
 ## Preconditions for initialization
 1. Repository wiki feature is enabled in Gitea UI/admin settings.
@@ -31,6 +39,13 @@ Initialize the wiki git repository and publish seed navigation pages from `kb-go
    - `git -C /tmp/WeRa-Global.wiki add Home.md Domain-Index.md Governance-Index.md`
    - `git -C /tmp/WeRa-Global.wiki commit -m "Initialize KB wiki navigation indexes"`
    - `git -C /tmp/WeRa-Global.wiki push origin main`
+Alternative API path (used in sprint `2026-17`):
+1. For each page title, call:
+   - `POST /api/v1/repos/wera-global/WeRa-Global/wiki/new`
+2. Provide payload:
+   - `title`
+   - `content_base64`
+   - `message`
 
 ## Post-initialization checks
 1. Wiki home page renders and links resolve.

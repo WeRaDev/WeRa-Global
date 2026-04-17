@@ -1,0 +1,31 @@
+name: kb-canonical-validate
+
+on:
+  pull_request:
+    paths:
+      - "KnowledgeBase/**/*.md"
+      - "kb-governance/**/*.md"
+      - "kb-governance/ci/scripts/*.py"
+      - ".gitea/workflows/kb-canonical-validate.yml"
+  push:
+    branches:
+      - "main"
+      - "feat/**"
+    paths:
+      - "KnowledgeBase/**/*.md"
+      - "kb-governance/**/*.md"
+      - "kb-governance/ci/scripts/*.py"
+      - ".gitea/workflows/kb-canonical-validate.yml"
+
+jobs:
+  canonical-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run canonical KB validation checks
+        run: python3 kb-governance/ci/scripts/kb_canonical_validate.py

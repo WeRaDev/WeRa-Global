@@ -59,6 +59,12 @@ Operational KB records used by agents must provide:
   - governance council approves production autonomy policy,
   - audit evidence confirms privacy and naming compliance.
 
+## Governance routing entities
+- WeRa Capital: required approver for `temporal_scope=current`.
+- WeRa STAK: required approver for `temporal_scope=past`.
+- WeRa Association: required approver for `temporal_scope=future`.
+- Mixed-scope decisions require multi-entity routing according to governance policy.
+
 ## Validation references
 - `KnowledgeBase/kb-governance/docs/validation/26-validation-protocol-v1.md`
 - `KnowledgeBase/kb-governance/docs/workflows/24-governance-workflows-v1.md`
