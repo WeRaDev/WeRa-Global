@@ -1,0 +1,42 @@
+{
+  "skill_name": "wera-skill-framework",
+  "version": "1.0",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add export user data feature quickly.",
+      "expected_output": "Response surfaces assumptions about scope, format, privacy, and volume before implementation.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Fix bug: empty email crashes validator.",
+      "expected_output": "Patch is surgical and limited to bug-fix scope, without unrelated refactors.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Add a discount calculator.",
+      "expected_output": "Solution is minimal and avoids unnecessary abstraction for single-use logic.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Refactor authentication module.",
+      "expected_output": "Plan includes explicit success criteria and verification checks before and after changes.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Make search faster.",
+      "expected_output": "Response presents tradeoff options instead of silently choosing one interpretation.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Add rate limiting to API.",
+      "expected_output": "Execution is broken into incremental verifiable steps with clear checks.",
+      "files": []
+    }
+  ]
+}

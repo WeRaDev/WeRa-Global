@@ -1,0 +1,29 @@
+name: kb-governance-routing
+
+on:
+  pull_request:
+    paths:
+      - "KnowledgeBase/**/*.md"
+      - "kb-governance/**/*.md"
+      - "kb-governance/ci/scripts/*.py"
+      - ".gitea/workflows/kb-governance-routing.yml"
+  push:
+    branches:
+      - "main"
+      - "feat/**"
+    paths:
+      - "KnowledgeBase/**/*.md"
+      - "kb-governance/**/*.md"
+      - "kb-governance/ci/scripts/*.py"
+      - ".gitea/workflows/kb-governance-routing.yml"
+
+jobs:
+  governance-routing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Verify pre-installed Python
+        run: python3 --version
+      - name: Run governance routing readiness checks
+        run: python3 kb-governance/ci/scripts/kb_governance_routing_check.py
