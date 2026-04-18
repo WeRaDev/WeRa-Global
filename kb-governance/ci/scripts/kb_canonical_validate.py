@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -102,12 +103,30 @@ def check_markdown_files(root: Path, errors: list[str]) -> None:
                 )
 
 
-def main() -> int:
-    root = repo_root()
+def collect_errors(root: Path) -> list[str]:
     errors: list[str] = []
-
     check_no_top_level_domain_dirs(root, errors)
     check_markdown_files(root, errors)
+    return errors
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Validate canonical KB layout and baseline metadata/policy signals."
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root path to validate (defaults to auto-detected repo root).",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = args.root.resolve() if args.root is not None else repo_root()
+    errors = collect_errors(root)
 
     if errors:
         print("kb_canonical_validate: FAILED")

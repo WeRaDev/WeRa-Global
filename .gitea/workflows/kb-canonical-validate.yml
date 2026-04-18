@@ -27,3 +27,5 @@ jobs:
         run: python3 --version
       - name: Run canonical KB validation checks
         run: python3 kb-governance/ci/scripts/kb_canonical_validate.py
+      - name: Run quality-gate fixture assurance
+        run: python3 kb-governance/ci/scripts/kb_quality_gate_fixtures.py
