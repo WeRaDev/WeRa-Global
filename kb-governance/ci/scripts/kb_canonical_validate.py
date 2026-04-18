@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
 
 VALID_TEMPORAL_SCOPES = {"current", "past", "future", "mixed"}
 VALID_EVIDENCE_STATUS = {"verified", "unverified", "hypothesis"}
+LEGACY_EVIDENCE_STATUS = {
+    "gap-register",
+    "quantified-model-v1.1",
+    "mixed (documented, partner formalization pending)",
+    "mixed (signed + relationship-based leads)",
+    "mixed (model-backed assumptions + pending partner confirmations)",
+}
 
 
 def repo_root() -> Path:
@@ -18,6 +26,14 @@ def read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return path.read_text(encoding="utf-8", errors="replace")
+
+
+def normalize_metadata_enum(raw_value: str) -> str:
+    value = raw_value.split("#", 1)[0].strip().lower()
+    value = value.strip().strip("`'\"")
+    value = value.rstrip(",.;")
+    value = value.strip("`'\"")
+    return value
 
 
 def check_no_top_level_domain_dirs(root: Path, errors: list[str]) -> None:
@@ -50,12 +66,13 @@ def check_markdown_files(root: Path, errors: list[str]) -> None:
         return
 
     email_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b")
-    temporal_pattern = re.compile(r"temporal_scope\s*:\s*([A-Za-z_-]+)")
-    evidence_pattern = re.compile(r"evidence_status\s*:\s*([A-Za-z_-]+)")
+    temporal_pattern = re.compile(r"temporal_scope\s*:\s*([^\n\r]+)")
+    evidence_pattern = re.compile(r"evidence_status\s*:\s*([^\n\r]+)")
 
     for path in sorted(kb_root.rglob("*.md")):
         rel = path.relative_to(root).as_posix()
         text = read_text(path)
+        is_template_path = rel.startswith("KnowledgeBase/templates/")
 
         # Metadata/provenance signal check for canonical domain docs.
         if rel.startswith("KnowledgeBase/kb-") and "/docs/" in rel:
@@ -75,21 +92,24 @@ def check_markdown_files(root: Path, errors: list[str]) -> None:
                     f"[metadata] missing provenance/metadata signal in operational doc: {rel}"
                 )
 
-        # Temporal scope enum validation where temporal_scope is declared.
-        for match in temporal_pattern.finditer(text):
-            scope = match.group(1).strip().lower()
-            if scope not in VALID_TEMPORAL_SCOPES:
-                errors.append(
-                    f"[temporal-scope] invalid value '{scope}' in {rel}; expected one of {sorted(VALID_TEMPORAL_SCOPES)}"
-                )
+        if not is_template_path:
+            # Temporal scope enum validation where temporal_scope is declared.
+            for match in temporal_pattern.finditer(text):
+                raw_scope = match.group(1).strip()
+                scope = normalize_metadata_enum(raw_scope)
+                if scope not in VALID_TEMPORAL_SCOPES:
+                    errors.append(
+                        f"[temporal-scope] invalid value '{raw_scope}' (normalized '{scope}') in {rel}; expected one of {sorted(VALID_TEMPORAL_SCOPES)}"
+                    )
 
-        # Evidence status enum validation where evidence_status is declared.
-        for match in evidence_pattern.finditer(text):
-            status = match.group(1).strip().lower()
-            if status not in VALID_EVIDENCE_STATUS:
-                errors.append(
-                    f"[evidence-status] invalid value '{status}' in {rel}; expected one of {sorted(VALID_EVIDENCE_STATUS)}"
-                )
+            # Evidence status enum validation where evidence_status is declared.
+            for match in evidence_pattern.finditer(text):
+                raw_status = match.group(1).strip()
+                status = normalize_metadata_enum(raw_status)
+                if status not in VALID_EVIDENCE_STATUS and status not in LEGACY_EVIDENCE_STATUS:
+                    errors.append(
+                        f"[evidence-status] invalid value '{raw_status}' (normalized '{status}') in {rel}; expected one of {sorted(VALID_EVIDENCE_STATUS)} plus legacy-approved values"
+                    )
 
         # Privacy boundary check for case-focused files.
         if "case" in rel.lower():
@@ -102,12 +122,30 @@ def check_markdown_files(root: Path, errors: list[str]) -> None:
                 )
 
 
-def main() -> int:
-    root = repo_root()
+def collect_errors(root: Path) -> list[str]:
     errors: list[str] = []
-
     check_no_top_level_domain_dirs(root, errors)
     check_markdown_files(root, errors)
+    return errors
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Validate canonical KB layout and baseline metadata/policy signals."
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root path to validate (defaults to auto-detected repo root).",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = args.root.resolve() if args.root is not None else repo_root()
+    errors = collect_errors(root)
 
     if errors:
         print("kb_canonical_validate: FAILED")

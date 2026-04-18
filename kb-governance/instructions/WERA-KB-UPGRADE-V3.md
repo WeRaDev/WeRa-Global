@@ -174,3 +174,41 @@ Outputs:
 - Canonical plan: `kb-governance/instructions/WERA-KB-UPGRADE-V3.md`
 - Decision record: `kb-governance/docs/adr/0001-kb-upgrade-v3-immediate-split.md`
 - Sprint execution: `kb-governance/tasks/sprints/`
+## 12. Verification baseline against attached complete document
+Verification source:
+- `/Users/mikhailananyin/Documents/WeRa materials/WeRa Global KB Upgrade — Complete Final Document.md` (`document_id: WERA-KB-COMPLETE-V1`)
+### 12.1 Aligned directives retained in this roadmap
+- Sovereign self-hosted architecture and governance-first execution posture are retained.
+- 12-domain model plus governance meta-domain intent is retained, implemented inside canonical `KnowledgeBase/` folders.
+- Structured metadata/provenance and temporal governance routing are retained as mandatory policy signals.
+- Quality-gate enforcement and steward-governed review flow are retained as merge-control mechanisms.
+### 12.2 Controlled deviations from attached document
+- Canonical topology:
+  - Attached document Section 2.4 prescribes 13 standalone repositories.
+  - This roadmap enforces one canonical repository root (`KnowledgeBase/`) with folderized domains and treats split repositories as frozen staging/history.
+- Cadence:
+  - Attached document Section 10.1 defines a fixed 2-week sprint line.
+  - This roadmap follows weekly sprint cadence under umbrella governance policy.
+- Delivery scope sequencing:
+  - Attached document includes full stack rollout tracks (Nextcloud/Odoo/Forkbomb/MemPalace runtime operations).
+  - This roadmap sequences contracts/readiness first, with runtime autonomy and production integrations deferred to TRL4-TRL5 validation tracks.
+- Branch strategy normalization:
+  - Attached document references a literal `drafts/` branch strategy.
+  - This roadmap applies governed PR-based branch workflows compatible with current repository policy and CI controls.
+### 12.3 Phase verification status (as of sprint 2026-18)
+- Completed:
+  - Phase 0: realignment lock and branch policy.
+  - Phase 1: folderized KB topology.
+  - Phase 2: consolidation from split staging to canonical paths.
+  - Phase 3: wiki information architecture initialization.
+  - Phase 4: human operations integration contract.
+  - Phase 5: agent-readiness contract baseline.
+- Advanced/in progress:
+  - Phase 6: quality-gate workflows/scripts are active and now include fixture-based reject/accept proof.
+  - Phase 7: pilot-chain governance review is active with contradiction routing and runner-backed CI evidence trail.
+### 12.4 Verification evidence trail
+- `kb-governance/tasks/sprints/2026-16.md`
+- `kb-governance/tasks/sprints/2026-17.md`
+- `kb-governance/tasks/sprints/2026-18.md`
+- `KnowledgeBase/kb-governance/docs/events/2026-04-17-realign-11-canonical-pilot-chain-review.md`
+- `KnowledgeBase/kb-governance/docs/events/2026-04-18-follow-01-runner-ci-phase-advance-review.md`
