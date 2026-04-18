@@ -23,9 +23,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Verify pre-installed Python
+        run: python3 --version
       - name: Run governance routing readiness checks
         run: python3 kb-governance/ci/scripts/kb_governance_routing_check.py
