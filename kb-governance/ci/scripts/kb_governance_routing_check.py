@@ -20,13 +20,21 @@ def read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
 
 
+def normalize_metadata_enum(raw_value: str) -> str:
+    value = raw_value.split("#", 1)[0].strip().lower()
+    value = value.strip().strip("`'\"")
+    value = value.rstrip(",.;")
+    value = value.strip("`'\"")
+    return value
+
+
 def check_event_files(root: Path, errors: list[str]) -> None:
     events_dir = root / "KnowledgeBase" / "kb-governance" / "docs" / "events"
     if not events_dir.exists():
         errors.append("[routing] missing events directory: KnowledgeBase/kb-governance/docs/events")
         return
 
-    temporal_pattern = re.compile(r"temporal_scope\s*:\s*([A-Za-z_-]+)")
+    temporal_pattern = re.compile(r"temporal_scope\s*:\s*([^\n\r]+)")
     for path in sorted(events_dir.rglob("*.md")):
         rel = path.relative_to(root).as_posix()
         text = read_text(path)
@@ -40,10 +48,10 @@ def check_event_files(root: Path, errors: list[str]) -> None:
         if not matches:
             errors.append(f"[routing] missing temporal_scope in governance event {rel}")
         for scope in matches:
-            normalized = scope.strip().lower()
+            normalized = normalize_metadata_enum(scope)
             if normalized not in VALID_TEMPORAL_SCOPES:
                 errors.append(
-                    f"[routing] invalid temporal_scope '{normalized}' in {rel}; expected one of {sorted(VALID_TEMPORAL_SCOPES)}"
+                    f"[routing] invalid temporal_scope '{scope.strip()}' (normalized '{normalized}') in {rel}; expected one of {sorted(VALID_TEMPORAL_SCOPES)}"
                 )
 
 

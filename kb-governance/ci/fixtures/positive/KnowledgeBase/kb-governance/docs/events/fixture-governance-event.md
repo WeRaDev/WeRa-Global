@@ -2,7 +2,7 @@
 governance_event:
   date: 2026-04-18
   workflow: test
-  temporal_scope: mixed
+  temporal_scope: "`mixed`"
   documents:
     - KnowledgeBase/kb-customers/docs/cases/fixture-case-compliant.md
   decisions:

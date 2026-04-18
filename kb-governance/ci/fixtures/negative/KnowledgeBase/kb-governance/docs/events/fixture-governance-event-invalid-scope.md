@@ -2,7 +2,7 @@
 governance_event:
   date: 2026-04-18
   workflow: test
-  temporal_scope: invalid_scope
+  temporal_scope: "`invalid_scope`"
   documents:
     - KnowledgeBase/kb-customers/docs/cases/fixture-case-missing-metadata.md
   decisions:
