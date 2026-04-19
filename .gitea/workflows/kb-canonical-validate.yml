@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          github-server-url: http://host.docker.internal:3000
       - name: Verify pre-installed Python
         run: python3 --version
       - name: Run canonical KB validation checks
