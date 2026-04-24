@@ -1,6 +1,10 @@
 # 12 — Open Questions and Due-Diligence Gaps
 
 > Items that remain unresolved or require additional documentation for full knowledge base integrity.
+>
+> **Policy note (2026-04-15)**: Per `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md`, unresolved questions are tracked as a post-upgrade execution lane and do not by themselves indicate KB-upgrade incompleteness.
+>
+> **Canonical path note (2026-04-24)**: The authoritative unresolved-question register is `KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md`. This file is maintained as a compatibility mirror for legacy links.
 
 ---
 
@@ -77,10 +81,10 @@
 | Q26 | Cloud rented capacity scaling | 🟡 Cost risk | At 376k users, rented capacity costs €814k (Y2). If SolarSeed deployment lags, rented costs consume margin. |
 | Q27 | Runway operating reality vs model timeline | 🔴 Critical | Strategic session states founder runway is effectively exhausted (\"already finished, stretched to next month\"). Need contingency path if object-level financing is delayed 30+ days. |
 | Q28 | Execution anti-pattern: single-counterparty dependency | 🟡 Pattern risk | Repeated waiting on one actor (installer or investor) instead of parallel channel execution. Must be tracked as an operating risk, not only a founder coaching note. |
-| Q29 | MemPalace benchmark claims verification | 🟡 Needs evidence | Performance claims from external spec are not yet validated in WeRa context. Require reproducible benchmark method + run logs before adopting as KB facts. |
-| Q30 | “Local-only” architecture consistency | 🟡 Contradiction risk | MemPalace draft includes Notion while requiring sovereign local storage. Need final architecture decision for human-facing layer consistent with self-hosting policy. |
-| Q31 | Leasing formula consistency in case-builder spec | 🔴 Logic conflict | Current draft formula can conflict with 20% discount constraint. Need single canonical qualification/pricing rule and exception path. |
-| Q32 | MemPalace CLI/MCP command compatibility | 🟡 Environment risk | Command examples in draft are not yet validated against current environment/tooling. Require dry-run validation before operational adoption. |
+| Q29 | MemPalace benchmark claims verification | 🟡 Deferred (post-upgrade) | Hardened container verification runs are completed and documented in `29-KB-Benchmark-Verification-Report-2026-04-15.md` (limit 20) and `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` (limit 100), including pinned image/commit/hash, security gate, and archived evidence artifacts. This verifies method stability under expanded scope; external headline claims remain `unverified` for WeRa baseline. **Owner**: KB steward + technical steward. **Next action**: execute full-scope reproducibility only within scheduled TRL4 test scope and append evidence delta without reopening KB-upgrade closure. |
+| Q30 | “Local-only” architecture consistency | ✅ Resolved v1.9 | Architecture decision is now consistent in operational KB: sovereign local/self-hosted tooling only for SSOT operations; Notion is rejected for the local-only baseline and retained only in source-spec history context. Canonical decision recorded by critical review (`18-KB-MemPalace-Critical-Review-and-Action-Plan.md`). |
+| Q31 | Leasing formula consistency in case-builder spec | 🟠 Emergency closure (this week) | Canonical qualification rule is adopted in `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md`, but closure package is escalated for emergency governance execution this week: publish signed qualification/pricing decision package, worked examples (qualified/unqualified), and exception routing confirmation. Owner: governance council delegate. Due: 2026-04-26. |
+| Q32 | MemPalace CLI/MCP command compatibility | 🟡 Deferred (post-upgrade) | Containerized benchmark/security workflow verifies the non-CLI hardening path; direct local CLI/MCP compatibility remains unverified because `mempalace` and `claude` CLIs are intentionally not present on host baseline. **Owner**: technical steward. **Next action**: run dedicated local CLI/MCP smoke tests only if local path is explicitly required; otherwise retain containerized path as canonical for current cycle. |
 
 ## Recommendations for Next KB Update
 

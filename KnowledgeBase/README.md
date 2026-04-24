@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 1.4 — April 2026  
-> **Scope**: Complete machine-readable reference for the WeRa Global project  
-> **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v1.4**: Added critical review and correction plan for the MemPalace KB specification (`18-KB-MemPalace-Critical-Review-and-Action-Plan.md`), including contradiction fixes, claim-verification policy, and phased actionable upgrade workstreams for BMC+Lean restructuring.
+> **Version**: 2.5 — April 2026
+> **Scope**: Complete machine-readable reference for the WeRa Global project
+> **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media
+> **Changelog v2.5**: Added v3.2 AI-native bridge policy (`33`) classifying AI-native setup instructions as research input, defined KPI-gated autonomy expansion and controlled hybrid-service policy, canonicalized unresolved-question registry path under `kb-governance/docs/open-questions/12-open-questions.md`, and escalated Q31 to emergency closure workflow.
 
 ---
 
@@ -66,14 +66,36 @@
 | 09 | `09-Strategy-and-Investment.md` | DePIN thesis, Triple Jump, funding ask, use of funds, revenue targets |
 | 10 | `10-Market-Context.md` | Portugal solar market, DePIN landscape, EU regulation, competitors |
 | 11 | `11-Academic-References.md` | Scholarly sources on DePIN, tokenization, energy communities |
-| 12 | `12-Open-Questions.md` | Unresolved items and due-diligence gaps |
+| 12 | `12-Open-Questions.md` | Compatibility mirror/index for unresolved items; canonical register at `kb-governance/docs/open-questions/12-open-questions.md` |
 | 13 | `13-Financial-Model.md` | Full P&L, OpEx/CapEx, unit economics, fundraising model, cash position |
 | 14 | `14-KB-Audit-v1.1.md` | Systematic audit of v1.1 against all 7 source documents |
 | 15 | `15-Sunified-Quantum-Resistance.md` | Sunified Group UNITY sensor, quantum resistance thesis, WeRa integration |
 | 16 | `16-FilantropiaSolar-Platform.md` | Platform architecture, map app, proposal calculator, ML pipeline |
 | 17 | `17-Execution-Readiness-and-Next-30-Days.md` | Immediate sequencing, investor gate criteria, and operational risk controls |
 | 18 | `18-KB-MemPalace-Critical-Review-and-Action-Plan.md` | Critical review of memPalace spec, corrected decisions, and actionable KB-upgrade workstreams |
+| 19 | `19-KB-Domain-Taxonomy-Map-v1.md` | Verified current structure and defined canonical 12-domain BMC+Lean taxonomy |
+| 20 | `20-KB-File-to-Domain-Ownership-Map-v1.md` | Mapped existing KB files to primary/secondary domains and ownership model |
+| 21 | `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md` | Canonical terminology, status enums, evidence labels, and provenance requirements |
+| 22 | `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md` | Privacy boundary contract, anonymized case schema, and lifecycle transition rules |
+| 23 | `23-KB-Domain-Template-Pack-v1.md` | Domain-specific template definitions for all canonical BMC+Lean domains |
+| 24 | `24-KB-Governance-Workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
+| 25 | `25-KB-Cross-Domain-Integration-Matrix-v1.md` | Cross-domain integration patterns, matrix, and pilot operational link path |
+| 26 | `26-KB-Validation-Protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
+| 27 | `27-KB-Security-Policy-ONNX-and-Benchmark-Execution-v1.md` | Docker-only benchmark policy, ONNX CVE controls, security checks, and incident response triggers |
+| 28 | `28-KB-Governance-Event-2026-04-15-Benchmark-Execution-Breach-and-Remediation.md` | Formal governance incident log documenting host-execution breach, impact, and corrective controls |
+| 29 | `29-KB-Benchmark-Verification-Report-2026-04-15.md` | Evidence-backed verification report for hardened container benchmark controls and sample run results |
+| 30 | `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` | Expanded-scope (100-question) verification report for hardened container benchmark controls |
+| 31 | `31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md` | KB-upgrade completion-state status and post-upgrade handoff summary |
+| 32 | `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md` | Canonical completion decision, unresolved-question deferral policy, and TRL4-scoped MemPalace integration rule |
+| 33 | `33-KB-AI-Native-Bridge-v3.2-2026-04-24.md` | v3.2 bridge from AI-native research proposal to KPI-gated operational rollout policy |
+| — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
+| — | `kb-governance/docs/open-questions/12-open-questions.md` | Canonical unresolved-question register for governance execution |
+| — | `kb-governance/docs/events/2026-04-24-q31-emergency-closure-kickoff.md` | Emergency governance kickoff event for Q31 closure package |
+| — | `tools/run_mempalace_longmemeval_docker.sh` | Docker-only LongMemEval dry-run runner for Q29 evidence collection |
+| — | `tools/security_checks_onnx.sh` | ONNX version/pattern security checks for CVE risk controls |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |
+| — | `templates/KB-Domain-Document-Template-v1.md` | Reusable metadata-first template for new domain documents |
+| — | `templates/KB-Governance-Event-Template-v1.md` | Reusable template for governance workflow event records |
 
 ---
 
