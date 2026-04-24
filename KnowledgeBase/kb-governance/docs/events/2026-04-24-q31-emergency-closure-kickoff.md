@@ -1,4 +1,20 @@
 # Event: Q31 Emergency Closure Kickoff
+governance_event:
+  event_id: 2026-04-24-q31-emergency-closure-kickoff
+  temporal_scope: current
+  evidence_status: hypothesis
+  documents:
+    - KnowledgeBase/31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md
+    - KnowledgeBase/32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md
+    - KnowledgeBase/33-KB-AI-Native-Bridge-v3.2-2026-04-24.md
+    - KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md
+  decisions:
+    - Escalate Q31 to emergency closure this week.
+    - Keep execution aligned with v3.2 bridge constraints until closure evidence is published.
+  open_actions:
+    - Publish signed qualification/pricing decision package.
+    - Publish qualified/unqualified worked examples and exception routing confirmation.
+    - Update canonical and compatibility open-question registers with closure evidence.
 ## Metadata
 - Event ID: `2026-04-24-q31-emergency-closure-kickoff`
 - Date: `2026-04-24`

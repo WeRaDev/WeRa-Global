@@ -1,4 +1,11 @@
 # 12 — Open Questions and Due-Diligence Gaps
+## Consolidation provenance
+- consolidation_actor: `WARP`
+- consolidation_source: `KnowledgeBase/12-Open-Questions.md`
+- consolidation_date: `2026-04-24`
+- consolidation_status: `canonicalized`
+- temporal_scope: `mixed`
+- evidence_status: `gap-register`
 
 > Items that remain unresolved or require additional documentation for full knowledge base integrity.
 >
