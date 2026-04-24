@@ -7,6 +7,14 @@
 # Authored: 2026-04-14 | Version: 1.0.0 | Owner: WeRa Global / FilantropiaSolar
 ---
 
+## STATUS UPDATE (2026-04-24)
+
+- This document is retained as a **research proposal source artifact**.
+- It is **not** the direct implementation baseline for current KB delivery.
+- Execution policy and rollout gates are governed by:
+  - `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md` (with 2026-04-24 amendment),
+  - `33-KB-AI-Native-Bridge-v3.2-2026-04-24.md`.
+
 ## AGENT DIRECTIVE HEADER
 
 ```yaml
@@ -40,6 +48,8 @@ agent_directive:
     wiki_surface: Notion or MediaWiki (human-facing layer)
     ai_agents: MCP-compatible (Claude, local LLMs)
     benchmark: LongMemEval R@5 = 96.6% raw, 100% with reranking
+  execution_status: "research-proposal-only"
+  implementation_baseline: "33-KB-AI-Native-Bridge-v3.2-2026-04-24.md"
 ```
 
 ---
