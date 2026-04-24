@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 2.4 — April 2026  
-> **Scope**: Complete machine-readable reference for the WeRa Global project  
-> **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media  
-> **Changelog v2.4**: Executed KB upgrade completion policy with deferred unresolved-questions track and TRL4-scoped MemPalace testing in `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md`; updated `31` and `12` for completion-state alignment.
+> **Version**: 2.5 — April 2026
+> **Scope**: Complete machine-readable reference for the WeRa Global project
+> **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media
+> **Changelog v2.5**: Added v3.2 AI-native bridge policy (`33`) classifying AI-native setup instructions as research input, defined KPI-gated autonomy expansion and controlled hybrid-service policy, canonicalized unresolved-question registry path under `kb-governance/docs/open-questions/12-open-questions.md`, and escalated Q31 to emergency closure workflow.
 
 ---
 
@@ -66,7 +66,7 @@
 | 09 | `09-Strategy-and-Investment.md` | DePIN thesis, Triple Jump, funding ask, use of funds, revenue targets |
 | 10 | `10-Market-Context.md` | Portugal solar market, DePIN landscape, EU regulation, competitors |
 | 11 | `11-Academic-References.md` | Scholarly sources on DePIN, tokenization, energy communities |
-| 12 | `12-Open-Questions.md` | Unresolved items and due-diligence gaps |
+| 12 | `12-Open-Questions.md` | Compatibility mirror/index for unresolved items; canonical register at `kb-governance/docs/open-questions/12-open-questions.md` |
 | 13 | `13-Financial-Model.md` | Full P&L, OpEx/CapEx, unit economics, fundraising model, cash position |
 | 14 | `14-KB-Audit-v1.1.md` | Systematic audit of v1.1 against all 7 source documents |
 | 15 | `15-Sunified-Quantum-Resistance.md` | Sunified Group UNITY sensor, quantum resistance thesis, WeRa integration |
@@ -87,7 +87,10 @@
 | 30 | `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` | Expanded-scope (100-question) verification report for hardened container benchmark controls |
 | 31 | `31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md` | KB-upgrade completion-state status and post-upgrade handoff summary |
 | 32 | `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md` | Canonical completion decision, unresolved-question deferral policy, and TRL4-scoped MemPalace integration rule |
+| 33 | `33-KB-AI-Native-Bridge-v3.2-2026-04-24.md` | v3.2 bridge from AI-native research proposal to KPI-gated operational rollout policy |
 | — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
+| — | `kb-governance/docs/open-questions/12-open-questions.md` | Canonical unresolved-question register for governance execution |
+| — | `kb-governance/docs/events/2026-04-24-q31-emergency-closure-kickoff.md` | Emergency governance kickoff event for Q31 closure package |
 | — | `tools/run_mempalace_longmemeval_docker.sh` | Docker-only LongMemEval dry-run runner for Q29 evidence collection |
 | — | `tools/security_checks_onnx.sh` | ONNX version/pattern security checks for CVE risk controls |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |

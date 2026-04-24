@@ -4,7 +4,7 @@
 >
 > **Policy note (2026-04-15)**: Per `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md`, unresolved questions are tracked as a post-upgrade execution lane and do not by themselves indicate KB-upgrade incompleteness.
 >
-> **Canonical path note (2026-04-24)**: The authoritative unresolved-question register is `KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md`. This file is maintained as a compatibility mirror for legacy links.
+> **Canonical path note (2026-04-24)**: This file is the canonical unresolved-question register.
 
 ---
 
