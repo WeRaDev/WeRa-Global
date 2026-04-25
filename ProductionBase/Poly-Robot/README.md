@@ -21,10 +21,12 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_test_token_loop.py`: end-to-end test-token loop runner (strategy -> risk -> paper execution).
 - `scripts/run_runtime_supervisor.py`: C1 runtime supervision runner (heartbeat/retries/snapshot journal).
 - `scripts/run_runtime_soak.py`: deterministic soak orchestration runner with drill injection and interval health snapshots.
+- `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility and audited controls.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
+- `src/poly_robot/stress_certification.py`: certification evaluator that scores scenario-matrix and soak evidence against explicit gates.
 - `tests/`: governance + replay + strategy/risk + execution + loop integration unit tests.
 - `tasks/`: task backlogs and sprint-ready items.
 - `skills/`: project-specific Warp agent skills.
@@ -65,6 +67,10 @@ Parameter governance structure is now in place for MVP planning and test-token o
 - Loop records now include reason-coded exit telemetry and aggregate exit counters (`exit_candidate_count`, `confirmed_exit_count`) for supervisor/dashboard parity.
 - A dedicated soak orchestration runner now rotates scenarios by interval and records append-only health snapshots for each interval execution.
 - Deterministic recovery drills are now built into soak runs: intentional restart requests, temporary data unavailability, and delayed execution-response injections.
+
+## Milestone C4 stress certification status
+- Stress campaign execution now supports a certification builder that evaluates scenario-matrix and soak artifacts against explicit pass/fail thresholds.
+- Certification outputs include criterion-level decisions, incident summaries for failed gates, and reproducibility-linked evidence hashes.
 
 Run validation:
 ```bash
@@ -145,4 +151,16 @@ python3 scripts/run_runtime_soak.py \
   --drill-delayed-execution-intervals 4 \
   --health-snapshot-path runtime/soak_health_snapshots.jsonl \
   --summary-path runtime/soak_summary.json
+```
+
+Run stress campaign certification:
+```bash
+python3 scripts/run_stress_certification.py \
+  --events tests/fixtures/replay_events.jsonl \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --scenario-pack config/replay/scenario_pack.v1.json \
+  --soak-summary runtime/soak_summary.json \
+  --matrix-output runtime/stress_matrix_report.json \
+  --output runtime/stress_campaign_certification.json
 ```
