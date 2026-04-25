@@ -1,0 +1,490 @@
+{
+  "catalog_version": "1.0.0",
+  "phase": "phase_1_architecture_freeze",
+  "description": "Canonical Poly-Robot MVP parameter catalog for test-token operation and stress-test preparation.",
+  "parameters": [
+    {
+      "key": "scanner.max_markets",
+      "type": "integer",
+      "required": true,
+      "default": 500,
+      "minimum": 100,
+      "maximum": 1000,
+      "unit": "count",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Maximum number of active markets scanned per cycle.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "scanner.min_price_gap",
+      "type": "number",
+      "required": true,
+      "default": 0.07,
+      "minimum": 0.01,
+      "maximum": 0.3,
+      "unit": "probability_delta",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Minimum absolute probability gap required to qualify a market candidate.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "scanner.min_side_depth_usd",
+      "type": "number",
+      "required": true,
+      "default": 500.0,
+      "minimum": 100.0,
+      "maximum": 100000.0,
+      "unit": "usd",
+      "mutability": "phase_frozen",
+      "owner": "execution",
+      "description": "Minimum depth required on each side of the order book.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "scanner.min_market_liquidity_usd",
+      "type": "number",
+      "required": true,
+      "default": 50000.0,
+      "minimum": 5000.0,
+      "maximum": 1000000.0,
+      "unit": "usd",
+      "mutability": "phase_frozen",
+      "owner": "execution",
+      "description": "Minimum aggregate market liquidity threshold for tradability.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "scanner.min_hours_to_resolution",
+      "type": "integer",
+      "required": true,
+      "default": 4,
+      "minimum": 1,
+      "maximum": 48,
+      "unit": "hours",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Lower bound on market time-to-resolution.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "scanner.max_hours_to_resolution",
+      "type": "integer",
+      "required": true,
+      "default": 168,
+      "minimum": 12,
+      "maximum": 336,
+      "unit": "hours",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Upper bound on market time-to-resolution.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "brain.min_checks_agreement",
+      "type": "integer",
+      "required": true,
+      "default": 3,
+      "minimum": 1,
+      "maximum": 4,
+      "unit": "count",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Minimum number of strategic checks that must agree before thesis generation.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "brain.min_thesis_confidence",
+      "type": "number",
+      "required": true,
+      "default": 0.75,
+      "minimum": 0.5,
+      "maximum": 0.99,
+      "unit": "probability",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Confidence gate for entering sizing logic.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "brain.llm_probability_calibration",
+      "type": "enum",
+      "required": true,
+      "default": "advisory_only",
+      "allowed_values": [
+        "advisory_only",
+        "isotonic",
+        "platt"
+      ],
+      "unit": "mode",
+      "mutability": "phase_frozen",
+      "owner": "ml",
+      "description": "Calibration mode for mapping model confidence to probability-like outputs.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "execution.min_consensus_buy_votes",
+      "type": "integer",
+      "required": true,
+      "default": 2,
+      "minimum": 1,
+      "maximum": 3,
+      "unit": "count",
+      "mutability": "phase_frozen",
+      "owner": "execution",
+      "description": "Minimum buy votes required for full-position execution.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "execution.single_vote_size_factor",
+      "type": "number",
+      "required": true,
+      "default": 0.5,
+      "minimum": 0.1,
+      "maximum": 1.0,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "execution",
+      "description": "Position-size multiplier used when only one agent votes to buy.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "architecture"
+      }
+    },
+    {
+      "key": "execution.order_ttl_seconds",
+      "type": "integer",
+      "required": true,
+      "default": 120,
+      "minimum": 10,
+      "maximum": 900,
+      "unit": "seconds",
+      "mutability": "tunable",
+      "owner": "execution",
+      "description": "Time-to-live for resting limit orders.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "execution"
+      }
+    },
+    {
+      "key": "execution.max_slippage_bps",
+      "type": "integer",
+      "required": true,
+      "default": 60,
+      "minimum": 1,
+      "maximum": 300,
+      "unit": "bps",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Maximum allowed slippage from decision price to fill price.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "risk.kelly_cap_fraction",
+      "type": "number",
+      "required": true,
+      "default": 0.25,
+      "minimum": 0.01,
+      "maximum": 0.5,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Hard cap on Kelly fraction to avoid overbetting.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "risk.max_position_fraction",
+      "type": "number",
+      "required": true,
+      "default": 0.15,
+      "minimum": 0.01,
+      "maximum": 0.3,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Maximum capital allocation to any single position.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "risk.max_market_exposure_fraction",
+      "type": "number",
+      "required": true,
+      "default": 0.25,
+      "minimum": 0.05,
+      "maximum": 0.6,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Maximum aggregate exposure to one market question cluster.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "risk.max_portfolio_exposure_fraction",
+      "type": "number",
+      "required": true,
+      "default": 0.6,
+      "minimum": 0.1,
+      "maximum": 1.0,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Maximum total deployed capital as fraction of bankroll.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "risk.max_daily_drawdown_fraction",
+      "type": "number",
+      "required": true,
+      "default": 0.08,
+      "minimum": 0.01,
+      "maximum": 0.2,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Daily drawdown limit that activates portfolio kill switch.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "risk.max_concurrent_positions",
+      "type": "integer",
+      "required": true,
+      "default": 6,
+      "minimum": 1,
+      "maximum": 20,
+      "unit": "count",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Maximum number of simultaneously open positions.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "exit.target_capture_ratio",
+      "type": "number",
+      "required": true,
+      "default": 0.85,
+      "minimum": 0.5,
+      "maximum": 0.99,
+      "unit": "fraction",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Fraction of expected move to capture before target-based exit.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "strategy"
+      }
+    },
+    {
+      "key": "exit.volume_spike_multiplier",
+      "type": "number",
+      "required": true,
+      "default": 3.0,
+      "minimum": 1.5,
+      "maximum": 10.0,
+      "unit": "x_avg_volume",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Volume multiplier that triggers precautionary exit checks.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "strategy"
+      }
+    },
+    {
+      "key": "exit.stale_hours",
+      "type": "integer",
+      "required": true,
+      "default": 24,
+      "minimum": 1,
+      "maximum": 168,
+      "unit": "hours",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Maximum holding duration without movement before stale-thesis exit.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "strategy"
+      }
+    },
+    {
+      "key": "exit.stale_price_change_threshold",
+      "type": "number",
+      "required": true,
+      "default": 0.02,
+      "minimum": 0.001,
+      "maximum": 0.1,
+      "unit": "price_delta",
+      "mutability": "phase_frozen",
+      "owner": "strategy",
+      "description": "Minimum price movement required to avoid stale-thesis classification.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "strategy"
+      }
+    },
+    {
+      "key": "runtime.scan_interval_seconds",
+      "type": "integer",
+      "required": true,
+      "default": 60,
+      "minimum": 5,
+      "maximum": 600,
+      "unit": "seconds",
+      "mutability": "tunable",
+      "owner": "platform",
+      "description": "Interval between scanner cycles.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "platform"
+      }
+    },
+    {
+      "key": "runtime.healthcheck_interval_seconds",
+      "type": "integer",
+      "required": true,
+      "default": 30,
+      "minimum": 5,
+      "maximum": 120,
+      "unit": "seconds",
+      "mutability": "tunable",
+      "owner": "platform",
+      "description": "Runtime heartbeat interval for process supervision.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "platform"
+      }
+    },
+    {
+      "key": "runtime.data_staleness_kill_switch_seconds",
+      "type": "integer",
+      "required": true,
+      "default": 180,
+      "minimum": 30,
+      "maximum": 1800,
+      "unit": "seconds",
+      "mutability": "phase_frozen",
+      "owner": "platform",
+      "description": "Maximum tolerated data staleness before kill switch activation.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "platform"
+      }
+    },
+    {
+      "key": "ops.fee_rate_bps",
+      "type": "integer",
+      "required": true,
+      "default": 20,
+      "minimum": 0,
+      "maximum": 200,
+      "unit": "bps",
+      "mutability": "phase_frozen",
+      "owner": "risk",
+      "description": "Fee model input for expected-value and fill-cost calculations.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "ops.latency_budget_ms",
+      "type": "integer",
+      "required": true,
+      "default": 1500,
+      "minimum": 100,
+      "maximum": 10000,
+      "unit": "ms",
+      "mutability": "phase_frozen",
+      "owner": "platform",
+      "description": "Maximum end-to-end decision-to-order latency budget.",
+      "change_control": {
+        "ticket_prefix": "ARCH-",
+        "approval_group": "platform"
+      }
+    },
+    {
+      "key": "ops.max_api_retry_attempts",
+      "type": "integer",
+      "required": true,
+      "default": 3,
+      "minimum": 0,
+      "maximum": 10,
+      "unit": "count",
+      "mutability": "tunable",
+      "owner": "platform",
+      "description": "Maximum retry count for transient API failures.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "platform"
+      }
+    },
+    {
+      "key": "ops.retry_backoff_seconds",
+      "type": "number",
+      "required": true,
+      "default": 2.0,
+      "minimum": 0.1,
+      "maximum": 30.0,
+      "unit": "seconds",
+      "mutability": "tunable",
+      "owner": "platform",
+      "description": "Base backoff duration for transient retry strategy.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "platform"
+      }
+    }
+  ]
+}

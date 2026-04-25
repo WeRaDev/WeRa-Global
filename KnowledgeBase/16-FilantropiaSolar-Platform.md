@@ -284,8 +284,21 @@ Training and validation data sourced from a peer-reviewed open dataset:
 
 | Component | Versions |
 |---|---|
-| Nextcloud | 28–31 |
+| Nextcloud | 28–32 |
 | PHP | 8.1–8.4 |
+
+### Live Runtime Verification (wera-ss-pt-tv-1)
+
+| Field | Value |
+|---|---|
+| **Verification method** | Nextcloud live status endpoint query (`/status.php`) over Tailscale |
+| **Host** | `wera-ss-pt-tv-1` |
+| **Endpoint used** | `https://wera-ss-pt-tv-1.tailfb390c.ts.net/status.php` |
+| **Installed** | `true` |
+| **Maintenance mode** | `false` |
+| **Needs DB upgrade** | `false` |
+| **Observed runtime version** | `32.0.2.2` (`versionstring: 32.0.2`) |
+| **Deployment signal** | Nextcloud AIO process footprint observed (`nextcloud-aio-nextcloud`) |
 
 ### Background Jobs
 
@@ -335,4 +348,4 @@ This value is recognised on the WeRa balance sheet as internally developed softw
 
 ---
 
-*Last updated: April 2026 — v3.0.6*
+*Last updated: April 2026 — v3.0.6 (runtime verification refreshed: 18 April 2026, Nextcloud 32.0.2)*
