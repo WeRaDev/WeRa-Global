@@ -22,7 +22,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_runtime_supervisor.py`: C1 runtime supervision runner (heartbeat/retries/snapshot journal).
 - `scripts/run_runtime_soak.py`: deterministic soak orchestration runner with drill injection and interval health snapshots.
 - `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
-- `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility and audited controls.
+- `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
@@ -33,8 +33,8 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 
 ## Current maturity
 - Stage: incubation with active MVP execution-track development.
-- Implementation status: deterministic replay + risk controls + scenario matrix + paper execution loop.
-- Next milestone: extend Milestone C runtime reliability and soak orchestration.
+- Implementation status: deterministic replay + risk controls + scenario matrix + paper execution loop + runtime reliability supervision + stress certification.
+- Next milestone: complete longer-duration soak certification envelopes and external interface hardening.
 
 ## Phase-1 MVP implementation status
 Parameter governance structure is now in place for MVP planning and test-token operation:
@@ -71,6 +71,12 @@ Parameter governance structure is now in place for MVP planning and test-token o
 ## Milestone C4 stress certification status
 - Stress campaign execution now supports a certification builder that evaluates scenario-matrix and soak artifacts against explicit pass/fail thresholds.
 - Certification outputs include criterion-level decisions, incident summaries for failed gates, and reproducibility-linked evidence hashes.
+
+## Milestone C5 operator console hardening status
+- Dashboard now supports operator-facing action-history filtering by actor and action for rapid control-intent audit review.
+- Incident feed supports cursor-based navigation for historical incident triage during soak operations.
+- Run-to-run cycle comparison now exposes configurable windows with per-cycle deltas across key loop metrics (`events`, `risk_allowed_count`, `filled_trade_count`, `exit_candidate_count`, `confirmed_exit_count`).
+- Runtime GUI includes filter controls and incident navigation actions (`Apply Filters`, `Reset Filters`, `Newer Incidents`, `Older Incidents`) so the hardened backend observability paths are directly accessible from the console.
 
 Run validation:
 ```bash
@@ -135,6 +141,13 @@ python3 scripts/run_runtime_gui.py \
   --audit-path runtime/operator_action_audit.jsonl \
   --host 127.0.0.1 \
   --port 8765
+```
+
+Runtime GUI API examples for hardened operator views:
+```bash
+curl "http://127.0.0.1:8765/api/dashboard?audit_actor=operator&audit_action=incident_annotation&incident_limit=20&comparison_window=15"
+curl "http://127.0.0.1:8765/api/incidents?limit=25&cursor=50"
+curl "http://127.0.0.1:8765/api/comparison?window=12"
 ```
 
 Run deterministic runtime soak orchestration:

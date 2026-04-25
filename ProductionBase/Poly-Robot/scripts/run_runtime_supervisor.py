@@ -49,11 +49,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "(heartbeat, bounded retries, and restart-safe state snapshots)."
         )
     )
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(
@@ -240,7 +246,9 @@ def main(argv: list[str] | None = None) -> int:
     stop_flags = {"restart_requested": False}
     current_cycle = {"index": 0}
 
-    def _resolve_scenario_run_inputs(scenario_name: str) -> tuple[object, list, str, str]:
+    def _resolve_scenario_run_inputs(
+        scenario_name: str,
+    ) -> tuple[object, list, str, str]:
         normalized = scenario_name.strip() or default_scenario.name
         cached = scenario_cache.get(normalized)
         if cached is not None:
@@ -272,11 +280,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cycle_output_dir:
         args.cycle_output_dir.mkdir(parents=True, exist_ok=True)
 
-
     def _run_test_token_cycle(heartbeat) -> dict:
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
-        selected_scenario_name = str(control_state.get("selected_scenario", default_scenario.name)).strip()
+        selected_scenario_name = str(
+            control_state.get("selected_scenario", default_scenario.name)
+        ).strip()
         if not selected_scenario_name:
             selected_scenario_name = default_scenario.name
         control_version = int(control_state.get("control_version", 0))
@@ -349,8 +358,10 @@ def main(argv: list[str] | None = None) -> int:
 
         scenario_name_in_use = selected_scenario_name
         try:
-            scenario, events_for_run, events_hash, scenario_hash = _resolve_scenario_run_inputs(scenario_name_in_use)
-        except Exception:
+            scenario, events_for_run, events_hash, scenario_hash = (
+                _resolve_scenario_run_inputs(scenario_name_in_use)
+            )
+        except ValueError:
             scenario_name_in_use = default_scenario.name
             heartbeat(
                 "control_invalid_scenario_fallback",
@@ -360,7 +371,9 @@ def main(argv: list[str] | None = None) -> int:
                     "fallback_scenario": scenario_name_in_use,
                 },
             )
-            scenario, events_for_run, events_hash, scenario_hash = _resolve_scenario_run_inputs(scenario_name_in_use)
+            scenario, events_for_run, events_hash, scenario_hash = (
+                _resolve_scenario_run_inputs(scenario_name_in_use)
+            )
 
         run = loop.run(
             events_for_run,
@@ -390,8 +403,12 @@ def main(argv: list[str] | None = None) -> int:
                 "cycle_index": cycle_index,
                 "control_version": control_version,
                 "exit_module": {
-                    "target_capture_ratio": float(parameters["exit.target_capture_ratio"]),
-                    "volume_spike_multiplier": float(parameters["exit.volume_spike_multiplier"]),
+                    "target_capture_ratio": float(
+                        parameters["exit.target_capture_ratio"]
+                    ),
+                    "volume_spike_multiplier": float(
+                        parameters["exit.volume_spike_multiplier"]
+                    ),
                     "stale_hours": float(parameters["exit.stale_hours"]),
                     "stale_price_change_threshold": float(
                         parameters["exit.stale_price_change_threshold"]
@@ -434,7 +451,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.cycle_output_dir:
             output_path = args.cycle_output_dir / f"cycle_{cycle_index:03d}.json"
-            output_path.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+            output_path.write_text(
+                json.dumps(result_payload, indent=2) + "\n", encoding="utf-8"
+            )
 
         heartbeat(
             "cycle_completed",
@@ -486,7 +505,11 @@ def main(argv: list[str] | None = None) -> int:
         if not args.continue_on_failure and snapshot["status"] == "FAILED":
             break
 
-    overall_status = "SUCCESS" if snapshots and all(s["status"] == "SUCCESS" for s in snapshots) else "FAILED"
+    overall_status = (
+        "SUCCESS"
+        if snapshots and all(s["status"] == "SUCCESS" for s in snapshots)
+        else "FAILED"
+    )
     summary = {
         "schema_version": "runtime_supervisor_state.v1",
         "generated_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
@@ -508,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path}"
     )
-    return 0
+    return 0 if overall_status == "SUCCESS" else 1
 
 
 if __name__ == "__main__":

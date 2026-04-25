@@ -68,7 +68,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--operator-token",
         type=str,
         required=False,
-        help="Optional token required for POST control actions via X-Operator-Token header.",
+        help=(
+            "Operator token for POST control actions via X-Operator-Token header. "
+            "When omitted, control endpoints run in read-only mode and POST actions are rejected."
+        ),
     )
     parser.add_argument(
         "--recent-events-limit",
@@ -122,6 +125,21 @@ def _html_page() -> str:
     <button onclick="sendControl('/api/control/annotate')">Annotate Incident</button>
     <div id="controlResult"></div>
   </div>
+  <div class="card">
+    <h2>Dashboard Views</h2>
+    <input id="recentEventsLimit" placeholder="recent events limit" value="200" />
+    <input id="recentAuditLimit" placeholder="recent audit limit" value="100" />
+    <input id="auditActionFilter" placeholder="audit action filter" />
+    <input id="auditActorFilter" placeholder="audit actor filter" />
+    <br />
+    <input id="incidentLimit" placeholder="incident page size" value="50" />
+    <input id="comparisonWindow" placeholder="comparison window" value="10" />
+    <button onclick="applyFilters()">Apply Filters</button>
+    <button onclick="resetFilters()">Reset Filters</button>
+    <button onclick="loadNewerIncidents()">Newer Incidents</button>
+    <button onclick="loadOlderIncidents()">Older Incidents</button>
+    <div id="filterResult"></div>
+  </div>
   <div class="grid">
     <div class="card">
       <h2>State + Loop Metrics</h2>
@@ -149,13 +167,88 @@ def _html_page() -> str:
     </div>
   </div>
   <script>
+    const defaultDashboardQuery = {
+      recent_events_limit: 200,
+      recent_audit_limit: 100,
+      audit_action: '',
+      audit_actor: '',
+      incident_limit: 50,
+      incident_cursor: null,
+      comparison_window: 10
+    };
+    let dashboardQuery = { ...defaultDashboardQuery };
+    let incidentCursorHistory = [];
+    let lastDashboardPayload = null;
+
+    function readPositiveInteger(inputId, fallbackValue) {
+      const rawValue = document.getElementById(inputId).value;
+      const parsed = parseInt(rawValue, 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+      return fallbackValue;
+    }
+
+    function syncQueryInputsFromState() {
+      document.getElementById('recentEventsLimit').value = String(dashboardQuery.recent_events_limit);
+      document.getElementById('recentAuditLimit').value = String(dashboardQuery.recent_audit_limit);
+      document.getElementById('auditActionFilter').value = dashboardQuery.audit_action;
+      document.getElementById('auditActorFilter').value = dashboardQuery.audit_actor;
+      document.getElementById('incidentLimit').value = String(dashboardQuery.incident_limit);
+      document.getElementById('comparisonWindow').value = String(dashboardQuery.comparison_window);
+    }
+
+    function applyQueryInputValues(resetIncidentCursor) {
+      dashboardQuery.recent_events_limit = readPositiveInteger(
+        'recentEventsLimit',
+        defaultDashboardQuery.recent_events_limit
+      );
+      dashboardQuery.recent_audit_limit = readPositiveInteger(
+        'recentAuditLimit',
+        defaultDashboardQuery.recent_audit_limit
+      );
+      dashboardQuery.audit_action = (document.getElementById('auditActionFilter').value || '').trim();
+      dashboardQuery.audit_actor = (document.getElementById('auditActorFilter').value || '').trim();
+      dashboardQuery.incident_limit = readPositiveInteger(
+        'incidentLimit',
+        defaultDashboardQuery.incident_limit
+      );
+      dashboardQuery.comparison_window = readPositiveInteger(
+        'comparisonWindow',
+        defaultDashboardQuery.comparison_window
+      );
+      if (resetIncidentCursor) {
+        dashboardQuery.incident_cursor = null;
+        incidentCursorHistory = [];
+      }
+      syncQueryInputsFromState();
+    }
+
+    function dashboardUrl() {
+      const params = new URLSearchParams();
+      params.set('recent_events_limit', String(dashboardQuery.recent_events_limit));
+      params.set('recent_audit_limit', String(dashboardQuery.recent_audit_limit));
+      params.set('incident_limit', String(dashboardQuery.incident_limit));
+      params.set('comparison_window', String(dashboardQuery.comparison_window));
+      if (dashboardQuery.audit_action) {
+        params.set('audit_action', dashboardQuery.audit_action);
+      }
+      if (dashboardQuery.audit_actor) {
+        params.set('audit_actor', dashboardQuery.audit_actor);
+      }
+      if (dashboardQuery.incident_cursor !== null && dashboardQuery.incident_cursor !== undefined) {
+        params.set('incident_cursor', String(dashboardQuery.incident_cursor));
+      }
+      return '/api/dashboard?' + params.toString();
+    }
     async function fetchDashboard() {
-      const response = await fetch('/api/dashboard');
+      const response = await fetch(dashboardUrl());
       if (!response.ok) {
         document.getElementById('summary').textContent = 'Dashboard request failed: ' + response.status;
         return;
       }
       const payload = await response.json();
+      lastDashboardPayload = payload;
       const state = payload.supervisor_state || {};
       const status = state.status || 'UNKNOWN';
       const statusClass = status === 'SUCCESS' ? 'status-success' : (status === 'FAILED' ? 'status-failed' : '');
@@ -181,6 +274,13 @@ def _html_page() -> str:
         JSON.stringify(payload.incident_feed, null, 2);
       document.getElementById('comparisonPayload').textContent =
         JSON.stringify(payload.cycle_comparison, null, 2);
+
+      const incidentPaging = (payload.incident_feed || {}).paging || {};
+      const cursorLabel = incidentPaging.cursor ?? 'latest';
+      const olderCursor = incidentPaging.next_cursor ?? 'none';
+      const totalIncidents = incidentPaging.total_incidents ?? 0;
+      document.getElementById('filterResult').textContent =
+        'Incident cursor=' + cursorLabel + ' | older_cursor=' + olderCursor + ' | total=' + totalIncidents;
     }
 
     function controlPayload() {
@@ -206,8 +306,49 @@ def _html_page() -> str:
       document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
       await fetchDashboard();
     }
+    async function applyFilters() {
+      applyQueryInputValues(true);
+      await fetchDashboard();
+    }
 
-    fetchDashboard();
+    async function resetFilters() {
+      dashboardQuery = { ...defaultDashboardQuery };
+      incidentCursorHistory = [];
+      syncQueryInputsFromState();
+      await fetchDashboard();
+    }
+
+    async function loadOlderIncidents() {
+      applyQueryInputValues(false);
+      const incidentPaging = ((lastDashboardPayload || {}).incident_feed || {}).paging || {};
+      const nextCursor = incidentPaging.next_cursor;
+      if (!nextCursor) {
+        document.getElementById('filterResult').textContent =
+          'No older incidents available for this filter scope.';
+        return;
+      }
+      if (dashboardQuery.incident_cursor !== null && dashboardQuery.incident_cursor !== undefined) {
+        incidentCursorHistory.push(String(dashboardQuery.incident_cursor));
+      }
+      dashboardQuery.incident_cursor = nextCursor;
+      await fetchDashboard();
+    }
+
+    async function loadNewerIncidents() {
+      applyQueryInputValues(false);
+      if (dashboardQuery.incident_cursor === null || dashboardQuery.incident_cursor === undefined) {
+        document.getElementById('filterResult').textContent = 'Already viewing the newest incidents.';
+        return;
+      }
+      if (incidentCursorHistory.length > 0) {
+        dashboardQuery.incident_cursor = incidentCursorHistory.pop();
+      } else {
+        dashboardQuery.incident_cursor = null;
+      }
+      await fetchDashboard();
+    }
+
+    resetFilters();
     setInterval(fetchDashboard, 3000);
   </script>
 </body>
@@ -285,7 +426,12 @@ def _build_handler(
     class RuntimeGuiHandler(BaseHTTPRequestHandler):
         def _authorize_control_request(self) -> bool:
             if not operator_token:
-                return True
+                _send_json(
+                    self,
+                    status=403,
+                    payload={"error": "operator_controls_disabled"},
+                )
+                return False
             request_token = self.headers.get("X-Operator-Token", "")
             if request_token == operator_token:
                 return True
@@ -428,14 +574,20 @@ def _build_handler(
             reason = str(payload.get("reason", "")).strip()
             try:
                 if parsed.path == "/api/control/pause":
-                    state = control_manager.set_paused(paused=True, actor=actor, reason=reason)
+                    state = control_manager.set_paused(
+                        paused=True, actor=actor, reason=reason
+                    )
                 elif parsed.path == "/api/control/resume":
-                    state = control_manager.set_paused(paused=False, actor=actor, reason=reason)
+                    state = control_manager.set_paused(
+                        paused=False, actor=actor, reason=reason
+                    )
                 elif parsed.path == "/api/control/restart":
                     state = control_manager.request_restart(actor=actor, reason=reason)
                 elif parsed.path == "/api/control/scenario":
                     scenario_name = str(payload.get("scenario_name", "")).strip()
-                    state = control_manager.set_scenario(actor=actor, scenario_name=scenario_name)
+                    state = control_manager.set_scenario(
+                        actor=actor, scenario_name=scenario_name
+                    )
                 elif parsed.path == "/api/control/annotate":
                     note = str(payload.get("note", "")).strip()
                     state = control_manager.annotate(actor=actor, note=note)
@@ -452,7 +604,9 @@ def _build_handler(
                 payload={
                     "status": "ok",
                     "control_state": state,
-                    "recent_operator_actions": control_manager.list_audit_events(limit=recent_audit_limit),
+                    "recent_operator_actions": control_manager.list_audit_events(
+                        limit=recent_audit_limit
+                    ),
                 },
             )
 
@@ -489,6 +643,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "Runtime GUI listening: "
         f"http://{args.host}:{args.port} "
+        f"control_mode={'token_required' if args.operator_token else 'read_only'} "
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path} "
         f"control_state_path={args.control_state_path} "

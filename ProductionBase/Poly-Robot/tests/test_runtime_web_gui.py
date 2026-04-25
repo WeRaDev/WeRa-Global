@@ -1,8 +1,11 @@
 from __future__ import annotations
+import importlib.util
+import http.client
 
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -28,7 +31,9 @@ from poly_robot.schemas import (  # noqa: E402
 
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _append_jsonl(path: Path, payload: dict) -> None:
@@ -78,7 +83,121 @@ def _append_cycle_completed_event(
     )
 
 
+def _load_runtime_gui_script_module():
+    script_path = ROOT_DIR / "scripts" / "run_runtime_gui.py"
+    module_spec = importlib.util.spec_from_file_location("run_runtime_gui", script_path)
+    if module_spec is None or module_spec.loader is None:
+        raise AssertionError("Unable to load run_runtime_gui.py module")
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module
+
+
 class RuntimeWebGuiTests(unittest.TestCase):
+    def test_control_post_forbidden_when_operator_token_not_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token=None,
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/pause",
+                    body=json.dumps({"actor": "alice", "reason": "maintenance"}),
+                    headers={"Content-Type": "application/json"},
+                )
+                response = connection.getresponse()
+                response_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 403)
+                self.assertEqual(
+                    response_payload["error"], "operator_controls_disabled"
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
+    def test_concurrent_operator_actions_keep_gap_free_action_sequence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manager = OperatorControlManager(
+                control_state_path=root / "operator_state.json",
+                audit_path=root / "operator_audit.jsonl",
+            )
+
+            action_count = 40
+            start_gate = threading.Event()
+            worker_errors: list[Exception] = []
+
+            def annotate(index: int) -> None:
+                try:
+                    start_gate.wait(timeout=5)
+                    manager.annotate(actor=f"worker-{index % 4}", note=f"note-{index}")
+                except Exception as exc:
+                    worker_errors.append(exc)
+
+            workers = [
+                threading.Thread(target=annotate, args=(idx,))
+                for idx in range(action_count)
+            ]
+            for worker in workers:
+                worker.start()
+            start_gate.set()
+            for worker in workers:
+                worker.join(timeout=5)
+
+            self.assertEqual(worker_errors, [])
+            self.assertTrue(all(not worker.is_alive() for worker in workers))
+            state = manager.load_control_state()
+            self.assertEqual(state["control_version"], action_count)
+            audit_events = manager.list_audit_events(limit=action_count)
+            action_sequences = [int(event["action_sequence"]) for event in audit_events]
+            control_state_versions = [
+                int(event["control_state_version"]) for event in audit_events
+            ]
+            expected_sequence = list(range(1, action_count + 1))
+            self.assertEqual(action_sequences, expected_sequence)
+            self.assertEqual(control_state_versions, expected_sequence)
+
     def test_dashboard_payload_matches_runtime_state_and_journal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -148,21 +267,32 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 journal_path=journal_path,
                 control_manager=control_manager,
             )
-            payload = service.build_dashboard_payload(recent_events_limit=10, recent_audit_limit=10)
+            payload = service.build_dashboard_payload(
+                recent_events_limit=10, recent_audit_limit=10
+            )
 
-            self.assertEqual(payload["schema_version"], RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION)
+            self.assertEqual(
+                payload["schema_version"], RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION
+            )
             self.assertEqual(payload["supervisor_state"]["status"], "SUCCESS")
             self.assertEqual(payload["event_counts"]["worker_heartbeat"], 1)
             self.assertEqual(payload["event_counts"]["worker_attempt_completed"], 1)
-            self.assertEqual(payload["worker_activity"]["test_token_loop"]["heartbeat_count"], 1)
+            self.assertEqual(
+                payload["worker_activity"]["test_token_loop"]["heartbeat_count"], 1
+            )
             self.assertEqual(payload["loop_metrics"]["filled_trade_count"], 1)
             self.assertEqual(payload["loop_metrics"]["total_execution_cost"], 0.345)
-            self.assertEqual(payload["control_state"]["schema_version"], RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION)
+            self.assertEqual(
+                payload["control_state"]["schema_version"],
+                RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+            )
             self.assertEqual(payload["recent_operator_actions"], [])
             self.assertEqual(payload["incident_feed"]["items"], [])
             self.assertEqual(payload["cycle_comparison"]["items"], [])
 
-    def test_dashboard_payload_supports_track6_filters_incidents_and_comparison(self) -> None:
+    def test_dashboard_payload_supports_track6_filters_incidents_and_comparison(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             state_path = root / "runtime_state.json"
@@ -199,7 +329,10 @@ class RuntimeWebGuiTests(unittest.TestCase):
                     "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
                     "timestamp": "2026-01-01T00:00:01Z",
                     "event_type": "worker_retry_scheduled",
-                    "payload": {"worker_name": "test_token_loop", "next_attempt_number": 2},
+                    "payload": {
+                        "worker_name": "test_token_loop",
+                        "next_attempt_number": 2,
+                    },
                 },
             )
             _append_jsonl(
@@ -259,10 +392,26 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 incident_limit=2,
                 comparison_window=2,
             )
+            annotation_only_payload = service.build_dashboard_payload(
+                recent_events_limit=20,
+                recent_audit_limit=10,
+                audit_actor="alice",
+                audit_action="incident_annotation",
+                incident_limit=2,
+                comparison_window=2,
+            )
 
             self.assertEqual(len(payload["recent_operator_actions"]), 2)
             self.assertTrue(
-                all(event["actor"] == "alice" for event in payload["recent_operator_actions"])
+                all(
+                    event["actor"] == "alice"
+                    for event in payload["recent_operator_actions"]
+                )
+            )
+            self.assertEqual(len(annotation_only_payload["recent_operator_actions"]), 1)
+            self.assertEqual(
+                annotation_only_payload["recent_operator_actions"][0]["action"],
+                "incident_annotation",
             )
             self.assertEqual(payload["incident_feed"]["paging"]["total_incidents"], 3)
             self.assertEqual(payload["incident_feed"]["paging"]["next_cursor"], "1")
@@ -271,15 +420,36 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 payload["incident_feed"]["items"][0]["event_type"],
                 "worker_attempt_completed",
             )
-            self.assertEqual(payload["incident_feed"]["items"][1]["event_type"], "control_invalid_scenario_fallback")
+            self.assertEqual(
+                payload["incident_feed"]["items"][1]["event_type"],
+                "control_invalid_scenario_fallback",
+            )
             self.assertEqual(payload["cycle_comparison"]["total_cycles"], 2)
             self.assertEqual(len(payload["cycle_comparison"]["items"]), 2)
             self.assertIsNone(payload["cycle_comparison"]["items"][0]["delta"])
-            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["events"], 2)
-            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["risk_allowed_count"], 1)
-            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["filled_trade_count"], 1)
-            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["exit_candidate_count"], 1)
-            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["confirmed_exit_count"], 1)
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["delta"]["events"], 2
+            )
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["delta"]["risk_allowed_count"],
+                1,
+            )
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["delta"]["filled_trade_count"],
+                1,
+            )
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "exit_candidate_count"
+                ],
+                1,
+            )
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "confirmed_exit_count"
+                ],
+                1,
+            )
 
     def test_incident_feed_pagination_accepts_string_and_integer_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -301,7 +471,10 @@ class RuntimeWebGuiTests(unittest.TestCase):
                     "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
                     "timestamp": "2026-01-01T00:00:00Z",
                     "event_type": "worker_retry_scheduled",
-                    "payload": {"worker_name": "test_token_loop", "next_attempt_number": 2},
+                    "payload": {
+                        "worker_name": "test_token_loop",
+                        "next_attempt_number": 2,
+                    },
                 },
             )
             _append_jsonl(
@@ -350,11 +523,15 @@ class RuntimeWebGuiTests(unittest.TestCase):
             )
             self.assertEqual(older_page["paging"]["cursor"], "2")
             self.assertEqual(older_page["paging"]["next_cursor"], None)
-            self.assertEqual([item["incident_sequence"] for item in older_page["items"]], [1, 2])
+            self.assertEqual(
+                [item["incident_sequence"] for item in older_page["items"]], [1, 2]
+            )
 
             first_only_page = service.build_incident_feed(limit=1, cursor=1)
             self.assertEqual(first_only_page["paging"]["cursor"], "1")
-            self.assertEqual([item["incident_sequence"] for item in first_only_page["items"]], [1])
+            self.assertEqual(
+                [item["incident_sequence"] for item in first_only_page["items"]], [1]
+            )
 
     def test_operator_actions_update_control_state_and_emit_audit_log(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -368,22 +545,30 @@ class RuntimeWebGuiTests(unittest.TestCase):
 
             state = manager.set_paused(paused=True, actor="alice", reason="maintenance")
             self.assertTrue(state["paused"])
-            state = manager.set_scenario(actor="alice", scenario_name="liquidity_crunch")
+            state = manager.set_scenario(
+                actor="alice", scenario_name="liquidity_crunch"
+            )
             self.assertEqual(state["selected_scenario"], "liquidity_crunch")
             state = manager.annotate(actor="alice", note="watching retry spikes")
             self.assertEqual(state["last_annotation"], "watching retry spikes")
             state = manager.request_restart(actor="alice", reason="rolling update")
             self.assertTrue(state["restart_requested"])
-            state = manager.acknowledge_restart(actor="runtime_supervisor", note="restart accepted")
+            state = manager.acknowledge_restart(
+                actor="runtime_supervisor", note="restart accepted"
+            )
             self.assertFalse(state["restart_requested"])
             state = manager.set_paused(paused=False, actor="alice", reason="resume")
             self.assertFalse(state["paused"])
 
-            self.assertEqual(state["schema_version"], RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION)
+            self.assertEqual(
+                state["schema_version"], RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
+            )
             self.assertEqual(state["control_version"], 6)
             events = manager.list_audit_events(limit=10)
             self.assertEqual(len(events), 6)
-            self.assertEqual(events[0]["schema_version"], RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION)
+            self.assertEqual(
+                events[0]["schema_version"], RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION
+            )
             self.assertEqual(events[0]["action_sequence"], 1)
             self.assertEqual(events[-2]["action"], "graceful_restart_acknowledged")
             self.assertEqual(events[-1]["action_sequence"], 6)
@@ -413,7 +598,10 @@ class RuntimeWebGuiTests(unittest.TestCase):
                     "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
                     "timestamp": "2026-01-01T00:00:00Z",
                     "event_type": "worker_retry_scheduled",
-                    "payload": {"worker_name": "test_token_loop", "next_attempt_number": 2},
+                    "payload": {
+                        "worker_name": "test_token_loop",
+                        "next_attempt_number": 2,
+                    },
                 },
             )
             service = RuntimeDashboardService(
@@ -426,6 +614,16 @@ class RuntimeWebGuiTests(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 service.build_dashboard_payload(incident_cursor="invalid-cursor")
+
+    def test_runtime_gui_page_contains_track6_filter_controls(self) -> None:
+        module = _load_runtime_gui_script_module()
+        html = module._html_page()
+        self.assertIn('id="auditActionFilter"', html)
+        self.assertIn('id="auditActorFilter"', html)
+        self.assertIn('id="incidentLimit"', html)
+        self.assertIn('id="comparisonWindow"', html)
+        self.assertIn('onclick="loadNewerIncidents()"', html)
+        self.assertIn('onclick="loadOlderIncidents()"', html)
 
 
 if __name__ == "__main__":

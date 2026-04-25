@@ -11,8 +11,12 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT_DIR / "src"
 SCRIPT_PATH = ROOT_DIR / "scripts" / "run_runtime_supervisor.py"
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 SCENARIO_PACK_PATH = ROOT_DIR / "config" / "replay" / "scenario_pack.v1.json"
 REPLAY_FIXTURE_PATH = ROOT_DIR / "tests" / "fixtures" / "replay_events.jsonl"
 
@@ -27,7 +31,9 @@ from poly_robot.schemas import (  # noqa: E402
 
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _read_json(path: Path) -> dict:
@@ -53,6 +59,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         cycles: int,
         scenario: str = "baseline",
         cycle_output: bool = False,
+        extra_args: list[str] | None = None,
     ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path, Path]:
         state_path = temp_root / "runtime_state.json"
         journal_path = temp_root / "runtime_journal.jsonl"
@@ -90,6 +97,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         ]
         if cycle_output:
             command.extend(["--cycle-output-dir", str(temp_root / "cycles")])
+        if extra_args:
+            command.extend(extra_args)
 
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         return result, state_path, journal_path, control_state_path, audit_path
@@ -114,7 +123,9 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
             state = _read_json(state_path)
-            self.assertEqual(state["schema_version"], RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION)
+            self.assertEqual(
+                state["schema_version"], RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION
+            )
             self.assertEqual(state["cycle_index"], 2)
             metadata = state["worker_results"][0]["last_metadata"]
             self.assertEqual(metadata["cycle_status"], "PAUSED")
@@ -138,10 +149,12 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "selected_scenario": "baseline",
                 "last_annotation": "",
             }
-            result, state_path, _, control_state_path, audit_path = self._run_supervisor(
-                temp_root=root,
-                control_state_payload=control_state,
-                cycles=3,
+            result, state_path, _, control_state_path, audit_path = (
+                self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=3,
+                )
             )
 
             self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
@@ -155,7 +168,9 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
             self.assertFalse(updated_control_state["restart_requested"])
             audit_events = _read_jsonl(audit_path)
             self.assertTrue(audit_events)
-            self.assertEqual(audit_events[-1]["action"], "graceful_restart_acknowledged")
+            self.assertEqual(
+                audit_events[-1]["action"], "graceful_restart_acknowledged"
+            )
 
     def test_selected_scenario_from_control_state_is_used_for_cycle(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -183,7 +198,34 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
             self.assertEqual(metadata["selected_scenario"], "liquidity_crunch")
 
             cycle_report = _read_json(root / "cycles" / "cycle_001.json")
-            self.assertEqual(cycle_report["run_context"]["scenario_name"], "liquidity_crunch")
+            self.assertEqual(
+                cycle_report["run_context"]["scenario_name"], "liquidity_crunch"
+            )
+
+    def test_supervisor_exits_non_zero_when_cycle_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 1,
+                "paused": False,
+                "restart_requested": False,
+                "selected_scenario": "baseline",
+                "last_annotation": "",
+            }
+            result, state_path, _, _, _ = self._run_supervisor(
+                temp_root=root,
+                control_state_payload=control_state,
+                cycles=1,
+                extra_args=["--heartbeat-timeout-seconds", "0.000000001"],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("overall_status=FAILED", result.stdout)
+            state = _read_json(state_path)
+            self.assertEqual(state["status"], "FAILED")
+            self.assertTrue(state["failed_workers"])
 
 
 if __name__ == "__main__":

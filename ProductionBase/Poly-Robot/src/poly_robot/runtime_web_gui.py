@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 import json
+import os
+import tempfile
+import threading
 
 from .schemas import (
     RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
@@ -24,7 +27,25 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    temp_file_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        ) as handle:
+            handle.write(serialized)
+            temp_file_path = Path(handle.name)
+        if temp_file_path is None:
+            raise RuntimeError("Failed to create temporary control-state file.")
+        os.replace(temp_file_path, path)
+    finally:
+        if temp_file_path is not None and temp_file_path.exists():
+            temp_file_path.unlink()
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -63,14 +84,19 @@ class OperatorControlManager:
     def __init__(self, *, control_state_path: Path, audit_path: Path) -> None:
         self.control_state_path = control_state_path
         self.audit_path = audit_path
+        self._mutation_lock = threading.RLock()
 
     def load_control_state(self) -> dict[str, Any]:
-        if not self.control_state_path.exists():
-            return _default_control_state()
-        payload = _read_json(self.control_state_path)
-        if payload.get("schema_version") != RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION:
-            raise ValueError("Operator control state schema version mismatch")
-        return payload
+        with self._mutation_lock:
+            if not self.control_state_path.exists():
+                return _default_control_state()
+            payload = _read_json(self.control_state_path)
+            if (
+                payload.get("schema_version")
+                != RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
+            ):
+                raise ValueError("Operator control state schema version mismatch")
+            return payload
 
     def _mutate_state(
         self,
@@ -78,88 +104,100 @@ class OperatorControlManager:
         action: str,
         actor: str,
         details: dict[str, Any],
+        mutate_state: Callable[[dict[str, Any]], None],
     ) -> dict[str, Any]:
-        state = self.load_control_state()
-        next_version = int(state.get("control_version", 0)) + 1
-        updated_at = _utc_now_iso()
-        state["control_version"] = next_version
-        state["updated_at"] = updated_at
-        state["schema_version"] = RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
+        with self._mutation_lock:
+            state = self.load_control_state()
+            mutate_state(state)
+            next_version = int(state.get("control_version", 0)) + 1
+            updated_at = _utc_now_iso()
+            state["control_version"] = next_version
+            state["updated_at"] = updated_at
+            state["schema_version"] = RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
+            _write_json(self.control_state_path, state)
+            _append_jsonl(
+                self.audit_path,
+                {
+                    "schema_version": RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
+                    "timestamp": updated_at,
+                    "action_sequence": next_version,
+                    "action": action,
+                    "actor": actor,
+                    "details": details,
+                    "control_state_version": state["control_version"],
+                },
+            )
+            return state
 
-        _write_json(self.control_state_path, state)
-        _append_jsonl(
-            self.audit_path,
-            {
-                "schema_version": RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
-                "timestamp": updated_at,
-                "action_sequence": next_version,
-                "action": action,
-                "actor": actor,
-                "details": details,
-                "control_state_version": state["control_version"],
-            },
-        )
-        return state
+    def set_paused(
+        self, *, paused: bool, actor: str, reason: str = ""
+    ) -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["paused"] = paused
+            if reason:
+                state["pause_reason"] = reason
 
-    def set_paused(self, *, paused: bool, actor: str, reason: str = "") -> dict[str, Any]:
-        state = self.load_control_state()
-        state["paused"] = paused
-        if reason:
-            state["pause_reason"] = reason
-        _write_json(self.control_state_path, state)
         return self._mutate_state(
             action="pause" if paused else "resume",
             actor=actor,
             details={"paused": paused, "reason": reason},
+            mutate_state=_apply,
         )
 
     def request_restart(self, *, actor: str, reason: str = "") -> dict[str, Any]:
-        state = self.load_control_state()
-        state["restart_requested"] = True
-        if reason:
-            state["restart_reason"] = reason
-        _write_json(self.control_state_path, state)
+        def _apply(state: dict[str, Any]) -> None:
+            state["restart_requested"] = True
+            if reason:
+                state["restart_reason"] = reason
+
         return self._mutate_state(
             action="graceful_restart_requested",
             actor=actor,
             details={"reason": reason},
+            mutate_state=_apply,
         )
 
     def acknowledge_restart(self, *, actor: str, note: str = "") -> dict[str, Any]:
-        state = self.load_control_state()
-        state["restart_requested"] = False
-        if note:
-            state["restart_ack_note"] = note
-        _write_json(self.control_state_path, state)
+        def _apply(state: dict[str, Any]) -> None:
+            state["restart_requested"] = False
+            if note:
+                state["restart_ack_note"] = note
+
         return self._mutate_state(
             action="graceful_restart_acknowledged",
             actor=actor,
             details={"note": note},
+            mutate_state=_apply,
         )
 
     def set_scenario(self, *, actor: str, scenario_name: str) -> dict[str, Any]:
         if not scenario_name.strip():
             raise ValueError("scenario_name must not be empty")
-        state = self.load_control_state()
-        state["selected_scenario"] = scenario_name.strip()
-        _write_json(self.control_state_path, state)
+        cleaned_scenario_name = scenario_name.strip()
+
+        def _apply(state: dict[str, Any]) -> None:
+            state["selected_scenario"] = cleaned_scenario_name
+
         return self._mutate_state(
             action="scenario_selected",
             actor=actor,
-            details={"selected_scenario": scenario_name.strip()},
+            details={"selected_scenario": cleaned_scenario_name},
+            mutate_state=_apply,
         )
 
     def annotate(self, *, actor: str, note: str) -> dict[str, Any]:
         cleaned_note = note.strip()
         if not cleaned_note:
             raise ValueError("note must not be empty")
-        state = self.load_control_state()
-        state["last_annotation"] = cleaned_note
-        _write_json(self.control_state_path, state)
+
+        def _apply(state: dict[str, Any]) -> None:
+            state["last_annotation"] = cleaned_note
+
         return self._mutate_state(
             action="incident_annotation",
             actor=actor,
             details={"note": cleaned_note},
+            mutate_state=_apply,
         )
 
     def list_audit_events(
@@ -171,20 +209,24 @@ class OperatorControlManager:
     ) -> list[dict[str, Any]]:
         if limit <= 0:
             raise ValueError("limit must be > 0")
-        rows = _read_jsonl(self.audit_path)
+        with self._mutation_lock:
+            rows = _read_jsonl(self.audit_path)
         filtered = rows
         if action and action.strip():
             expected_action = action.strip()
             filtered = [
-                row for row in filtered if str(row.get("action", "")).strip() == expected_action
+                row
+                for row in filtered
+                if str(row.get("action", "")).strip() == expected_action
             ]
         if actor and actor.strip():
             expected_actor = actor.strip()
             filtered = [
-                row for row in filtered if str(row.get("actor", "")).strip() == expected_actor
+                row
+                for row in filtered
+                if str(row.get("actor", "")).strip() == expected_actor
             ]
         return filtered[-limit:]
-
 
 
 class RuntimeDashboardService:
@@ -210,7 +252,10 @@ class RuntimeDashboardService:
     def _load_journal(self) -> list[dict[str, Any]]:
         rows = _read_jsonl(self.journal_path)
         for row in rows:
-            if row.get("schema_version") != RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION:
+            if (
+                row.get("schema_version")
+                != RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION
+            ):
                 raise ValueError("Runtime supervisor journal schema version mismatch")
         return rows
 
@@ -223,7 +268,9 @@ class RuntimeDashboardService:
         return event_counts
 
     @staticmethod
-    def _summarize_worker_activity(journal_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    def _summarize_worker_activity(
+        journal_rows: list[dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
         by_worker: dict[str, dict[str, Any]] = {}
         for row in journal_rows:
             payload = row.get("payload") or {}
@@ -252,7 +299,9 @@ class RuntimeDashboardService:
         return by_worker
 
     @staticmethod
-    def _extract_loop_metrics(supervisor_state: dict[str, Any] | None) -> dict[str, Any]:
+    def _extract_loop_metrics(
+        supervisor_state: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         if not supervisor_state:
             return {}
         metrics: dict[str, Any] = {}
@@ -298,9 +347,14 @@ class RuntimeDashboardService:
         if event_type == "worker_retry_scheduled":
             worker_name = str(payload.get("worker_name", "worker"))
             next_attempt = payload.get("next_attempt_number")
-            summary = f"Retry scheduled for {worker_name} (next_attempt={next_attempt})."
+            summary = (
+                f"Retry scheduled for {worker_name} (next_attempt={next_attempt})."
+            )
             severity = "warning"
-        elif event_type == "worker_attempt_completed" and str(payload.get("status")) == "FAILED":
+        elif (
+            event_type == "worker_attempt_completed"
+            and str(payload.get("status")) == "FAILED"
+        ):
             worker_name = str(payload.get("worker_name", "worker"))
             failure_reason = str(payload.get("failure_reason", "unknown_failure"))
             summary = f"Worker attempt failed: {worker_name} ({failure_reason})."
@@ -340,7 +394,9 @@ class RuntimeDashboardService:
     ) -> dict[str, Any]:
         incident_rows: list[dict[str, Any]] = []
         for sequence, row in enumerate(journal_rows, start=1):
-            incident = RuntimeDashboardService._incident_from_journal_row(row, sequence=sequence)
+            incident = RuntimeDashboardService._incident_from_journal_row(
+                row, sequence=sequence
+            )
             if incident is not None:
                 incident_rows.append(incident)
 
@@ -369,7 +425,9 @@ class RuntimeDashboardService:
         }
 
     @staticmethod
-    def _extract_cycle_summaries_from_journal(journal_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _extract_cycle_summaries_from_journal(
+        journal_rows: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         by_cycle_index: dict[int, dict[str, Any]] = {}
         for row in journal_rows:
             if row.get("event_type") != "worker_heartbeat":
@@ -414,7 +472,9 @@ class RuntimeDashboardService:
         *,
         window: int,
     ) -> dict[str, Any]:
-        cycle_summaries = RuntimeDashboardService._extract_cycle_summaries_from_journal(journal_rows)
+        cycle_summaries = RuntimeDashboardService._extract_cycle_summaries_from_journal(
+            journal_rows
+        )
         windowed = cycle_summaries[-window:]
         comparison_items: list[dict[str, Any]] = []
 
@@ -425,7 +485,9 @@ class RuntimeDashboardService:
                 enriched["delta"] = None
             else:
                 enriched["delta"] = {
-                    "events": RuntimeDashboardService._delta(previous.get("events"), entry.get("events")),
+                    "events": RuntimeDashboardService._delta(
+                        previous.get("events"), entry.get("events")
+                    ),
                     "risk_allowed_count": RuntimeDashboardService._delta(
                         previous.get("risk_allowed_count"),
                         entry.get("risk_allowed_count"),
@@ -452,7 +514,9 @@ class RuntimeDashboardService:
             "items": comparison_items,
         }
 
-    def build_incident_feed(self, *, limit: int = 50, cursor: Any = None) -> dict[str, Any]:
+    def build_incident_feed(
+        self, *, limit: int = 50, cursor: Any = None
+    ) -> dict[str, Any]:
         limit_value = self._as_positive_int(limit, field_name="incident_limit")
         journal_rows = self._load_journal()
         return self._build_incident_feed_payload(
@@ -480,9 +544,15 @@ class RuntimeDashboardService:
         incident_cursor: Any = None,
         comparison_window: int = 10,
     ) -> dict[str, Any]:
-        events_limit = self._as_positive_int(recent_events_limit, field_name="recent_events_limit")
-        audit_limit = self._as_positive_int(recent_audit_limit, field_name="recent_audit_limit")
-        incident_limit_value = self._as_positive_int(incident_limit, field_name="incident_limit")
+        events_limit = self._as_positive_int(
+            recent_events_limit, field_name="recent_events_limit"
+        )
+        audit_limit = self._as_positive_int(
+            recent_audit_limit, field_name="recent_audit_limit"
+        )
+        incident_limit_value = self._as_positive_int(
+            incident_limit, field_name="incident_limit"
+        )
         comparison_window_value = self._as_positive_int(
             comparison_window,
             field_name="comparison_window",

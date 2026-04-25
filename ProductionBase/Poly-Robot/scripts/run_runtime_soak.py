@@ -71,7 +71,9 @@ def _state_mtime(path: Path) -> float | None:
     return path.stat().st_mtime
 
 
-def _load_state_if_updated(path: Path, *, before_mtime: float | None) -> dict[str, Any] | None:
+def _load_state_if_updated(
+    path: Path, *, before_mtime: float | None
+) -> dict[str, Any] | None:
     if not path.exists():
         return None
     current_mtime = path.stat().st_mtime
@@ -105,11 +107,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "scenario rotation, health snapshots, and recovery drills."
         )
     )
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(
@@ -352,7 +360,9 @@ def _build_supervisor_command(
     return command
 
 
-def _extract_worker_loop_metadata(state_snapshot: dict[str, Any] | None) -> dict[str, Any]:
+def _extract_worker_loop_metadata(
+    state_snapshot: dict[str, Any] | None,
+) -> dict[str, Any]:
     if not state_snapshot:
         return {}
     worker_results = state_snapshot.get("worker_results")
@@ -384,10 +394,16 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--drill-delayed-execution-ms must be > 0")
 
     restart_drill_intervals = _parse_interval_set(args.drill_restart_intervals)
-    data_unavailable_drill_intervals = _parse_interval_set(args.drill_data_unavailable_intervals)
-    delayed_execution_drill_intervals = _parse_interval_set(args.drill_delayed_execution_intervals)
+    data_unavailable_drill_intervals = _parse_interval_set(
+        args.drill_data_unavailable_intervals
+    )
+    delayed_execution_drill_intervals = _parse_interval_set(
+        args.drill_delayed_execution_intervals
+    )
     if args.ignore_operator_controls and restart_drill_intervals:
-        raise ValueError("Restart drills require operator controls; remove --ignore-operator-controls.")
+        raise ValueError(
+            "Restart drills require operator controls; remove --ignore-operator-controls."
+        )
 
     scenario_pack = load_scenario_pack(args.scenario_pack)
     available_scenarios = list(scenario_pack.scenarios.keys())
@@ -425,14 +441,17 @@ def main(argv: list[str] | None = None) -> int:
             drill_labels.append("delayed_execution_response")
             events_path = _build_delayed_events_fixture(
                 source_path=args.events,
-                target_path=drill_data_dir / f"delayed_execution_interval_{interval_index:03d}.jsonl",
+                target_path=drill_data_dir
+                / f"delayed_execution_interval_{interval_index:03d}.jsonl",
                 execution_latency_ms=args.drill_delayed_execution_ms,
             )
 
         if interval_index in data_unavailable_drill_intervals:
             drill_labels.append("temporary_data_unavailability")
             expected_failure = True
-            events_path = drill_data_dir / f"missing_source_interval_{interval_index:03d}.jsonl"
+            events_path = (
+                drill_data_dir / f"missing_source_interval_{interval_index:03d}.jsonl"
+            )
 
         if interval_index in restart_drill_intervals:
             drill_labels.append("intentional_restart")
@@ -457,17 +476,25 @@ def main(argv: list[str] | None = None) -> int:
         )
         state_mtime_before = _state_mtime(args.state_path)
         result = subprocess.run(command, capture_output=True, text=True, check=False)
-        state_snapshot = _load_state_if_updated(args.state_path, before_mtime=state_mtime_before)
+        state_snapshot = _load_state_if_updated(
+            args.state_path, before_mtime=state_mtime_before
+        )
         worker_metadata = _extract_worker_loop_metadata(state_snapshot)
+        supervisor_state_status = (
+            state_snapshot.get("status") if isinstance(state_snapshot, dict) else None
+        )
+        supervisor_failed = supervisor_state_status == "FAILED"
+        command_failed = result.returncode != 0
 
-        if result.returncode == 0 and not expected_failure:
-            interval_status = "SUCCESS"
-        elif result.returncode != 0 and expected_failure:
-            interval_status = "DRILL_EXPECTED_FAILURE"
-        elif result.returncode == 0 and expected_failure:
-            interval_status = "DRILL_UNEXPECTED_SUCCESS"
+        if expected_failure:
+            if command_failed or supervisor_failed:
+                interval_status = "DRILL_EXPECTED_FAILURE"
+            else:
+                interval_status = "DRILL_UNEXPECTED_SUCCESS"
         else:
-            interval_status = "FAILED"
+            interval_status = (
+                "FAILED" if command_failed or supervisor_failed else "SUCCESS"
+            )
 
         snapshot = {
             "schema_version": RUNTIME_SOAK_HEALTH_SNAPSHOT_SCHEMA_VERSION,
@@ -480,23 +507,23 @@ def main(argv: list[str] | None = None) -> int:
             "command_exit_code": result.returncode,
             "command_stdout_tail": _tail(result.stdout),
             "command_stderr_tail": _tail(result.stderr),
-            "supervisor_state_status": (
-                state_snapshot.get("status") if isinstance(state_snapshot, dict) else None
-            ),
+            "supervisor_state_status": supervisor_state_status,
             "worker_last_metadata": worker_metadata,
             "events_path": str(events_path),
         }
         snapshots.append(snapshot)
         _append_jsonl(args.health_snapshot_path, snapshot)
-
-        if interval_status == "FAILED" and not args.continue_on_unexpected_failure:
+        if (
+            interval_status in ("FAILED", "DRILL_UNEXPECTED_SUCCESS")
+            and not args.continue_on_unexpected_failure
+        ):
             break
 
     def _has_success_after(interval_index: int) -> bool:
         for snapshot in snapshots:
             if snapshot["interval_index"] <= interval_index:
                 continue
-            if snapshot["interval_status"] in ("SUCCESS", "DRILL_UNEXPECTED_SUCCESS"):
+            if snapshot["interval_status"] == "SUCCESS":
                 return True
         return False
 
@@ -519,12 +546,22 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
 
-    has_unexpected_failure = any(snapshot["interval_status"] == "FAILED" for snapshot in snapshots)
+    has_unexpected_failure = any(
+        snapshot["interval_status"] == "FAILED" for snapshot in snapshots
+    )
+    has_drill_unexpected_success = any(
+        snapshot["interval_status"] == "DRILL_UNEXPECTED_SUCCESS"
+        for snapshot in snapshots
+    )
     has_failed_recovery_check = any(
         not check["recovered_after_interval"] for check in recovery_checks
     )
     overall_status = (
-        "FAILED" if has_unexpected_failure or has_failed_recovery_check else "SUCCESS"
+        "FAILED"
+        if has_unexpected_failure
+        or has_drill_unexpected_success
+        or has_failed_recovery_check
+        else "SUCCESS"
     )
 
     summary = {
@@ -548,12 +585,16 @@ def main(argv: list[str] | None = None) -> int:
                 1 for s in snapshots if s["interval_status"] == "DRILL_EXPECTED_FAILURE"
             ),
             "drill_unexpected_success": sum(
-                1 for s in snapshots if s["interval_status"] == "DRILL_UNEXPECTED_SUCCESS"
+                1
+                for s in snapshots
+                if s["interval_status"] == "DRILL_UNEXPECTED_SUCCESS"
             ),
             "failed": sum(1 for s in snapshots if s["interval_status"] == "FAILED"),
         },
     }
-    args.summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     print(
         "Runtime soak complete: "
