@@ -162,11 +162,29 @@ class OperatorControlManager:
             details={"note": cleaned_note},
         )
 
-    def list_audit_events(self, *, limit: int = 100) -> list[dict[str, Any]]:
+    def list_audit_events(
+        self,
+        *,
+        limit: int = 100,
+        action: str | None = None,
+        actor: str | None = None,
+    ) -> list[dict[str, Any]]:
         if limit <= 0:
             raise ValueError("limit must be > 0")
         rows = _read_jsonl(self.audit_path)
-        return rows[-limit:]
+        filtered = rows
+        if action and action.strip():
+            expected_action = action.strip()
+            filtered = [
+                row for row in filtered if str(row.get("action", "")).strip() == expected_action
+            ]
+        if actor and actor.strip():
+            expected_actor = actor.strip()
+            filtered = [
+                row for row in filtered if str(row.get("actor", "")).strip() == expected_actor
+            ]
+        return filtered[-limit:]
+
 
 
 class RuntimeDashboardService:
@@ -259,24 +277,237 @@ class RuntimeDashboardService:
                 break
         return metrics
 
+    @staticmethod
+    def _as_positive_int(value: Any, *, field_name: str) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be an integer") from exc
+        if parsed <= 0:
+            raise ValueError(f"{field_name} must be > 0")
+        return parsed
+
+    @staticmethod
+    def _incident_from_journal_row(
+        row: dict[str, Any], *, sequence: int
+    ) -> dict[str, Any] | None:
+        event_type = str(row.get("event_type", "unknown"))
+        payload = row.get("payload") or {}
+        timestamp = row.get("timestamp")
+
+        if event_type == "worker_retry_scheduled":
+            worker_name = str(payload.get("worker_name", "worker"))
+            next_attempt = payload.get("next_attempt_number")
+            summary = f"Retry scheduled for {worker_name} (next_attempt={next_attempt})."
+            severity = "warning"
+        elif event_type == "worker_attempt_completed" and str(payload.get("status")) == "FAILED":
+            worker_name = str(payload.get("worker_name", "worker"))
+            failure_reason = str(payload.get("failure_reason", "unknown_failure"))
+            summary = f"Worker attempt failed: {worker_name} ({failure_reason})."
+            severity = "error"
+        elif event_type == "cycle_completed" and str(payload.get("status")) == "FAILED":
+            cycle_index = payload.get("cycle_index")
+            summary = f"Cycle completed in FAILED state (cycle_index={cycle_index})."
+            severity = "error"
+        elif event_type == "control_invalid_scenario_fallback":
+            requested = payload.get("requested_scenario")
+            fallback = payload.get("fallback_scenario")
+            summary = f"Invalid scenario fallback applied: {requested} -> {fallback}."
+            severity = "warning"
+        elif event_type == "control_restart_acknowledged":
+            cycle_index = payload.get("cycle_index")
+            summary = f"Restart request acknowledged before cycle execution (cycle_index={cycle_index})."
+            severity = "info"
+        else:
+            return None
+
+        return {
+            "incident_id": f"{sequence}:{event_type}",
+            "incident_sequence": sequence,
+            "timestamp": timestamp,
+            "event_type": event_type,
+            "severity": severity,
+            "summary": summary,
+            "payload": payload,
+        }
+
+    @staticmethod
+    def _build_incident_feed_payload(
+        journal_rows: list[dict[str, Any]],
+        *,
+        limit: int,
+        cursor: Any,
+    ) -> dict[str, Any]:
+        incident_rows: list[dict[str, Any]] = []
+        for sequence, row in enumerate(journal_rows, start=1):
+            incident = RuntimeDashboardService._incident_from_journal_row(row, sequence=sequence)
+            if incident is not None:
+                incident_rows.append(incident)
+
+        upper_bound = len(incident_rows)
+        normalized_cursor: str | None = None
+        if cursor is not None:
+            normalized_cursor = str(cursor).strip() or None
+        if normalized_cursor is not None:
+            try:
+                upper_bound = min(upper_bound, max(0, int(normalized_cursor)))
+            except ValueError as exc:
+                raise ValueError("incident_cursor must be an integer") from exc
+
+        start_index = max(0, upper_bound - limit)
+        page_items = incident_rows[start_index:upper_bound]
+        next_cursor = str(start_index) if start_index > 0 else None
+
+        return {
+            "items": page_items,
+            "paging": {
+                "limit": limit,
+                "cursor": normalized_cursor,
+                "next_cursor": next_cursor,
+                "total_incidents": len(incident_rows),
+            },
+        }
+
+    @staticmethod
+    def _extract_cycle_summaries_from_journal(journal_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        by_cycle_index: dict[int, dict[str, Any]] = {}
+        for row in journal_rows:
+            if row.get("event_type") != "worker_heartbeat":
+                continue
+            payload = row.get("payload") or {}
+            if payload.get("worker_name") != "test_token_loop":
+                continue
+            if payload.get("stage") != "cycle_completed":
+                continue
+            details = payload.get("details") or {}
+            raw_cycle_index = details.get("cycle_index", payload.get("cycle_index"))
+            try:
+                cycle_index = int(raw_cycle_index)
+            except (TypeError, ValueError):
+                continue
+            by_cycle_index[cycle_index] = {
+                "cycle_index": cycle_index,
+                "timestamp": row.get("timestamp"),
+                "selected_scenario": details.get("selected_scenario"),
+                "control_version": details.get("control_version"),
+                "events": details.get("events"),
+                "risk_allowed_count": details.get("risk_allowed_count"),
+                "filled_trade_count": details.get("filled_trade_count"),
+                "exit_candidate_count": details.get("exit_candidate_count"),
+                "confirmed_exit_count": details.get("confirmed_exit_count"),
+                "result_hash_prefix": details.get("result_hash_prefix"),
+            }
+        return [by_cycle_index[index] for index in sorted(by_cycle_index.keys())]
+
+    @staticmethod
+    def _delta(previous_value: Any, current_value: Any) -> int | None:
+        try:
+            previous_int = int(previous_value)
+            current_int = int(current_value)
+        except (TypeError, ValueError):
+            return None
+        return current_int - previous_int
+
+    @staticmethod
+    def _build_cycle_comparison_payload(
+        journal_rows: list[dict[str, Any]],
+        *,
+        window: int,
+    ) -> dict[str, Any]:
+        cycle_summaries = RuntimeDashboardService._extract_cycle_summaries_from_journal(journal_rows)
+        windowed = cycle_summaries[-window:]
+        comparison_items: list[dict[str, Any]] = []
+
+        previous: dict[str, Any] | None = None
+        for entry in windowed:
+            enriched = dict(entry)
+            if previous is None:
+                enriched["delta"] = None
+            else:
+                enriched["delta"] = {
+                    "events": RuntimeDashboardService._delta(previous.get("events"), entry.get("events")),
+                    "risk_allowed_count": RuntimeDashboardService._delta(
+                        previous.get("risk_allowed_count"),
+                        entry.get("risk_allowed_count"),
+                    ),
+                    "filled_trade_count": RuntimeDashboardService._delta(
+                        previous.get("filled_trade_count"),
+                        entry.get("filled_trade_count"),
+                    ),
+                    "exit_candidate_count": RuntimeDashboardService._delta(
+                        previous.get("exit_candidate_count"),
+                        entry.get("exit_candidate_count"),
+                    ),
+                    "confirmed_exit_count": RuntimeDashboardService._delta(
+                        previous.get("confirmed_exit_count"),
+                        entry.get("confirmed_exit_count"),
+                    ),
+                }
+            comparison_items.append(enriched)
+            previous = entry
+
+        return {
+            "window": window,
+            "total_cycles": len(cycle_summaries),
+            "items": comparison_items,
+        }
+
+    def build_incident_feed(self, *, limit: int = 50, cursor: Any = None) -> dict[str, Any]:
+        limit_value = self._as_positive_int(limit, field_name="incident_limit")
+        journal_rows = self._load_journal()
+        return self._build_incident_feed_payload(
+            journal_rows,
+            limit=limit_value,
+            cursor=cursor,
+        )
+
+    def build_cycle_comparison(self, *, window: int = 10) -> dict[str, Any]:
+        window_value = self._as_positive_int(window, field_name="comparison_window")
+        journal_rows = self._load_journal()
+        return self._build_cycle_comparison_payload(
+            journal_rows,
+            window=window_value,
+        )
+
     def build_dashboard_payload(
         self,
         *,
         recent_events_limit: int = 200,
         recent_audit_limit: int = 100,
+        audit_action: str | None = None,
+        audit_actor: str | None = None,
+        incident_limit: int = 50,
+        incident_cursor: Any = None,
+        comparison_window: int = 10,
     ) -> dict[str, Any]:
-        if recent_events_limit <= 0:
-            raise ValueError("recent_events_limit must be > 0")
-        if recent_audit_limit <= 0:
-            raise ValueError("recent_audit_limit must be > 0")
+        events_limit = self._as_positive_int(recent_events_limit, field_name="recent_events_limit")
+        audit_limit = self._as_positive_int(recent_audit_limit, field_name="recent_audit_limit")
+        incident_limit_value = self._as_positive_int(incident_limit, field_name="incident_limit")
+        comparison_window_value = self._as_positive_int(
+            comparison_window,
+            field_name="comparison_window",
+        )
 
         supervisor_state = self._load_state()
         journal_rows = self._load_journal()
         event_counts = self._summarize_event_counts(journal_rows)
         worker_activity = self._summarize_worker_activity(journal_rows)
         control_state = self.control_manager.load_control_state()
-        audit_events = self.control_manager.list_audit_events(limit=recent_audit_limit)
+        audit_events = self.control_manager.list_audit_events(
+            limit=audit_limit,
+            action=audit_action,
+            actor=audit_actor,
+        )
         loop_metrics = self._extract_loop_metrics(supervisor_state)
+        incident_feed = self._build_incident_feed_payload(
+            journal_rows,
+            limit=incident_limit_value,
+            cursor=incident_cursor,
+        )
+        cycle_comparison = self._build_cycle_comparison_payload(
+            journal_rows,
+            window=comparison_window_value,
+        )
 
         return {
             "schema_version": RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION,
@@ -286,6 +517,8 @@ class RuntimeDashboardService:
             "event_counts": event_counts,
             "worker_activity": worker_activity,
             "loop_metrics": loop_metrics,
-            "recent_journal_events": journal_rows[-recent_events_limit:],
+            "recent_journal_events": journal_rows[-events_limit:],
             "recent_operator_actions": audit_events,
+            "incident_feed": incident_feed,
+            "cycle_comparison": cycle_comparison,
         }

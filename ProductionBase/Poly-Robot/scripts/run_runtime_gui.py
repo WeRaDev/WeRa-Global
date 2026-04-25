@@ -6,7 +6,7 @@ import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -139,6 +139,14 @@ def _html_page() -> str:
       <h2>Recent Journal Events</h2>
       <pre id="journalPayload"></pre>
     </div>
+    <div class="card">
+      <h2>Incident Feed</h2>
+      <pre id="incidentPayload"></pre>
+    </div>
+    <div class="card">
+      <h2>Run-to-Run Comparison</h2>
+      <pre id="comparisonPayload"></pre>
+    </div>
   </div>
   <script>
     async function fetchDashboard() {
@@ -169,6 +177,10 @@ def _html_page() -> str:
         JSON.stringify(payload.recent_operator_actions, null, 2);
       document.getElementById('journalPayload').textContent =
         JSON.stringify(payload.recent_journal_events, null, 2);
+      document.getElementById('incidentPayload').textContent =
+        JSON.stringify(payload.incident_feed, null, 2);
+      document.getElementById('comparisonPayload').textContent =
+        JSON.stringify(payload.cycle_comparison, null, 2);
     }
 
     function controlPayload() {
@@ -231,6 +243,37 @@ def _send_html(handler: BaseHTTPRequestHandler, *, status: int, payload: str) ->
     handler.wfile.write(body)
 
 
+def _query_value(query: dict[str, list[str]], key: str) -> str | None:
+    values = query.get(key)
+    if not values:
+        return None
+    return values[0]
+
+
+def _coerce_positive_int(value: str | None, *, field_name: str) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an integer.") from exc
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be > 0.")
+    return parsed
+
+
+def _coerce_non_negative_int(value: str | None, *, field_name: str) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an integer.") from exc
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be >= 0.")
+    return parsed
+
+
 def _build_handler(
     *,
     dashboard_service: RuntimeDashboardService,
@@ -259,25 +302,111 @@ def _build_handler(
 
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
             if parsed.path == "/":
                 _send_html(self, status=200, payload=_html_page())
                 return
             if parsed.path == "/healthz":
                 _send_json(self, status=200, payload={"status": "ok"})
                 return
-            if parsed.path == "/api/dashboard":
-                payload = dashboard_service.build_dashboard_payload(
-                    recent_events_limit=recent_events_limit,
-                    recent_audit_limit=recent_audit_limit,
-                )
-                _send_json(self, status=200, payload=payload)
-                return
-            if parsed.path == "/api/audit":
-                _send_json(
-                    self,
-                    status=200,
-                    payload={"events": control_manager.list_audit_events(limit=recent_audit_limit)},
-                )
+            try:
+                if parsed.path == "/api/dashboard":
+                    events_limit = (
+                        _coerce_positive_int(
+                            _query_value(query, "recent_events_limit"),
+                            field_name="recent_events_limit",
+                        )
+                        or recent_events_limit
+                    )
+                    audit_limit = (
+                        _coerce_positive_int(
+                            _query_value(query, "recent_audit_limit"),
+                            field_name="recent_audit_limit",
+                        )
+                        or recent_audit_limit
+                    )
+                    incident_limit = (
+                        _coerce_positive_int(
+                            _query_value(query, "incident_limit"),
+                            field_name="incident_limit",
+                        )
+                        or 50
+                    )
+                    incident_cursor = _coerce_non_negative_int(
+                        _query_value(query, "incident_cursor"),
+                        field_name="incident_cursor",
+                    )
+                    comparison_window = (
+                        _coerce_positive_int(
+                            _query_value(query, "comparison_window"),
+                            field_name="comparison_window",
+                        )
+                        or 10
+                    )
+                    payload = dashboard_service.build_dashboard_payload(
+                        recent_events_limit=events_limit,
+                        recent_audit_limit=audit_limit,
+                        audit_action=_query_value(query, "audit_action"),
+                        audit_actor=_query_value(query, "audit_actor"),
+                        incident_limit=incident_limit,
+                        incident_cursor=incident_cursor,
+                        comparison_window=comparison_window,
+                    )
+                    _send_json(self, status=200, payload=payload)
+                    return
+                if parsed.path == "/api/audit":
+                    audit_limit = (
+                        _coerce_positive_int(
+                            _query_value(query, "limit"),
+                            field_name="limit",
+                        )
+                        or recent_audit_limit
+                    )
+                    _send_json(
+                        self,
+                        status=200,
+                        payload={
+                            "events": control_manager.list_audit_events(
+                                limit=audit_limit,
+                                action=_query_value(query, "action"),
+                                actor=_query_value(query, "actor"),
+                            )
+                        },
+                    )
+                    return
+                if parsed.path == "/api/incidents":
+                    incident_limit = (
+                        _coerce_positive_int(
+                            _query_value(query, "limit"),
+                            field_name="limit",
+                        )
+                        or 50
+                    )
+                    incident_cursor = _coerce_non_negative_int(
+                        _query_value(query, "cursor"),
+                        field_name="cursor",
+                    )
+                    payload = dashboard_service.build_incident_feed(
+                        limit=incident_limit,
+                        cursor=incident_cursor,
+                    )
+                    _send_json(self, status=200, payload=payload)
+                    return
+                if parsed.path == "/api/comparison":
+                    comparison_window = (
+                        _coerce_positive_int(
+                            _query_value(query, "window"),
+                            field_name="window",
+                        )
+                        or 10
+                    )
+                    payload = dashboard_service.build_cycle_comparison(
+                        window=comparison_window
+                    )
+                    _send_json(self, status=200, payload=payload)
+                    return
+            except ValueError as exc:
+                _send_json(self, status=400, payload={"error": str(exc)})
                 return
             _send_json(self, status=404, payload={"error": "not_found"})
 

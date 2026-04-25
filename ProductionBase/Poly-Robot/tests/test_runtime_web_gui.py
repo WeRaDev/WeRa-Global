@@ -38,6 +38,46 @@ def _append_jsonl(path: Path, payload: dict) -> None:
         handle.write("\n")
 
 
+def _append_cycle_completed_event(
+    path: Path,
+    *,
+    timestamp: str,
+    cycle_index: int,
+    events: int,
+    risk_allowed_count: int,
+    filled_trade_count: int,
+    exit_candidate_count: int,
+    confirmed_exit_count: int,
+    selected_scenario: str = "baseline",
+    control_version: int = 1,
+    result_hash_prefix: str = "hash",
+) -> None:
+    _append_jsonl(
+        path,
+        {
+            "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+            "timestamp": timestamp,
+            "event_type": "worker_heartbeat",
+            "payload": {
+                "worker_name": "test_token_loop",
+                "stage": "cycle_completed",
+                "cycle_index": cycle_index,
+                "details": {
+                    "cycle_index": cycle_index,
+                    "selected_scenario": selected_scenario,
+                    "control_version": control_version,
+                    "events": events,
+                    "risk_allowed_count": risk_allowed_count,
+                    "filled_trade_count": filled_trade_count,
+                    "exit_candidate_count": exit_candidate_count,
+                    "confirmed_exit_count": confirmed_exit_count,
+                    "result_hash_prefix": result_hash_prefix,
+                },
+            },
+        },
+    )
+
+
 class RuntimeWebGuiTests(unittest.TestCase):
     def test_dashboard_payload_matches_runtime_state_and_journal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -119,6 +159,202 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(payload["loop_metrics"]["total_execution_cost"], 0.345)
             self.assertEqual(payload["control_state"]["schema_version"], RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION)
             self.assertEqual(payload["recent_operator_actions"], [])
+            self.assertEqual(payload["incident_feed"]["items"], [])
+            self.assertEqual(payload["cycle_comparison"]["items"], [])
+
+    def test_dashboard_payload_supports_track6_filters_incidents_and_comparison(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 2,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:00Z",
+                cycle_index=1,
+                events=10,
+                risk_allowed_count=8,
+                filled_trade_count=2,
+                exit_candidate_count=4,
+                confirmed_exit_count=1,
+                result_hash_prefix="aaa",
+            )
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:01Z",
+                    "event_type": "worker_retry_scheduled",
+                    "payload": {"worker_name": "test_token_loop", "next_attempt_number": 2},
+                },
+            )
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:02Z",
+                    "event_type": "worker_attempt_completed",
+                    "payload": {
+                        "worker_name": "test_token_loop",
+                        "status": "FAILED",
+                        "failure_reason": "risk_guard_rejected",
+                    },
+                },
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:03Z",
+                cycle_index=2,
+                events=12,
+                risk_allowed_count=9,
+                filled_trade_count=3,
+                exit_candidate_count=5,
+                confirmed_exit_count=2,
+                result_hash_prefix="bbb",
+            )
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:04Z",
+                    "event_type": "control_invalid_scenario_fallback",
+                    "payload": {
+                        "requested_scenario": "unknown",
+                        "fallback_scenario": "baseline",
+                    },
+                },
+            )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            control_manager.set_paused(paused=True, actor="alice", reason="maintenance")
+            control_manager.set_scenario(actor="bob", scenario_name="liquidity_crunch")
+            control_manager.annotate(actor="alice", note="monitoring")
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+
+            payload = service.build_dashboard_payload(
+                recent_events_limit=20,
+                recent_audit_limit=10,
+                audit_actor="alice",
+                incident_limit=2,
+                comparison_window=2,
+            )
+
+            self.assertEqual(len(payload["recent_operator_actions"]), 2)
+            self.assertTrue(
+                all(event["actor"] == "alice" for event in payload["recent_operator_actions"])
+            )
+            self.assertEqual(payload["incident_feed"]["paging"]["total_incidents"], 3)
+            self.assertEqual(payload["incident_feed"]["paging"]["next_cursor"], "1")
+            self.assertEqual(len(payload["incident_feed"]["items"]), 2)
+            self.assertEqual(
+                payload["incident_feed"]["items"][0]["event_type"],
+                "worker_attempt_completed",
+            )
+            self.assertEqual(payload["incident_feed"]["items"][1]["event_type"], "control_invalid_scenario_fallback")
+            self.assertEqual(payload["cycle_comparison"]["total_cycles"], 2)
+            self.assertEqual(len(payload["cycle_comparison"]["items"]), 2)
+            self.assertIsNone(payload["cycle_comparison"]["items"][0]["delta"])
+            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["events"], 2)
+            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["risk_allowed_count"], 1)
+            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["filled_trade_count"], 1)
+            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["exit_candidate_count"], 1)
+            self.assertEqual(payload["cycle_comparison"]["items"][1]["delta"]["confirmed_exit_count"], 1)
+
+    def test_incident_feed_pagination_accepts_string_and_integer_cursor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal_path = root / "runtime_journal.jsonl"
+            control_manager = OperatorControlManager(
+                control_state_path=root / "operator_state.json",
+                audit_path=root / "operator_audit.jsonl",
+            )
+            service = RuntimeDashboardService(
+                state_path=root / "runtime_state.json",
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "event_type": "worker_retry_scheduled",
+                    "payload": {"worker_name": "test_token_loop", "next_attempt_number": 2},
+                },
+            )
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:01Z",
+                    "event_type": "worker_attempt_completed",
+                    "payload": {
+                        "worker_name": "test_token_loop",
+                        "status": "FAILED",
+                        "failure_reason": "runtime_error",
+                    },
+                },
+            )
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:02Z",
+                    "event_type": "control_restart_acknowledged",
+                    "payload": {"cycle_index": 7},
+                },
+            )
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:03Z",
+                    "event_type": "cycle_completed",
+                    "payload": {"cycle_index": 8, "status": "FAILED"},
+                },
+            )
+
+            newest_page = service.build_incident_feed(limit=2)
+            self.assertEqual(newest_page["paging"]["total_incidents"], 4)
+            self.assertEqual(newest_page["paging"]["cursor"], None)
+            self.assertEqual(newest_page["paging"]["next_cursor"], "2")
+            self.assertEqual(len(newest_page["items"]), 2)
+            self.assertEqual(newest_page["items"][0]["incident_sequence"], 3)
+            self.assertEqual(newest_page["items"][1]["incident_sequence"], 4)
+
+            older_page = service.build_incident_feed(
+                limit=2,
+                cursor=newest_page["paging"]["next_cursor"],
+            )
+            self.assertEqual(older_page["paging"]["cursor"], "2")
+            self.assertEqual(older_page["paging"]["next_cursor"], None)
+            self.assertEqual([item["incident_sequence"] for item in older_page["items"]], [1, 2])
+
+            first_only_page = service.build_incident_feed(limit=1, cursor=1)
+            self.assertEqual(first_only_page["paging"]["cursor"], "1")
+            self.assertEqual([item["incident_sequence"] for item in first_only_page["items"]], [1])
 
     def test_operator_actions_update_control_state_and_emit_audit_log(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -166,6 +402,30 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 manager.annotate(actor="alice", note=" ")
             with self.assertRaises(ValueError):
                 manager.list_audit_events(limit=0)
+
+    def test_invalid_incident_cursor_raises_value_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal_path = root / "runtime_journal.jsonl"
+            _append_jsonl(
+                journal_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "event_type": "worker_retry_scheduled",
+                    "payload": {"worker_name": "test_token_loop", "next_attempt_number": 2},
+                },
+            )
+            service = RuntimeDashboardService(
+                state_path=root / "runtime_state.json",
+                journal_path=journal_path,
+                control_manager=OperatorControlManager(
+                    control_state_path=root / "operator_state.json",
+                    audit_path=root / "operator_audit.jsonl",
+                ),
+            )
+            with self.assertRaises(ValueError):
+                service.build_dashboard_payload(incident_cursor="invalid-cursor")
 
 
 if __name__ == "__main__":
