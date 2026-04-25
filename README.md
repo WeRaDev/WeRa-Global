@@ -11,6 +11,8 @@ Unified umbrella repository for WeRa Global.
 - `ProductionBase/FreeDoo`
 - `ProductionBase/wera-contracts`
 - `ProductionBase/SolarSim`
+- `ProductionBase/Bild`
+- `ProductionBase/Poly-Robot`
 
 ## Working model
 - Use this repository as the single onboarding and navigation entry point.
