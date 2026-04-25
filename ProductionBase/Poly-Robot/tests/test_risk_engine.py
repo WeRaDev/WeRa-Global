@@ -4,6 +4,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from typing import Literal
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -39,10 +40,12 @@ def _build_event() -> MarketEvent:
     )
 
 
-def _build_decision(consensus_votes: int) -> StrategyDecision:
+def _build_decision(
+    consensus_votes: int, *, action: Literal["BUY", "HOLD"] = "BUY", win_probability: float = 0.82
+) -> StrategyDecision:
     return StrategyDecision(
-        action="BUY",
-        win_probability=0.82,
+        action=action,
+        win_probability=win_probability,
         confidence=0.8,
         checks_passed=3,
         consensus_buy_votes=consensus_votes,
@@ -103,6 +106,99 @@ class RiskEngineTests(unittest.TestCase):
         self.assertFalse(result.allowed)
         self.assertTrue(result.kill_switch)
         self.assertIn("daily_drawdown_kill_switch", result.reasons)
+
+    def test_denies_when_strategy_is_not_buy(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2, action="HOLD")
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("strategy_not_buy", result.reasons)
+
+    def test_denies_when_max_concurrent_positions_reached(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+            open_notional=250.0,
+            open_positions=6,
+            market_notional={"mkt-other": 250.0},
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("max_concurrent_positions_reached", result.reasons)
+
+    def test_denies_when_market_exposure_limit_reached(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+            open_notional=250.0,
+            open_positions=2,
+            market_notional={"mkt-risk": 250.0},
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("market_exposure_limit_reached", result.reasons)
+
+    def test_denies_when_portfolio_exposure_limit_reached(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+            open_notional=600.0,
+            open_positions=4,
+            market_notional={"mkt-other": 300.0, "mkt-alt": 300.0},
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("portfolio_exposure_limit_reached", result.reasons)
+
+    def test_denies_when_consensus_votes_insufficient(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=0)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("insufficient_consensus_votes", result.reasons)
+
+    def test_denies_when_kelly_edge_is_non_positive(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2, win_probability=0.40)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("non_positive_kelly_edge", result.reasons)
+
+    def test_denies_when_approved_notional_rounds_to_zero(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=0.01,
+            day_start_equity=0.01,
+            current_equity=0.01,
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("approved_notional_zero", result.reasons)
 
 
 if __name__ == "__main__":

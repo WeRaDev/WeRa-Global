@@ -27,6 +27,7 @@ class MarketEvent:
     @property
     def price_gap(self) -> float:
         return abs(self.estimated_probability - self.midpoint)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
@@ -103,6 +104,9 @@ class PortfolioState:
     open_notional: float = 0.0
     open_positions: int = 0
     market_notional: dict[str, float] = field(default_factory=dict)
+    cumulative_fees_paid: float = 0.0
+    cumulative_slippage_cost: float = 0.0
+    cumulative_execution_cost: float = 0.0
 
     @property
     def daily_drawdown_fraction(self) -> float:
@@ -127,6 +131,28 @@ class PortfolioState:
         self.open_positions += 1
         self.market_notional[market_id] = self.market_notional.get(market_id, 0.0) + notional
 
+    def register_executed_trade(
+        self,
+        market_id: str,
+        notional: float,
+        *,
+        fee_paid: float = 0.0,
+        slippage_cost: float = 0.0,
+    ) -> None:
+        self.register_approved_trade(market_id, notional)
+        fee_value = max(0.0, float(fee_paid))
+        slippage_value = max(0.0, float(slippage_cost))
+        execution_cost = round(fee_value + slippage_value, 4)
+
+        self.cumulative_fees_paid = round(self.cumulative_fees_paid + fee_value, 4)
+        self.cumulative_slippage_cost = round(
+            self.cumulative_slippage_cost + slippage_value, 4
+        )
+        self.cumulative_execution_cost = round(
+            self.cumulative_execution_cost + execution_cost, 4
+        )
+        self.current_equity = round(max(0.0, self.current_equity - execution_cost), 4)
+
     def clone(self) -> "PortfolioState":
         return PortfolioState(
             bankroll=self.bankroll,
@@ -135,6 +161,9 @@ class PortfolioState:
             open_notional=self.open_notional,
             open_positions=self.open_positions,
             market_notional=dict(self.market_notional),
+            cumulative_fees_paid=self.cumulative_fees_paid,
+            cumulative_slippage_cost=self.cumulative_slippage_cost,
+            cumulative_execution_cost=self.cumulative_execution_cost,
         )
 
 
