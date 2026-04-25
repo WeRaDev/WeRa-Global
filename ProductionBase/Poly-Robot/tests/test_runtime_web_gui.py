@@ -228,7 +228,17 @@ class RuntimeWebGuiTests(unittest.TestCase):
                                 "risk_allowed_count": 1,
                                 "filled_trade_count": 1,
                                 "partial_fill_count": 0,
+                                "total_fees_paid": 0.125,
+                                "total_slippage_cost": 0.22,
                                 "total_execution_cost": 0.345,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 999.655,
+                                "net_pnl": -0.345,
+                                "open_notional": 50.0,
+                                "open_positions": 1,
+                                "total_exposure_fraction": 0.05,
+                                "daily_drawdown_fraction": 0.000345,
                                 "result_hash": "abc123",
                             },
                         }
@@ -282,6 +292,19 @@ class RuntimeWebGuiTests(unittest.TestCase):
             )
             self.assertEqual(payload["loop_metrics"]["filled_trade_count"], 1)
             self.assertEqual(payload["loop_metrics"]["total_execution_cost"], 0.345)
+            self.assertEqual(payload["financial_metrics"]["bankroll"], 1000.0)
+            self.assertEqual(payload["financial_metrics"]["current_equity"], 999.655)
+            self.assertEqual(payload["financial_metrics"]["net_pnl"], -0.345)
+            self.assertEqual(payload["financial_metrics"]["open_positions"], 1)
+            self.assertEqual(
+                payload["financial_metrics"]["total_exposure_fraction"], 0.05
+            )
+            self.assertEqual(payload["financial_metrics"]["total_fees_paid"], 0.125)
+            self.assertEqual(payload["financial_metrics"]["total_slippage_cost"], 0.22)
+            self.assertEqual(
+                payload["financial_metrics"]["average_execution_cost_per_fill"], 0.345
+            )
+            self.assertEqual(payload["financial_metrics"]["fill_rate"], 1.0)
             self.assertEqual(
                 payload["control_state"]["schema_version"],
                 RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
@@ -624,6 +647,8 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('id="comparisonWindow"', html)
         self.assertIn('onclick="loadNewerIncidents()"', html)
         self.assertIn('onclick="loadOlderIncidents()"', html)
+        self.assertIn('id="financialPayload"', html)
+        self.assertIn("How to Use and Control Poly-Robot", html)
 
 
 if __name__ == "__main__":

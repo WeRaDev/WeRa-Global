@@ -333,6 +333,16 @@ def main(argv: list[str] | None = None) -> int:
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
                 "total_execution_cost": 0.0,
+                "total_fees_paid": 0.0,
+                "total_slippage_cost": 0.0,
+                "bankroll": args.bankroll,
+                "day_start_equity": args.bankroll,
+                "current_equity": args.bankroll,
+                "net_pnl": 0.0,
+                "open_notional": 0.0,
+                "open_positions": 0,
+                "total_exposure_fraction": 0.0,
+                "daily_drawdown_fraction": 0.0,
                 "result_hash": None,
             }
 
@@ -357,6 +367,16 @@ def main(argv: list[str] | None = None) -> int:
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
                 "total_execution_cost": 0.0,
+                "total_fees_paid": 0.0,
+                "total_slippage_cost": 0.0,
+                "bankroll": args.bankroll,
+                "day_start_equity": args.bankroll,
+                "current_equity": args.bankroll,
+                "net_pnl": 0.0,
+                "open_notional": 0.0,
+                "open_positions": 0,
+                "total_exposure_fraction": 0.0,
+                "daily_drawdown_fraction": 0.0,
                 "result_hash": None,
             }
 
@@ -452,6 +472,12 @@ def main(argv: list[str] | None = None) -> int:
             "result_hash": result_hash,
             "cycle_index": cycle_index,
         }
+        final_portfolio = run.final_portfolio
+        net_pnl = round(
+            final_portfolio.current_equity - final_portfolio.day_start_equity, 4
+        )
+        total_exposure_fraction = round(final_portfolio.total_exposure_fraction, 6)
+        daily_drawdown_fraction = round(final_portfolio.daily_drawdown_fraction, 6)
 
         if args.cycle_output_dir:
             output_path = args.cycle_output_dir / f"cycle_{cycle_index:03d}.json"
@@ -470,6 +496,15 @@ def main(argv: list[str] | None = None) -> int:
                 "filled_trade_count": run.filled_trade_count,
                 "exit_candidate_count": run.exit_candidate_count,
                 "confirmed_exit_count": run.confirmed_exit_count,
+                "total_execution_cost": run.total_execution_cost,
+                "total_fees_paid": run.total_fees_paid,
+                "total_slippage_cost": run.total_slippage_cost,
+                "net_pnl": net_pnl,
+                "current_equity": final_portfolio.current_equity,
+                "open_notional": final_portfolio.open_notional,
+                "open_positions": final_portfolio.open_positions,
+                "total_exposure_fraction": total_exposure_fraction,
+                "daily_drawdown_fraction": daily_drawdown_fraction,
                 "result_hash_prefix": result_hash[:12],
             },
         )
@@ -485,6 +520,16 @@ def main(argv: list[str] | None = None) -> int:
             "exit_candidate_count": run.exit_candidate_count,
             "confirmed_exit_count": run.confirmed_exit_count,
             "total_execution_cost": run.total_execution_cost,
+            "total_fees_paid": run.total_fees_paid,
+            "total_slippage_cost": run.total_slippage_cost,
+            "bankroll": final_portfolio.bankroll,
+            "day_start_equity": final_portfolio.day_start_equity,
+            "current_equity": final_portfolio.current_equity,
+            "net_pnl": net_pnl,
+            "open_notional": final_portfolio.open_notional,
+            "open_positions": final_portfolio.open_positions,
+            "total_exposure_fraction": total_exposure_fraction,
+            "daily_drawdown_fraction": daily_drawdown_fraction,
             "result_hash": result_hash,
         }
 

@@ -104,11 +104,23 @@ def _html_page() -> str:
     input { margin-right: 8px; margin-bottom: 8px; }
     .status-success { color: #1a7f37; font-weight: 600; }
     .status-failed { color: #cf222e; font-weight: 600; }
+    .guide-list { margin: 0; padding-left: 20px; line-height: 1.45; }
   </style>
 </head>
 <body>
   <h1>Poly-Robot Runtime Console</h1>
   <p id="summary">Loading...</p>
+  <div class="card">
+    <h2>How to Use and Control Poly-Robot</h2>
+    <ol class="guide-list">
+      <li>Start the runtime supervisor first so state/journal files are updated continuously.</li>
+      <li>Use Dashboard Views filters to focus on incidents, action history, and cycle comparisons.</li>
+      <li>Review the Financial Dashboard for equity, PnL, exposure, and execution-cost metrics.</li>
+      <li>Use Pause before maintenance, Resume to continue runtime, and Graceful Restart for controlled restarts.</li>
+      <li>Set Scenario to steer the next cycle input profile and use incident annotations for auditability.</li>
+      <li>If no operator token was configured at startup, control POST actions are disabled (read-only mode).</li>
+    </ol>
+  </div>
   <div class="card">
     <h2>Operator Controls</h2>
     <input id="actor" placeholder="actor" value="operator" />
@@ -146,6 +158,10 @@ def _html_page() -> str:
       <pre id="statePayload"></pre>
     </div>
     <div class="card">
+      <h2>Financial Dashboard</h2>
+      <pre id="financialPayload"></pre>
+    </div>
+    <div class="card">
       <h2>Event Counts + Worker Activity</h2>
       <pre id="eventPayload"></pre>
     </div>
@@ -179,6 +195,17 @@ def _html_page() -> str:
     let dashboardQuery = { ...defaultDashboardQuery };
     let incidentCursorHistory = [];
     let lastDashboardPayload = null;
+    function hasNumericValue(value) {
+      return value !== null && value !== undefined && Number.isFinite(Number(value));
+    }
+
+    function formatNumber(value, digits) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return '-';
+      }
+      return numeric.toFixed(digits);
+    }
 
     function readPositiveInteger(inputId, fallbackValue) {
       const rawValue = document.getElementById(inputId).value;
@@ -250,18 +277,31 @@ def _html_page() -> str:
       const payload = await response.json();
       lastDashboardPayload = payload;
       const state = payload.supervisor_state || {};
+      const financial = payload.financial_metrics || {};
       const status = state.status || 'UNKNOWN';
       const statusClass = status === 'SUCCESS' ? 'status-success' : (status === 'FAILED' ? 'status-failed' : '');
+      const equitySummary = hasNumericValue(financial.current_equity)
+        ? ' | equity=' + formatNumber(financial.current_equity, 2)
+        : '';
+      const netPnlSummary = hasNumericValue(financial.net_pnl)
+        ? ' | net_pnl=' + (Number(financial.net_pnl) >= 0 ? '+' : '') + formatNumber(financial.net_pnl, 2)
+        : '';
       document.getElementById('summary').innerHTML =
         'Overall: <span class="' + statusClass + '">' + status + '</span> | cycle=' +
         (state.cycle_index ?? '-') + ' | failed_workers=' +
-        ((state.failed_workers || []).length) + ' | generated_at=' + payload.generated_at;
+        ((state.failed_workers || []).length) +
+        equitySummary +
+        netPnlSummary +
+        ' | generated_at=' + payload.generated_at;
 
       document.getElementById('statePayload').textContent = JSON.stringify({
         control_state: payload.control_state,
         loop_metrics: payload.loop_metrics,
+        financial_metrics: payload.financial_metrics,
         supervisor_state: payload.supervisor_state
       }, null, 2);
+      document.getElementById('financialPayload').textContent =
+        JSON.stringify(payload.financial_metrics, null, 2);
       document.getElementById('eventPayload').textContent = JSON.stringify({
         event_counts: payload.event_counts,
         worker_activity: payload.worker_activity

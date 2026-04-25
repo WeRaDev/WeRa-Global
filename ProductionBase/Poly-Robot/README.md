@@ -142,6 +142,32 @@ python3 scripts/run_runtime_gui.py \
   --host 127.0.0.1 \
   --port 8765
 ```
+GUI operator guide (financial dashboard + controls):
+1. Start runtime supervision so the GUI has fresh cycle state:
+```bash
+python3 scripts/run_runtime_supervisor.py \
+  --events tests/fixtures/replay_events.jsonl \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --scenario-pack config/replay/scenario_pack.v1.json \
+  --scenario baseline \
+  --cycles 3 \
+  --control-state-path runtime/operator_control_state.json \
+  --control-audit-path runtime/operator_action_audit.jsonl \
+  --cycle-output-dir runtime/cycles
+```
+2. Run the GUI and open `http://127.0.0.1:8765` in a browser.
+3. Use **Financial Dashboard** to monitor:
+   - `current_equity`, `net_pnl`, and `day_start_equity`
+   - `open_notional`, `open_positions`, and `total_exposure_fraction`
+   - `total_fees_paid`, `total_slippage_cost`, `total_execution_cost`, and `fill_rate`
+4. Use **Operator Controls** to control Poly-Robot runtime:
+   - `Pause`: blocks new cycle execution but keeps runtime alive
+   - `Resume`: removes pause gate and continues processing
+   - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
+   - `Set Scenario`: changes scenario used by the next cycle
+   - `Annotate Incident`: appends an audited operator note
+5. If GUI is started without `--operator-token`, controls are read-only and POST control actions return 403.
 
 Runtime GUI API examples for hardened operator views:
 ```bash

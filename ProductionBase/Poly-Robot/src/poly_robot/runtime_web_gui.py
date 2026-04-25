@@ -299,32 +299,196 @@ class RuntimeDashboardService:
         return by_worker
 
     @staticmethod
-    def _extract_loop_metrics(
+    def _extract_test_token_loop_metadata(
         supervisor_state: dict[str, Any] | None,
     ) -> dict[str, Any]:
         if not supervisor_state:
             return {}
-        metrics: dict[str, Any] = {}
         worker_results = supervisor_state.get("worker_results")
         if not isinstance(worker_results, list):
-            return metrics
-
+            return {}
         for worker_result in worker_results:
-            worker_name = worker_result.get("worker_name")
+            if worker_result.get("worker_name") != "test_token_loop":
+                continue
             last_metadata = worker_result.get("last_metadata") or {}
-            if worker_name == "test_token_loop" and isinstance(last_metadata, dict):
-                metrics = {
-                    "events": last_metadata.get("events"),
-                    "risk_allowed_count": last_metadata.get("risk_allowed_count"),
-                    "filled_trade_count": last_metadata.get("filled_trade_count"),
-                    "partial_fill_count": last_metadata.get("partial_fill_count"),
-                    "exit_candidate_count": last_metadata.get("exit_candidate_count"),
-                    "confirmed_exit_count": last_metadata.get("confirmed_exit_count"),
-                    "total_execution_cost": last_metadata.get("total_execution_cost"),
-                    "result_hash": last_metadata.get("result_hash"),
-                }
-                break
-        return metrics
+            if isinstance(last_metadata, dict):
+                return last_metadata
+        return {}
+
+    @staticmethod
+    def _to_float(value: Any) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _to_int(value: Any) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _round_float(value: float | None, *, digits: int) -> float | None:
+        if value is None:
+            return None
+        return round(value, digits)
+
+    @staticmethod
+    def _ratio(numerator: float | None, denominator: float | None) -> float | None:
+        if numerator is None or denominator is None:
+            return None
+        if denominator <= 0:
+            return None
+        return numerator / denominator
+
+    @staticmethod
+    def _extract_loop_metrics(
+        supervisor_state: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        last_metadata = RuntimeDashboardService._extract_test_token_loop_metadata(
+            supervisor_state
+        )
+        if not last_metadata:
+            return {}
+        return {
+            "events": last_metadata.get("events"),
+            "risk_allowed_count": last_metadata.get("risk_allowed_count"),
+            "filled_trade_count": last_metadata.get("filled_trade_count"),
+            "partial_fill_count": last_metadata.get("partial_fill_count"),
+            "exit_candidate_count": last_metadata.get("exit_candidate_count"),
+            "confirmed_exit_count": last_metadata.get("confirmed_exit_count"),
+            "total_execution_cost": last_metadata.get("total_execution_cost"),
+            "result_hash": last_metadata.get("result_hash"),
+        }
+
+    @staticmethod
+    def _extract_financial_metrics(
+        supervisor_state: dict[str, Any] | None,
+        loop_metrics: dict[str, Any],
+    ) -> dict[str, Any]:
+        last_metadata = RuntimeDashboardService._extract_test_token_loop_metadata(
+            supervisor_state
+        )
+        if not last_metadata:
+            return {}
+
+        bankroll = RuntimeDashboardService._to_float(last_metadata.get("bankroll"))
+        day_start_equity = RuntimeDashboardService._to_float(
+            last_metadata.get("day_start_equity")
+        )
+        current_equity = RuntimeDashboardService._to_float(
+            last_metadata.get("current_equity")
+        )
+        if day_start_equity is None and bankroll is not None:
+            day_start_equity = bankroll
+        if current_equity is None and day_start_equity is not None:
+            current_equity = day_start_equity
+
+        total_execution_cost = RuntimeDashboardService._to_float(
+            last_metadata.get("total_execution_cost")
+        )
+        if total_execution_cost is None:
+            total_execution_cost = RuntimeDashboardService._to_float(
+                loop_metrics.get("total_execution_cost")
+            )
+
+        total_fees_paid = RuntimeDashboardService._to_float(
+            last_metadata.get("total_fees_paid")
+        )
+        total_slippage_cost = RuntimeDashboardService._to_float(
+            last_metadata.get("total_slippage_cost")
+        )
+        open_notional = RuntimeDashboardService._to_float(
+            last_metadata.get("open_notional")
+        )
+        open_positions = RuntimeDashboardService._to_int(
+            last_metadata.get("open_positions")
+        )
+        risk_allowed_count = RuntimeDashboardService._to_int(
+            loop_metrics.get("risk_allowed_count")
+        )
+        filled_trade_count = RuntimeDashboardService._to_int(
+            loop_metrics.get("filled_trade_count")
+        )
+        partial_fill_count = RuntimeDashboardService._to_int(
+            loop_metrics.get("partial_fill_count")
+        )
+
+        net_pnl = RuntimeDashboardService._to_float(last_metadata.get("net_pnl"))
+        if (
+            net_pnl is None
+            and day_start_equity is not None
+            and current_equity is not None
+        ):
+            net_pnl = current_equity - day_start_equity
+
+        total_exposure_fraction = RuntimeDashboardService._to_float(
+            last_metadata.get("total_exposure_fraction")
+        )
+        if total_exposure_fraction is None:
+            total_exposure_fraction = RuntimeDashboardService._ratio(
+                open_notional, bankroll
+            )
+
+        daily_drawdown_fraction = RuntimeDashboardService._to_float(
+            last_metadata.get("daily_drawdown_fraction")
+        )
+        if (
+            daily_drawdown_fraction is None
+            and day_start_equity is not None
+            and current_equity is not None
+            and day_start_equity > 0
+        ):
+            drawdown = max(0.0, day_start_equity - current_equity)
+            daily_drawdown_fraction = drawdown / day_start_equity
+
+        fill_rate = RuntimeDashboardService._ratio(
+            RuntimeDashboardService._to_float(filled_trade_count),
+            RuntimeDashboardService._to_float(risk_allowed_count),
+        )
+        average_execution_cost_per_fill = RuntimeDashboardService._ratio(
+            total_execution_cost,
+            RuntimeDashboardService._to_float(filled_trade_count),
+        )
+
+        return {
+            "bankroll": RuntimeDashboardService._round_float(bankroll, digits=4),
+            "day_start_equity": RuntimeDashboardService._round_float(
+                day_start_equity, digits=4
+            ),
+            "current_equity": RuntimeDashboardService._round_float(
+                current_equity, digits=4
+            ),
+            "net_pnl": RuntimeDashboardService._round_float(net_pnl, digits=4),
+            "open_notional": RuntimeDashboardService._round_float(
+                open_notional, digits=4
+            ),
+            "open_positions": open_positions,
+            "total_exposure_fraction": RuntimeDashboardService._round_float(
+                total_exposure_fraction, digits=6
+            ),
+            "daily_drawdown_fraction": RuntimeDashboardService._round_float(
+                daily_drawdown_fraction, digits=6
+            ),
+            "risk_allowed_count": risk_allowed_count,
+            "filled_trade_count": filled_trade_count,
+            "partial_fill_count": partial_fill_count,
+            "fill_rate": RuntimeDashboardService._round_float(fill_rate, digits=6),
+            "total_fees_paid": RuntimeDashboardService._round_float(
+                total_fees_paid, digits=4
+            ),
+            "total_slippage_cost": RuntimeDashboardService._round_float(
+                total_slippage_cost, digits=4
+            ),
+            "total_execution_cost": RuntimeDashboardService._round_float(
+                total_execution_cost, digits=4
+            ),
+            "average_execution_cost_per_fill": RuntimeDashboardService._round_float(
+                average_execution_cost_per_fill, digits=4
+            ),
+        }
 
     @staticmethod
     def _as_positive_int(value: Any, *, field_name: str) -> int:
@@ -571,6 +735,10 @@ class RuntimeDashboardService:
             actor=audit_actor,
         )
         loop_metrics = self._extract_loop_metrics(supervisor_state)
+        financial_metrics = self._extract_financial_metrics(
+            supervisor_state,
+            loop_metrics,
+        )
         incident_feed = self._build_incident_feed_payload(
             journal_rows,
             limit=incident_limit_value,
@@ -589,6 +757,7 @@ class RuntimeDashboardService:
             "event_counts": event_counts,
             "worker_activity": worker_activity,
             "loop_metrics": loop_metrics,
+            "financial_metrics": financial_metrics,
             "recent_journal_events": journal_rows[-events_limit:],
             "recent_operator_actions": audit_events,
             "incident_feed": incident_feed,
