@@ -1,0 +1,47 @@
+services:
+  runtime-gui:
+    container_name: poly-robot-runtime-gui
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: poly-robot:local
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./runtime:/app/runtime
+    restart: unless-stopped
+
+  runtime-supervisor:
+    profiles: ["runner"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: poly-robot:local
+    command:
+      - python3
+      - scripts/run_runtime_supervisor.py
+      - --events
+      - tests/fixtures/replay_events.jsonl
+      - --profile
+      - config/parameters/profiles/mvp_test_token.v1.json
+      - --calibration-policy
+      - config/calibration/llm_reliability.v1.json
+      - --scenario-pack
+      - config/replay/scenario_pack.v1.json
+      - --scenario
+      - baseline
+      - --cycles
+      - "3"
+      - --state-path
+      - /app/runtime/runtime_state.json
+      - --journal-path
+      - /app/runtime/runtime_journal.jsonl
+      - --control-state-path
+      - /app/runtime/operator_control_state.json
+      - --control-audit-path
+      - /app/runtime/operator_action_audit.jsonl
+      - --cycle-output-dir
+      - /app/runtime/cycles
+    volumes:
+      - ./runtime:/app/runtime
+    restart: "no"

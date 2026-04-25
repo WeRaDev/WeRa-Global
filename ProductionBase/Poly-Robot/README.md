@@ -149,6 +149,23 @@ curl "http://127.0.0.1:8765/api/dashboard?audit_actor=operator&audit_action=inci
 curl "http://127.0.0.1:8765/api/incidents?limit=25&cursor=50"
 curl "http://127.0.0.1:8765/api/comparison?window=12"
 ```
+Docker deployment (local):
+```bash
+docker compose config --quiet
+docker compose build runtime-gui
+docker compose up -d runtime-gui
+curl http://127.0.0.1:8765/healthz
+```
+
+Run the supervisor in Docker (optional):
+```bash
+docker compose --profile runner run --rm runtime-supervisor
+```
+
+Stop local Docker services:
+```bash
+docker compose down
+```
 
 Run deterministic runtime soak orchestration:
 ```bash
