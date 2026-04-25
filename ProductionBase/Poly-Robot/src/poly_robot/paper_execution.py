@@ -6,7 +6,9 @@ from typing import Any, Literal
 from .contracts import MarketEvent, RiskDecision
 
 
-ExecutionStatus = Literal["SKIPPED", "REJECTED", "EXPIRED", "PARTIALLY_FILLED", "FILLED"]
+ExecutionStatus = Literal[
+    "SKIPPED", "REJECTED", "EXPIRED", "PARTIALLY_FILLED", "FILLED"
+]
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,9 @@ def build_execution_intent(
     *, event: MarketEvent, risk_decision: RiskDecision, parameters: dict[str, Any]
 ) -> ExecutionIntent:
     if not risk_decision.allowed or risk_decision.approved_notional <= 0:
-        raise ValueError("Execution intent requires an allowed risk decision with positive notional.")
+        raise ValueError(
+            "Execution intent requires an allowed risk decision with positive notional."
+        )
 
     return ExecutionIntent(
         intent_id=f"{event.event_id}:BUY",
@@ -79,11 +83,17 @@ class PaperExecutionAdapter:
     def __init__(self, parameters: dict[str, Any], *, depth_fill_ratio: float = 0.8):
         self.parameters = parameters
         self.depth_fill_ratio = min(max(depth_fill_ratio, 0.1), 1.0)
-        self.max_retry_attempts = max(0, int(parameters.get("ops.max_api_retry_attempts", 0)))
-        self.retry_backoff_seconds = max(0.0, float(parameters.get("ops.retry_backoff_seconds", 0.0)))
+        self.max_retry_attempts = max(
+            0, int(parameters.get("ops.max_api_retry_attempts", 0))
+        )
+        self.retry_backoff_seconds = max(
+            0.0, float(parameters.get("ops.retry_backoff_seconds", 0.0))
+        )
         self.fee_rate_bps = max(0, int(parameters.get("ops.fee_rate_bps", 0)))
 
-    def skip(self, *, event: MarketEvent, risk_decision: RiskDecision) -> ExecutionResult:
+    def skip(
+        self, *, event: MarketEvent, risk_decision: RiskDecision
+    ) -> ExecutionResult:
         reasons = risk_decision.reasons or ("risk_denied",)
         return ExecutionResult(
             status="SKIPPED",
@@ -98,16 +108,28 @@ class PaperExecutionAdapter:
                 "lifecycle": [
                     _lifecycle_event(
                         "SKIPPED",
-                        reason=(risk_decision.reasons[0] if risk_decision.reasons else "risk_denied"),
+                        reason=(
+                            risk_decision.reasons[0]
+                            if risk_decision.reasons
+                            else "risk_denied"
+                        ),
                     )
                 ],
             },
         )
 
-    def execute(self, *, event: MarketEvent, intent: ExecutionIntent) -> ExecutionResult:
-        lifecycle = [_lifecycle_event("SUBMITTED", attempt=0, requested_notional=intent.requested_notional)]
+    def execute(
+        self, *, event: MarketEvent, intent: ExecutionIntent
+    ) -> ExecutionResult:
+        lifecycle = [
+            _lifecycle_event(
+                "SUBMITTED", attempt=0, requested_notional=intent.requested_notional
+            )
+        ]
         if intent.requested_notional <= 0:
-            lifecycle.append(_lifecycle_event("REJECTED", reason="invalid_requested_notional"))
+            lifecycle.append(
+                _lifecycle_event("REJECTED", reason="invalid_requested_notional")
+            )
             return ExecutionResult(
                 status="REJECTED",
                 requested_notional=float(intent.requested_notional),
@@ -278,7 +300,9 @@ class PaperExecutionAdapter:
         )
         filled_notional = round(min(active_notional, fill_capacity_notional), 2)
         if filled_notional <= 0:
-            lifecycle.append(_lifecycle_event("REJECTED", reason="no_fill_capacity", attempt=attempt))
+            lifecycle.append(
+                _lifecycle_event("REJECTED", reason="no_fill_capacity", attempt=attempt)
+            )
             return ExecutionResult(
                 status="REJECTED",
                 requested_notional=float(intent.requested_notional),
@@ -370,7 +394,10 @@ class PaperExecutionAdapter:
 
         depth_impact_bps = (requested_notional / min_depth) * 40.0
         liquidity_impact_bps = (requested_notional / liquidity) * 20.0
-        return max(0, int(round((depth_impact_bps + liquidity_impact_bps) * slippage_multiplier)))
+        return max(
+            0,
+            int(round((depth_impact_bps + liquidity_impact_bps) * slippage_multiplier)),
+        )
 
     @staticmethod
     def _extract_slippage_multiplier(event: MarketEvent) -> float:

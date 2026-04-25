@@ -14,7 +14,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from poly_robot.contracts import PortfolioState  # noqa: E402
+from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
 from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
@@ -25,7 +25,11 @@ from poly_robot.reproducibility import hash_events, stable_hash  # noqa: E402
 from poly_robot.risk_engine import RiskEngine  # noqa: E402
 from poly_robot.runtime_supervisor import RuntimeSupervisor, WorkerSpec  # noqa: E402
 from poly_robot.runtime_web_gui import OperatorControlManager  # noqa: E402
-from poly_robot.scenario_pack import apply_scenario_to_events, load_scenario_pack  # noqa: E402
+from poly_robot.scenario_pack import (  # noqa: E402
+    ReplayScenario,
+    apply_scenario_to_events,
+    load_scenario_pack,
+)
 from poly_robot.strategy_baseline import BaselineStrategy  # noqa: E402
 from poly_robot.test_token_loop import TestTokenLoop, serialize_test_token_loop_run  # noqa: E402
 
@@ -242,13 +246,13 @@ def main(argv: list[str] | None = None) -> int:
     loop = TestTokenLoop(strategy, risk, execution, parameters)
     profile_hash = stable_hash(profile_payload)
     calibration_policy_hash = stable_hash(calibration_policy_payload)
-    scenario_cache: dict[str, tuple[object, list, str, str]] = {}
+    scenario_cache: dict[str, tuple[ReplayScenario, list[MarketEvent], str, str]] = {}
     stop_flags = {"restart_requested": False}
     current_cycle = {"index": 0}
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
-    ) -> tuple[object, list, str, str]:
+    ) -> tuple[ReplayScenario, list[MarketEvent], str, str]:
         normalized = scenario_name.strip() or default_scenario.name
         cached = scenario_cache.get(normalized)
         if cached is not None:

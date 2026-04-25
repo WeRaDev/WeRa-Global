@@ -19,6 +19,7 @@ def stable_hash(value: Any) -> str:
 
 def hash_events(events: Iterable[MarketEvent]) -> str:
     canonical_events = [
-        event.to_dict() for event in sorted(events, key=lambda item: (item.timestamp, item.event_id))
+        event.to_dict()
+        for event in sorted(events, key=lambda item: (item.timestamp, item.event_id))
     ]
     return stable_hash(canonical_events)

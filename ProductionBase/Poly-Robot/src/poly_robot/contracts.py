@@ -129,7 +129,9 @@ class PortfolioState:
     def register_approved_trade(self, market_id: str, notional: float) -> None:
         self.open_notional += notional
         self.open_positions += 1
-        self.market_notional[market_id] = self.market_notional.get(market_id, 0.0) + notional
+        self.market_notional[market_id] = (
+            self.market_notional.get(market_id, 0.0) + notional
+        )
 
     def register_executed_trade(
         self,
@@ -210,12 +212,12 @@ class ReplayRun:
 
 
 class StrategyModule(Protocol):
-    def evaluate(self, event: MarketEvent, portfolio: PortfolioState) -> StrategyDecision:
-        ...
+    def evaluate(
+        self, event: MarketEvent, portfolio: PortfolioState
+    ) -> StrategyDecision: ...
 
 
 class RiskModule(Protocol):
     def evaluate(
         self, event: MarketEvent, decision: StrategyDecision, portfolio: PortfolioState
-    ) -> RiskDecision:
-        ...
+    ) -> RiskDecision: ...

@@ -439,6 +439,8 @@ class RuntimeDashboardService:
                 continue
             details = payload.get("details") or {}
             raw_cycle_index = details.get("cycle_index", payload.get("cycle_index"))
+            if raw_cycle_index is None:
+                continue
             try:
                 cycle_index = int(raw_cycle_index)
             except (TypeError, ValueError):

@@ -7,11 +7,15 @@ from .llm_policy import CalibrationPolicy, merge_confidence
 
 
 class BaselineStrategy(StrategyModule):
-    def __init__(self, parameters: dict[str, Any], calibration_policy: CalibrationPolicy | None):
+    def __init__(
+        self, parameters: dict[str, Any], calibration_policy: CalibrationPolicy | None
+    ):
         self.parameters = parameters
         self.calibration_policy = calibration_policy
 
-    def evaluate(self, event: MarketEvent, portfolio: PortfolioState) -> StrategyDecision:
+    def evaluate(
+        self, event: MarketEvent, portfolio: PortfolioState
+    ) -> StrategyDecision:
         del portfolio
 
         reasons: list[str] = []
@@ -48,7 +52,11 @@ class BaselineStrategy(StrategyModule):
             )
 
         required_checks = ["base_rate", "news", "whale", "disposition"]
-        checks_passed = sum(1 for check in required_checks if bool(event.check_signals.get(check, False)))
+        checks_passed = sum(
+            1
+            for check in required_checks
+            if bool(event.check_signals.get(check, False))
+        )
         min_checks_agreement = int(self.parameters["brain.min_checks_agreement"])
         if checks_passed < min_checks_agreement:
             return StrategyDecision(

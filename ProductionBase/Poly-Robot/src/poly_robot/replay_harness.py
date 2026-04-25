@@ -37,8 +37,12 @@ class ReplayHarness:
         self.strategy = strategy
         self.risk = risk
 
-    def run(self, events: Iterable[MarketEvent], initial_portfolio: PortfolioState) -> ReplayRun:
-        ordered_events = sorted(events, key=lambda event: (event.timestamp, event.event_id))
+    def run(
+        self, events: Iterable[MarketEvent], initial_portfolio: PortfolioState
+    ) -> ReplayRun:
+        ordered_events = sorted(
+            events, key=lambda event: (event.timestamp, event.event_id)
+        )
         portfolio = initial_portfolio.clone()
         records: list[ReplayRecord] = []
 
@@ -47,7 +51,9 @@ class ReplayHarness:
             risk_decision = self.risk.evaluate(event, strategy_decision, portfolio)
 
             if risk_decision.allowed and risk_decision.approved_notional > 0:
-                portfolio.register_approved_trade(event.market_id, risk_decision.approved_notional)
+                portfolio.register_approved_trade(
+                    event.market_id, risk_decision.approved_notional
+                )
 
             records.append(
                 ReplayRecord(
@@ -63,7 +69,10 @@ class ReplayHarness:
 
 
 def serialize_replay_run(
-    run: ReplayRun, *, run_context: dict | None = None, reproducibility: dict | None = None
+    run: ReplayRun,
+    *,
+    run_context: dict | None = None,
+    reproducibility: dict | None = None,
 ) -> dict:
     payload = {
         "schema_version": REPLAY_RESULT_SCHEMA_VERSION,

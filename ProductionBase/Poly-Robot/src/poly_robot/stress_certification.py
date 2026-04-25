@@ -68,21 +68,28 @@ def build_stress_certification_report(
         ),
         _criterion(
             name="total_allowed_trades",
-            passed=total_allowed_trades >= int(threshold_values["minimum_total_allowed_trades"]),
+            passed=total_allowed_trades
+            >= int(threshold_values["minimum_total_allowed_trades"]),
             observed=total_allowed_trades,
-            threshold={"minimum": int(threshold_values["minimum_total_allowed_trades"])},
+            threshold={
+                "minimum": int(threshold_values["minimum_total_allowed_trades"])
+            },
             description="Campaign must exercise at least one allowed-trade path.",
         ),
         _criterion(
             name="zero_trade_scenarios",
-            passed=zero_trade_count <= int(threshold_values["maximum_zero_trade_scenarios"]),
+            passed=zero_trade_count
+            <= int(threshold_values["maximum_zero_trade_scenarios"]),
             observed={"count": zero_trade_count, "scenarios": zero_trade_scenarios},
-            threshold={"maximum": int(threshold_values["maximum_zero_trade_scenarios"])},
+            threshold={
+                "maximum": int(threshold_values["maximum_zero_trade_scenarios"])
+            },
             description="Too many zero-trade scenarios indicate over-conservative or broken behavior.",
         ),
         _criterion(
             name="max_open_notional",
-            passed=max_open_notional <= float(threshold_values["maximum_open_notional"]),
+            passed=max_open_notional
+            <= float(threshold_values["maximum_open_notional"]),
             observed=max_open_notional,
             threshold={"maximum": float(threshold_values["maximum_open_notional"])},
             description="Open notional must stay within configured stress envelope.",
@@ -108,14 +115,18 @@ def build_stress_certification_report(
         "recovery_failure_count": None,
     }
 
-    if has_soak_summary:
+    if soak_summary is not None:
         soak_overall_status = str(soak_summary.get("overall_status", "UNKNOWN"))
         interval_counts = soak_summary.get("interval_status_counts") or {}
         failed_intervals = int(interval_counts.get("failed", 0))
-        drill_unexpected_success = int(interval_counts.get("drill_unexpected_success", 0))
+        drill_unexpected_success = int(
+            interval_counts.get("drill_unexpected_success", 0)
+        )
         recovery_checks = list(soak_summary.get("recovery_checks", []))
         recovery_failure_count = sum(
-            1 for check in recovery_checks if not bool(check.get("recovered_after_interval", False))
+            1
+            for check in recovery_checks
+            if not bool(check.get("recovered_after_interval", False))
         )
         soak_metrics = {
             "overall_status": soak_overall_status,
@@ -137,9 +148,12 @@ def build_stress_certification_report(
             [
                 _criterion(
                     name="soak_failed_intervals",
-                    passed=failed_intervals <= int(threshold_values["maximum_failed_intervals"]),
+                    passed=failed_intervals
+                    <= int(threshold_values["maximum_failed_intervals"]),
                     observed=failed_intervals,
-                    threshold={"maximum": int(threshold_values["maximum_failed_intervals"])},
+                    threshold={
+                        "maximum": int(threshold_values["maximum_failed_intervals"])
+                    },
                     description="Unexpected failed intervals must remain within threshold.",
                 ),
                 _criterion(
@@ -147,7 +161,11 @@ def build_stress_certification_report(
                     passed=drill_unexpected_success
                     <= int(threshold_values["maximum_drill_unexpected_success"]),
                     observed=drill_unexpected_success,
-                    threshold={"maximum": int(threshold_values["maximum_drill_unexpected_success"])},
+                    threshold={
+                        "maximum": int(
+                            threshold_values["maximum_drill_unexpected_success"]
+                        )
+                    },
                     description="Expected-failure drills must not silently succeed unexpectedly.",
                 ),
                 _criterion(
@@ -155,7 +173,9 @@ def build_stress_certification_report(
                     passed=recovery_failure_count
                     <= int(threshold_values["maximum_recovery_failures"]),
                     observed=recovery_failure_count,
-                    threshold={"maximum": int(threshold_values["maximum_recovery_failures"])},
+                    threshold={
+                        "maximum": int(threshold_values["maximum_recovery_failures"])
+                    },
                     description="All drill intervals should demonstrate deterministic recovery.",
                 ),
             ]
@@ -177,7 +197,9 @@ def build_stress_certification_report(
     certification_hash = stable_hash(
         {
             "matrix_report_hash": matrix_report.get("report_hash"),
-            "soak_summary_schema": soak_summary.get("schema_version") if soak_summary else None,
+            "soak_summary_schema": soak_summary.get("schema_version")
+            if soak_summary
+            else None,
             "thresholds": threshold_values,
             "criteria": criteria,
             "incidents": incidents,

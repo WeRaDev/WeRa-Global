@@ -48,7 +48,9 @@ def _write_jsonl(path: Path, rows: list[str]) -> None:
 
 
 def _build_event(event_id: str = "evt-1") -> MarketEvent:
-    return MarketEvent.from_dict(_event_payload(event_id=event_id, timestamp="2026-01-01T00:00:00Z"))
+    return MarketEvent.from_dict(
+        _event_payload(event_id=event_id, timestamp="2026-01-01T00:00:00Z")
+    )
 
 
 def _build_intent() -> ExecutionIntent:
@@ -91,7 +93,7 @@ class HistoricalIngestionAdapterTests(unittest.TestCase):
                 path,
                 [
                     json.dumps(_event_payload("evt-1", "2026-01-01T00:00:00Z")),
-                    "{\"not\":\"valid_event\"}",
+                    '{"not":"valid_event"}',
                     json.dumps(_event_payload("evt-2", "2026-01-01T00:01:00Z")),
                 ],
             )
@@ -111,7 +113,7 @@ class HistoricalIngestionAdapterTests(unittest.TestCase):
                 path,
                 [
                     json.dumps(_event_payload("evt-1", "2026-01-01T00:00:00Z")),
-                    "{\"not\":\"valid_event\"}",
+                    '{"not":"valid_event"}',
                 ],
             )
             adapter = HistoricalIngestionAdapter(max_invalid_rows=0)
@@ -128,7 +130,9 @@ class HistoricalIngestionAdapterTests(unittest.TestCase):
             payload = json.dumps(_event_payload("evt-dup", "2026-01-01T00:00:00Z"))
             _write_jsonl(path, [payload, payload])
 
-            adapter = HistoricalIngestionAdapter(max_invalid_rows=0, deduplicate_event_ids=True)
+            adapter = HistoricalIngestionAdapter(
+                max_invalid_rows=0, deduplicate_event_ids=True
+            )
             batch = adapter.load_jsonl(path, timeout_seconds=2.0)
 
             self.assertEqual(batch.status, "DEGRADED")

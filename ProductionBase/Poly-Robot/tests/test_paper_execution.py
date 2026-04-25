@@ -19,7 +19,9 @@ from poly_robot.paper_execution import (  # noqa: E402
 )
 
 
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
 
 
 def _load_parameters() -> dict:
@@ -82,7 +84,9 @@ class PaperExecutionAdapterTests(unittest.TestCase):
         self.assertGreater(result.total_execution_cost, 0.0)
 
     def test_partial_fill_when_orderbook_capacity_is_limited(self) -> None:
-        event = _build_event(bids_depth_usd=100.0, asks_depth_usd=100.0, liquidity_usd=90000.0)
+        event = _build_event(
+            bids_depth_usd=100.0, asks_depth_usd=100.0, liquidity_usd=90000.0
+        )
         intent = build_execution_intent(
             event=event,
             risk_decision=_allowed_risk_decision(100.0),
@@ -95,7 +99,9 @@ class PaperExecutionAdapterTests(unittest.TestCase):
         self.assertIn("partial_fill_depth_limited", result.reasons)
 
     def test_rejects_when_slippage_budget_is_breached(self) -> None:
-        event = _build_event(bids_depth_usd=10.0, asks_depth_usd=10.0, liquidity_usd=500.0)
+        event = _build_event(
+            bids_depth_usd=10.0, asks_depth_usd=10.0, liquidity_usd=500.0
+        )
         intent = build_execution_intent(
             event=event,
             risk_decision=_allowed_risk_decision(150.0),
@@ -119,7 +125,9 @@ class PaperExecutionAdapterTests(unittest.TestCase):
         self.assertIn("order_ttl_exceeded", result.reasons)
 
     def test_cancel_replace_flow_can_convert_reject_to_partial_fill(self) -> None:
-        event = _build_event(bids_depth_usd=100.0, asks_depth_usd=100.0, liquidity_usd=2000.0)
+        event = _build_event(
+            bids_depth_usd=100.0, asks_depth_usd=100.0, liquidity_usd=2000.0
+        )
         intent = build_execution_intent(
             event=event,
             risk_decision=_allowed_risk_decision(150.0),

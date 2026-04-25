@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contracts import MarketEvent, PortfolioState, RiskDecision, RiskModule, StrategyDecision
+from .contracts import (
+    MarketEvent,
+    PortfolioState,
+    RiskDecision,
+    RiskModule,
+    StrategyDecision,
+)
 
 
 def kelly_fraction(*, p_win: float, market_price: float) -> float:
@@ -54,7 +60,9 @@ class RiskEngine(RiskModule):
                 reasons=("max_concurrent_positions_reached",),
             )
 
-        max_market_exposure = float(self.parameters["risk.max_market_exposure_fraction"])
+        max_market_exposure = float(
+            self.parameters["risk.max_market_exposure_fraction"]
+        )
         current_market_exposure = portfolio.market_exposure_fraction(event.market_id)
         if current_market_exposure >= max_market_exposure:
             return RiskDecision(
@@ -65,7 +73,9 @@ class RiskEngine(RiskModule):
                 reasons=("market_exposure_limit_reached",),
             )
 
-        max_portfolio_exposure = float(self.parameters["risk.max_portfolio_exposure_fraction"])
+        max_portfolio_exposure = float(
+            self.parameters["risk.max_portfolio_exposure_fraction"]
+        )
         current_total_exposure = portfolio.total_exposure_fraction
         if current_total_exposure >= max_portfolio_exposure:
             return RiskDecision(
@@ -76,7 +86,9 @@ class RiskEngine(RiskModule):
                 reasons=("portfolio_exposure_limit_reached",),
             )
 
-        f_star = kelly_fraction(p_win=decision.win_probability, market_price=event.midpoint)
+        f_star = kelly_fraction(
+            p_win=decision.win_probability, market_price=event.midpoint
+        )
         if f_star <= 0:
             return RiskDecision(
                 allowed=False,
@@ -94,7 +106,9 @@ class RiskEngine(RiskModule):
         if decision.consensus_buy_votes >= min_consensus_votes:
             reasons.append("consensus_full_size")
         elif decision.consensus_buy_votes == 1:
-            approved_fraction *= float(self.parameters["execution.single_vote_size_factor"])
+            approved_fraction *= float(
+                self.parameters["execution.single_vote_size_factor"]
+            )
             reasons.append("single_vote_reduced_size")
         else:
             return RiskDecision(
@@ -105,9 +119,15 @@ class RiskEngine(RiskModule):
                 reasons=("insufficient_consensus_votes",),
             )
 
-        remaining_portfolio_fraction = max(0.0, max_portfolio_exposure - current_total_exposure)
-        remaining_market_fraction = max(0.0, max_market_exposure - current_market_exposure)
-        approved_fraction = min(approved_fraction, remaining_portfolio_fraction, remaining_market_fraction)
+        remaining_portfolio_fraction = max(
+            0.0, max_portfolio_exposure - current_total_exposure
+        )
+        remaining_market_fraction = max(
+            0.0, max_market_exposure - current_market_exposure
+        )
+        approved_fraction = min(
+            approved_fraction, remaining_portfolio_fraction, remaining_market_fraction
+        )
 
         if approved_fraction <= 0:
             return RiskDecision(
@@ -134,5 +154,7 @@ class RiskEngine(RiskModule):
             approved_fraction=approved_fraction,
             kill_switch=False,
             reasons=tuple(reasons),
-            metadata={"max_slippage_bps": int(self.parameters["execution.max_slippage_bps"])},
+            metadata={
+                "max_slippage_bps": int(self.parameters["execution.max_slippage_bps"])
+            },
         )

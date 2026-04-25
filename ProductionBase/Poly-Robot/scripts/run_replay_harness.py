@@ -28,6 +28,7 @@ from poly_robot.scenario_pack import (  # noqa: E402
 )
 from poly_robot.strategy_baseline import BaselineStrategy  # noqa: E402
 
+
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -41,12 +42,20 @@ def _load_profile_payload(profile_path: Path) -> tuple[dict, dict]:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run deterministic replay harness for Poly-Robot MVP.")
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser = argparse.ArgumentParser(
+        description="Run deterministic replay harness for Poly-Robot MVP."
+    )
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(
@@ -142,7 +151,9 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     if args.output:
-        args.output.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+        args.output.write_text(
+            json.dumps(result_payload, indent=2) + "\n", encoding="utf-8"
+        )
 
     print(
         "Replay complete: "

@@ -9,7 +9,14 @@ from typing import Any
 
 SUPPORTED_PARAMETER_TYPES = {"number", "integer", "boolean", "string", "enum"}
 SUPPORTED_MUTABILITY = {"phase_frozen", "tunable", "runtime"}
-REQUIRED_PARAMETER_FIELDS = {"key", "type", "required", "mutability", "owner", "description"}
+REQUIRED_PARAMETER_FIELDS = {
+    "key",
+    "type",
+    "required",
+    "mutability",
+    "owner",
+    "description",
+}
 
 
 @dataclass
@@ -62,11 +69,16 @@ def _validate_common_constraints(spec: dict[str, Any], value: Any) -> list[str]:
     if parameter_type == "enum":
         allowed_values = spec.get("allowed_values")
         if not isinstance(allowed_values, list) or not allowed_values:
-            errors.append(f"{key}: enum parameter must define non-empty allowed_values.")
+            errors.append(
+                f"{key}: enum parameter must define non-empty allowed_values."
+            )
         elif value not in allowed_values:
-            errors.append(f"{key}: value {value!r} is not in allowed_values {allowed_values}.")
+            errors.append(
+                f"{key}: value {value!r} is not in allowed_values {allowed_values}."
+            )
 
     return errors
+
 
 def _calibration_policy_is_proven(calibration_policy: dict[str, Any]) -> bool:
     thresholds = calibration_policy.get("thresholds", {})
@@ -124,7 +136,9 @@ def _validate_default(spec: dict[str, Any]) -> list[str]:
     if default is None:
         return [f"{key}: missing required field default."]
     if not _matches_type(default, parameter_type):
-        return [f"{key}: default value {default!r} does not match type {parameter_type}."]
+        return [
+            f"{key}: default value {default!r} does not match type {parameter_type}."
+        ]
 
     errors.extend(_validate_common_constraints(spec, default))
     return errors
@@ -267,7 +281,9 @@ def validate_profile(
 
         parameter_type = spec["type"]
         if not _matches_type(value, parameter_type):
-            errors.append(f"{key}: value {value!r} does not match type {parameter_type}.")
+            errors.append(
+                f"{key}: value {value!r} does not match type {parameter_type}."
+            )
             continue
 
         errors.extend(_validate_common_constraints(spec, value))
@@ -306,8 +322,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Validate Poly-Robot parameter governance catalog/profile consistency."
     )
-    parser.add_argument("--catalog", type=Path, required=True, help="Path to parameter catalog JSON.")
-    parser.add_argument("--profile", type=Path, required=True, help="Path to parameter profile JSON.")
+    parser.add_argument(
+        "--catalog", type=Path, required=True, help="Path to parameter catalog JSON."
+    )
+    parser.add_argument(
+        "--profile", type=Path, required=True, help="Path to parameter profile JSON."
+    )
     parser.add_argument(
         "--baseline",
         type=Path,
@@ -330,7 +350,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
-    result = validate_files(args.catalog, args.profile, args.baseline, args.calibration_policy)
+    result = validate_files(
+        args.catalog, args.profile, args.baseline, args.calibration_policy
+    )
     if result.ok:
         print("Parameter governance validation passed.")
         return 0

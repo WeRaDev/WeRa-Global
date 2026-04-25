@@ -22,7 +22,9 @@ from poly_robot.llm_policy import (  # noqa: E402
 )
 
 
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 
 
 class LLMPolicyTests(unittest.TestCase):

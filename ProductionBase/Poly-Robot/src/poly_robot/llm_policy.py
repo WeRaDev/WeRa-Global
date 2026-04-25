@@ -48,7 +48,9 @@ def load_calibration_policy(path: Path) -> CalibrationPolicy:
             proven=bool(status.get("proven", False)),
             sample_count=int(status.get("sample_count", 0)),
             brier_score=float(status.get("brier_score", 1.0)),
-            expected_calibration_error=float(status.get("expected_calibration_error", 1.0)),
+            expected_calibration_error=float(
+                status.get("expected_calibration_error", 1.0)
+            ),
             last_evaluated_at=str(status.get("last_evaluated_at", "")),
         ),
     )
@@ -63,11 +65,14 @@ def is_calibration_proven(policy: CalibrationPolicy | None) -> bool:
         status.proven
         and status.sample_count >= thresholds.min_samples
         and status.brier_score <= thresholds.max_brier_score
-        and status.expected_calibration_error <= thresholds.max_expected_calibration_error
+        and status.expected_calibration_error
+        <= thresholds.max_expected_calibration_error
     )
 
 
-def resolve_effective_mode(requested_mode: str, policy: CalibrationPolicy | None) -> str:
+def resolve_effective_mode(
+    requested_mode: str, policy: CalibrationPolicy | None
+) -> str:
     if requested_mode == "advisory_only":
         return "advisory_only"
     return requested_mode if is_calibration_proven(policy) else "advisory_only"

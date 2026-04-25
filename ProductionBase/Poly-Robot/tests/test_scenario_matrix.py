@@ -19,8 +19,12 @@ from poly_robot.scenario_pack import load_scenario_pack  # noqa: E402
 from poly_robot.schemas import SCENARIO_MATRIX_REPORT_SCHEMA_VERSION  # noqa: E402
 
 
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 SCENARIO_PACK_PATH = ROOT_DIR / "config" / "replay" / "scenario_pack.v1.json"
 REPLAY_FIXTURE_PATH = ROOT_DIR / "tests" / "fixtures" / "replay_events.jsonl"
 
@@ -67,7 +71,9 @@ class ScenarioMatrixTests(unittest.TestCase):
             scenario_names=["baseline", "liquidity_crunch"],
         )
 
-        self.assertEqual(report_a["schema_version"], SCENARIO_MATRIX_REPORT_SCHEMA_VERSION)
+        self.assertEqual(
+            report_a["schema_version"], SCENARIO_MATRIX_REPORT_SCHEMA_VERSION
+        )
         self.assertEqual(report_a["report_hash"], report_b["report_hash"])
         self.assertEqual(report_a["aggregate"]["scenario_count"], 2)
         self.assertEqual(report_a["outcomes"][0]["scenario_name"], "baseline")

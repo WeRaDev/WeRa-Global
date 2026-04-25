@@ -8,7 +8,9 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT_DIR / "src"
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))

@@ -53,11 +53,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "with threshold-based PASS/FAIL decisions."
         )
     )
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(
@@ -160,9 +166,13 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     if args.matrix_output:
-        args.matrix_output.write_text(json.dumps(matrix_report, indent=2) + "\n", encoding="utf-8")
+        args.matrix_output.write_text(
+            json.dumps(matrix_report, indent=2) + "\n", encoding="utf-8"
+        )
     if args.output:
-        args.output.write_text(json.dumps(campaign_report, indent=2) + "\n", encoding="utf-8")
+        args.output.write_text(
+            json.dumps(campaign_report, indent=2) + "\n", encoding="utf-8"
+        )
 
     aggregate = matrix_report["aggregate"]
     print(

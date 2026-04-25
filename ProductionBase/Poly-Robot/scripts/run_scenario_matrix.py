@@ -42,11 +42,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run replay scenarios as a matrix and emit a reproducibility-linked stress report."
     )
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(

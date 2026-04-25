@@ -17,9 +17,15 @@ from poly_robot.parameter_governance import validate_files  # noqa: E402
 
 
 CATALOG_PATH = ROOT_DIR / "config" / "parameters" / "catalog.v1.json"
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
-BASELINE_PATH = ROOT_DIR / "config" / "parameters" / "baselines" / "mvp_test_token.freeze.v1.json"
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
+BASELINE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "baselines" / "mvp_test_token.freeze.v1.json"
+)
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 
 
 def _load(path: Path) -> dict:
@@ -50,7 +56,10 @@ class ParameterGovernanceValidationTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertTrue(
-            any("missing required parameter risk.kelly_cap_fraction" in error for error in result.errors),
+            any(
+                "missing required parameter risk.kelly_cap_fraction" in error
+                for error in result.errors
+            ),
             result.errors,
         )
 
@@ -88,7 +97,10 @@ class ParameterGovernanceValidationTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertTrue(
-            any("frozen parameter scanner.min_price_gap changed" in error for error in result.errors),
+            any(
+                "frozen parameter scanner.min_price_gap changed" in error
+                for error in result.errors
+            ),
             result.errors,
         )
 
@@ -120,7 +132,10 @@ class ParameterGovernanceValidationTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertTrue(
-            any("calibration reliability thresholds are not proven" in error for error in result.errors),
+            any(
+                "calibration reliability thresholds are not proven" in error
+                for error in result.errors
+            ),
             result.errors,
         )
 
