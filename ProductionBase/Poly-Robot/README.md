@@ -169,6 +169,33 @@ python3 scripts/run_runtime_supervisor.py \
    - `Annotate Incident`: appends an audited operator note
 5. If GUI is started without `--operator-token`, controls are read-only and POST control actions return 403.
 
+Operator token configuration (Docker Compose runtime-gui):
+1. Set a strong operator token in your shell before startup:
+```bash
+export POLY_ROBOT_OPERATOR_TOKEN="replace-with-strong-token"
+```
+2. Rebuild/restart dashboard service so compose injects the token:
+```bash
+docker compose up -d --build runtime-gui
+```
+3. Verify token-required mode in logs:
+```bash
+docker compose logs --tail=20 runtime-gui
+```
+Expected startup line includes `control_mode=token_required`.
+4. Control API calls must include `X-Operator-Token`; otherwise requests return 403:
+```bash
+curl -X POST http://127.0.0.1:8765/api/control/pause \
+  -H "Content-Type: application/json" \
+  -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN" \
+  -d '{"actor":"operator","reason":"manual_pause"}'
+
+curl -X POST http://127.0.0.1:8765/api/control/resume \
+  -H "Content-Type: application/json" \
+  -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN" \
+  -d '{"actor":"operator","reason":"manual_resume"}'
+```
+
 Runtime GUI API examples for hardened operator views:
 ```bash
 curl "http://127.0.0.1:8765/api/dashboard?audit_actor=operator&audit_action=incident_annotation&incident_limit=20&comparison_window=15"
