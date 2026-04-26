@@ -33,8 +33,12 @@ class ReproducibilityTests(unittest.TestCase):
     def test_hash_changes_when_scenario_changes_inputs(self) -> None:
         events = load_events_from_jsonl(REPLAY_FIXTURE_PATH)
         pack = load_scenario_pack(SCENARIO_PACK_PATH)
-        baseline_events = apply_scenario_to_events(events, pack.get_scenario("baseline"))
-        stress_events = apply_scenario_to_events(events, pack.get_scenario("liquidity_crunch"))
+        baseline_events = apply_scenario_to_events(
+            events, pack.get_scenario("baseline")
+        )
+        stress_events = apply_scenario_to_events(
+            events, pack.get_scenario("liquidity_crunch")
+        )
         self.assertNotEqual(hash_events(baseline_events), hash_events(stress_events))
 
     def test_stable_hash_is_deterministic(self) -> None:

@@ -136,11 +136,19 @@ def build_scenario_matrix_report(
 
     aggregate = {
         "scenario_count": len(outcomes),
-        "total_allowed_trades": sum(outcome["allowed_trade_count"] for outcome in outcomes),
-        "max_open_notional": max((outcome["open_notional"] for outcome in outcomes), default=0.0),
-        "min_open_notional": min((outcome["open_notional"] for outcome in outcomes), default=0.0),
+        "total_allowed_trades": sum(
+            outcome["allowed_trade_count"] for outcome in outcomes
+        ),
+        "max_open_notional": max(
+            (outcome["open_notional"] for outcome in outcomes), default=0.0
+        ),
+        "min_open_notional": min(
+            (outcome["open_notional"] for outcome in outcomes), default=0.0
+        ),
         "zero_trade_scenarios": [
-            outcome["scenario_name"] for outcome in outcomes if outcome["allowed_trade_count"] == 0
+            outcome["scenario_name"]
+            for outcome in outcomes
+            if outcome["allowed_trade_count"] == 0
         ],
     }
 

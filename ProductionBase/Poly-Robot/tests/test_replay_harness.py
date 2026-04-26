@@ -24,8 +24,12 @@ from poly_robot.strategy_baseline import BaselineStrategy  # noqa: E402
 from poly_robot.schemas import REPLAY_RESULT_SCHEMA_VERSION  # noqa: E402
 
 
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 REPLAY_FIXTURE_PATH = ROOT_DIR / "tests" / "fixtures" / "replay_events.jsonl"
 
 
@@ -52,14 +56,20 @@ class ReplayHarnessTests(unittest.TestCase):
             ),
         )
 
-        self.assertEqual([record.event_id for record in run.records], ["evt-1", "evt-2"])
+        self.assertEqual(
+            [record.event_id for record in run.records], ["evt-1", "evt-2"]
+        )
         self.assertEqual(run.records[0].strategy_decision.action, "HOLD")
         self.assertEqual(run.records[1].strategy_decision.action, "BUY")
         self.assertTrue(run.records[1].risk_decision.allowed)
         self.assertFalse(run.records[1].strategy_decision.llm_used_for_probability)
-        self.assertEqual(run.records[1].strategy_decision.llm_effective_mode, "advisory_only")
+        self.assertEqual(
+            run.records[1].strategy_decision.llm_effective_mode, "advisory_only"
+        )
         self.assertEqual(run.final_portfolio.open_positions, 1)
-        self.assertEqual(serialize_replay_run(run)["schema_version"], REPLAY_RESULT_SCHEMA_VERSION)
+        self.assertEqual(
+            serialize_replay_run(run)["schema_version"], REPLAY_RESULT_SCHEMA_VERSION
+        )
 
 
 if __name__ == "__main__":

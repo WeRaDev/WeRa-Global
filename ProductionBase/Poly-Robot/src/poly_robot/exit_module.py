@@ -65,7 +65,9 @@ class PositionSnapshot:
             last_midpoint=float(event.midpoint),
         )
 
-    def register_fill(self, event: MarketEvent, *, filled_notional: float) -> "PositionSnapshot":
+    def register_fill(
+        self, event: MarketEvent, *, filled_notional: float
+    ) -> "PositionSnapshot":
         fill_size = max(0.0, float(filled_notional))
         if fill_size <= 0:
             return self
@@ -73,7 +75,8 @@ class PositionSnapshot:
         if updated_notional <= 0:
             return self
         weighted_midpoint = (
-            (self.entry_midpoint * self.open_notional) + (float(event.midpoint) * fill_size)
+            (self.entry_midpoint * self.open_notional)
+            + (float(event.midpoint) * fill_size)
         ) / updated_notional
         weighted_probability = (
             (self.entry_estimated_probability * self.open_notional)
@@ -107,16 +110,22 @@ class ExitDecision:
 
 
 class ExitModule:
-    def __init__(self, parameters: dict[str, Any], *, confirmation_threshold: int = 2) -> None:
+    def __init__(
+        self, parameters: dict[str, Any], *, confirmation_threshold: int = 2
+    ) -> None:
         if confirmation_threshold <= 0:
             raise ValueError("confirmation_threshold must be > 0")
         self.target_capture_ratio = float(parameters["exit.target_capture_ratio"])
         self.volume_spike_multiplier = float(parameters["exit.volume_spike_multiplier"])
         self.stale_hours = float(parameters["exit.stale_hours"])
-        self.stale_price_change_threshold = float(parameters["exit.stale_price_change_threshold"])
+        self.stale_price_change_threshold = float(
+            parameters["exit.stale_price_change_threshold"]
+        )
         self.confirmation_threshold = confirmation_threshold
 
-    def evaluate(self, *, event: MarketEvent, position: PositionSnapshot | None) -> ExitDecision:
+    def evaluate(
+        self, *, event: MarketEvent, position: PositionSnapshot | None
+    ) -> ExitDecision:
         if position is None:
             return ExitDecision(
                 should_exit=False,
@@ -132,10 +141,14 @@ class ExitModule:
                 },
             )
 
-        expected_move = abs(position.entry_estimated_probability - position.entry_midpoint)
+        expected_move = abs(
+            position.entry_estimated_probability - position.entry_midpoint
+        )
         realized_move = abs(float(event.midpoint) - position.entry_midpoint)
         capture_ratio = (realized_move / expected_move) if expected_move > 0 else 0.0
-        target_capture_trigger = expected_move > 0 and capture_ratio >= self.target_capture_ratio
+        target_capture_trigger = (
+            expected_move > 0 and capture_ratio >= self.target_capture_ratio
+        )
 
         current_volume = _extract_volume_metric(event)
         reference_volume = max(position.reference_volume, 1.0)

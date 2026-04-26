@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Iterable
+from typing import Iterable, Protocol
 
 from .contracts import (
     MarketEvent,
     PortfolioState,
     ReplayRecord,
+    RiskDecision,
     RiskModule,
     StrategyModule,
 )
 from .exit_module import ExitDecision, ExitModule, PositionSnapshot
-from .paper_execution import PaperExecutionAdapter, ExecutionResult, build_execution_intent
+from .paper_execution import (
+    ExecutionIntent,
+    ExecutionResult,
+    build_execution_intent,
+)
 from .schemas import TEST_TOKEN_LOOP_RESULT_SCHEMA_VERSION
 
 
@@ -32,7 +37,9 @@ class TestTokenLoopRun:
 
     @property
     def risk_allowed_count(self) -> int:
-        return sum(1 for record in self.records if record.replay_record.risk_decision.allowed)
+        return sum(
+            1 for record in self.records if record.replay_record.risk_decision.allowed
+        )
 
     @property
     def filled_trade_count(self) -> int:
@@ -40,27 +47,52 @@ class TestTokenLoopRun:
 
     @property
     def partial_fill_count(self) -> int:
-        return sum(1 for record in self.records if record.execution_result.status == "PARTIALLY_FILLED")
+        return sum(
+            1
+            for record in self.records
+            if record.execution_result.status == "PARTIALLY_FILLED"
+        )
 
     @property
     def total_fees_paid(self) -> float:
-        return round(sum(record.execution_result.fee_paid for record in self.records), 4)
+        return round(
+            sum(record.execution_result.fee_paid for record in self.records), 4
+        )
 
     @property
     def total_slippage_cost(self) -> float:
-        return round(sum(record.execution_result.slippage_cost for record in self.records), 4)
+        return round(
+            sum(record.execution_result.slippage_cost for record in self.records), 4
+        )
 
     @property
     def total_execution_cost(self) -> float:
-        return round(sum(record.execution_result.total_execution_cost for record in self.records), 4)
+        return round(
+            sum(
+                record.execution_result.total_execution_cost for record in self.records
+            ),
+            4,
+        )
 
     @property
     def exit_candidate_count(self) -> int:
-        return sum(1 for record in self.records if record.exit_decision.trigger_count > 0)
+        return sum(
+            1 for record in self.records if record.exit_decision.trigger_count > 0
+        )
 
     @property
     def confirmed_exit_count(self) -> int:
         return sum(1 for record in self.records if record.exit_decision.should_exit)
+
+
+class ExecutionAdapter(Protocol):
+    def execute(
+        self, *, event: MarketEvent, intent: ExecutionIntent
+    ) -> ExecutionResult: ...
+
+    def skip(
+        self, *, event: MarketEvent, risk_decision: RiskDecision
+    ) -> ExecutionResult: ...
 
 
 def _build_exit_skip_result(
@@ -70,7 +102,9 @@ def _build_exit_skip_result(
     closed_notional: float,
     closed_position_count: int,
 ) -> ExecutionResult:
-    reason_codes = tuple(dict.fromkeys(("exit_position_closed",) + exit_decision.reasons))
+    reason_codes = tuple(
+        dict.fromkeys(("exit_position_closed",) + exit_decision.reasons)
+    )
     return ExecutionResult(
         status="SKIPPED",
         requested_notional=0.0,
@@ -93,7 +127,7 @@ class TestTokenLoop:
         self,
         strategy: StrategyModule,
         risk: RiskModule,
-        execution: PaperExecutionAdapter,
+        execution: ExecutionAdapter,
         parameters: dict,
         *,
         exit_module: ExitModule | None = None,
@@ -104,8 +138,12 @@ class TestTokenLoop:
         self.parameters = parameters
         self.exit_module = exit_module or ExitModule(parameters)
 
-    def run(self, events: Iterable[MarketEvent], initial_portfolio: PortfolioState) -> TestTokenLoopRun:
-        ordered_events = sorted(events, key=lambda event: (event.timestamp, event.event_id))
+    def run(
+        self, events: Iterable[MarketEvent], initial_portfolio: PortfolioState
+    ) -> TestTokenLoopRun:
+        ordered_events = sorted(
+            events, key=lambda event: (event.timestamp, event.event_id)
+        )
         portfolio = initial_portfolio.clone()
         records: list[TestTokenLoopRecord] = []
         open_positions: dict[str, PositionSnapshot] = {}
@@ -125,7 +163,11 @@ class TestTokenLoop:
             if exit_decision.should_exit and position is not None:
                 market_notional = max(
                     0.0,
-                    float(portfolio.market_notional.get(event.market_id, position.open_notional)),
+                    float(
+                        portfolio.market_notional.get(
+                            event.market_id, position.open_notional
+                        )
+                    ),
                 )
                 closed_notional = round(market_notional, 4)
                 closed_position_count = max(1, position.fill_count)
@@ -134,7 +176,9 @@ class TestTokenLoop:
                         max(0.0, portfolio.open_notional - closed_notional),
                         4,
                     )
-                    portfolio.open_positions = max(0, portfolio.open_positions - closed_position_count)
+                    portfolio.open_positions = max(
+                        0, portfolio.open_positions - closed_position_count
+                    )
                     portfolio.market_notional.pop(event.market_id, None)
                 open_positions.pop(event.market_id, None)
                 execution_result = _build_exit_skip_result(
@@ -164,12 +208,16 @@ class TestTokenLoop:
                             filled_notional=execution_result.filled_notional,
                         )
                     else:
-                        open_positions[event.market_id] = tracked_position.register_fill(
-                            event,
-                            filled_notional=execution_result.filled_notional,
+                        open_positions[event.market_id] = (
+                            tracked_position.register_fill(
+                                event,
+                                filled_notional=execution_result.filled_notional,
+                            )
                         )
             else:
-                execution_result = self.execution.skip(event=event, risk_decision=risk_decision)
+                execution_result = self.execution.skip(
+                    event=event, risk_decision=risk_decision
+                )
 
             records.append(
                 TestTokenLoopRecord(
@@ -186,7 +234,10 @@ class TestTokenLoop:
 
 
 def serialize_test_token_loop_run(
-    run: TestTokenLoopRun, *, run_context: dict | None = None, reproducibility: dict | None = None
+    run: TestTokenLoopRun,
+    *,
+    run_context: dict | None = None,
+    reproducibility: dict | None = None,
 ) -> dict:
     payload = {
         "schema_version": TEST_TOKEN_LOOP_RESULT_SCHEMA_VERSION,

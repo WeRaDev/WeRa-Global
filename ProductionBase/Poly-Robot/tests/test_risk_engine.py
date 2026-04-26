@@ -17,7 +17,9 @@ from poly_robot.contracts import MarketEvent, PortfolioState, StrategyDecision  
 from poly_robot.risk_engine import RiskEngine  # noqa: E402
 
 
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
 
 
 def _load_parameters() -> dict:
@@ -41,7 +43,10 @@ def _build_event() -> MarketEvent:
 
 
 def _build_decision(
-    consensus_votes: int, *, action: Literal["BUY", "HOLD"] = "BUY", win_probability: float = 0.82
+    consensus_votes: int,
+    *,
+    action: Literal["BUY", "HOLD"] = "BUY",
+    win_probability: float = 0.82,
 ) -> StrategyDecision:
     return StrategyDecision(
         action=action,
@@ -87,7 +92,9 @@ class RiskEngineTests(unittest.TestCase):
         single_vote_decision = _build_decision(consensus_votes=1)
 
         full_result = self.engine.evaluate(self.event, full_vote_decision, portfolio)
-        single_result = self.engine.evaluate(self.event, single_vote_decision, portfolio)
+        single_result = self.engine.evaluate(
+            self.event, single_vote_decision, portfolio
+        )
 
         self.assertTrue(full_result.allowed)
         self.assertTrue(single_result.allowed)

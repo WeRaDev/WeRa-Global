@@ -55,11 +55,15 @@ class RuntimeSupervisorTests(unittest.TestCase):
             self.assertEqual(summary["overall_status"], "SUCCESS")
             self.assertEqual(summary["cycles_completed"], 1)
             state_payload = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual(state_payload["schema_version"], RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION)
+            self.assertEqual(
+                state_payload["schema_version"], RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION
+            )
             self.assertEqual(state_payload["status"], "SUCCESS")
             self.assertEqual(state_payload["worker_results"][0]["attempt_count"], 2)
             self.assertEqual(state_payload["worker_results"][0]["retry_count"], 1)
-            self.assertEqual(state_payload["worker_results"][0]["last_metadata"]["attempt"], 2)
+            self.assertEqual(
+                state_payload["worker_results"][0]["last_metadata"]["attempt"], 2
+            )
 
     def test_marks_failure_when_worker_emits_no_heartbeat(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -136,7 +140,9 @@ class RuntimeSupervisorTests(unittest.TestCase):
             state_payload = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual(state_payload["status"], "FAILED")
             self.assertTrue(
-                state_payload["worker_results"][0]["final_failure_reason"].startswith("stale_heartbeat:")
+                state_payload["worker_results"][0]["final_failure_reason"].startswith(
+                    "stale_heartbeat:"
+                )
             )
 
     def test_journal_records_runtime_events(self) -> None:
@@ -165,12 +171,15 @@ class RuntimeSupervisorTests(unittest.TestCase):
             self.assertGreaterEqual(len(entries), 5)
             self.assertTrue(
                 all(
-                    entry["schema_version"] == RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION
+                    entry["schema_version"]
+                    == RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION
                     for entry in entries
                 )
             )
             self.assertIn("cycle_started", {entry["event_type"] for entry in entries})
-            self.assertIn("worker_heartbeat", {entry["event_type"] for entry in entries})
+            self.assertIn(
+                "worker_heartbeat", {entry["event_type"] for entry in entries}
+            )
             self.assertIn("cycle_completed", {entry["event_type"] for entry in entries})
 
 

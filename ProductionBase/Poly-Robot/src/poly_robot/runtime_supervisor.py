@@ -154,7 +154,9 @@ class RuntimeSupervisor:
                 metadata = run_metadata
             elif run_metadata is not None:
                 metadata = {"result": run_metadata}
-        except Exception as exc:  # pragma: no cover - exception text is non-deterministic
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - exception text is non-deterministic
             failure_reason = f"exception:{exc.__class__.__name__}:{exc}"
         else:
             if heartbeat_count == 0:
@@ -188,14 +190,18 @@ class RuntimeSupervisor:
         )
         return attempt
 
-    def _run_worker_with_retries(self, worker: WorkerSpec, *, cycle_index: int) -> WorkerRunResult:
+    def _run_worker_with_retries(
+        self, worker: WorkerSpec, *, cycle_index: int
+    ) -> WorkerRunResult:
         attempts: list[WorkerAttempt] = []
         final_failure_reason: str | None = None
         last_metadata: dict[str, Any] = {}
         max_attempts = worker.max_retries + 1
 
         for attempt_number in range(1, max_attempts + 1):
-            attempt = self._run_worker_once(worker, cycle_index=cycle_index, attempt_number=attempt_number)
+            attempt = self._run_worker_once(
+                worker, cycle_index=cycle_index, attempt_number=attempt_number
+            )
             attempts.append(attempt)
             last_metadata = attempt.metadata
             if attempt.status == "SUCCESS":
@@ -220,7 +226,9 @@ class RuntimeSupervisor:
                 )
                 self._sleep_fn(backoff_seconds)
 
-        status = "SUCCESS" if attempts and attempts[-1].status == "SUCCESS" else "FAILED"
+        status = (
+            "SUCCESS" if attempts and attempts[-1].status == "SUCCESS" else "FAILED"
+        )
         return WorkerRunResult(
             worker_name=worker.name,
             status=status,
@@ -229,7 +237,9 @@ class RuntimeSupervisor:
             last_metadata=last_metadata,
         )
 
-    def run_cycle(self, worker_specs: Sequence[WorkerSpec], *, cycle_index: int) -> dict[str, Any]:
+    def run_cycle(
+        self, worker_specs: Sequence[WorkerSpec], *, cycle_index: int
+    ) -> dict[str, Any]:
         if not worker_specs:
             raise ValueError("worker_specs must not be empty")
 
@@ -238,8 +248,13 @@ class RuntimeSupervisor:
             {"cycle_index": cycle_index, "worker_count": len(worker_specs)},
         )
 
-        results = [self._run_worker_with_retries(worker, cycle_index=cycle_index) for worker in worker_specs]
-        failed_workers = [result.worker_name for result in results if result.status == "FAILED"]
+        results = [
+            self._run_worker_with_retries(worker, cycle_index=cycle_index)
+            for worker in worker_specs
+        ]
+        failed_workers = [
+            result.worker_name for result in results if result.status == "FAILED"
+        ]
         cycle_status = "SUCCESS" if not failed_workers else "FAILED"
         snapshot = {
             "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
@@ -279,7 +294,11 @@ class RuntimeSupervisor:
             if stop_on_failure and snapshot["status"] == "FAILED":
                 break
 
-        overall_status = "SUCCESS" if snapshots and all(s["status"] == "SUCCESS" for s in snapshots) else "FAILED"
+        overall_status = (
+            "SUCCESS"
+            if snapshots and all(s["status"] == "SUCCESS" for s in snapshots)
+            else "FAILED"
+        )
         return {
             "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
             "generated_at": _utc_now_iso(),

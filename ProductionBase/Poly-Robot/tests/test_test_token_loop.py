@@ -30,8 +30,12 @@ from poly_robot.test_token_loop import (  # noqa: E402
 )
 
 
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 REPLAY_FIXTURE_PATH = ROOT_DIR / "tests" / "fixtures" / "replay_events.jsonl"
 
 
@@ -91,7 +95,9 @@ class TestTokenLoopTests(unittest.TestCase):
         )
         payload = serialize_test_token_loop_run(run)
 
-        self.assertEqual([record.event_id for record in run.records], ["evt-1", "evt-2"])
+        self.assertEqual(
+            [record.event_id for record in run.records], ["evt-1", "evt-2"]
+        )
         self.assertEqual(run.records[0].execution_result.status, "SKIPPED")
         self.assertTrue(run.records[1].replay_record.risk_decision.allowed)
         self.assertEqual(run.records[1].execution_result.status, "FILLED")
@@ -109,7 +115,9 @@ class TestTokenLoopTests(unittest.TestCase):
             1000.0 - run.total_execution_cost,
             places=4,
         )
-        self.assertEqual(payload["schema_version"], TEST_TOKEN_LOOP_RESULT_SCHEMA_VERSION)
+        self.assertEqual(
+            payload["schema_version"], TEST_TOKEN_LOOP_RESULT_SCHEMA_VERSION
+        )
         self.assertEqual(payload["total_execution_cost"], run.total_execution_cost)
 
     def test_loop_preserves_risk_gate_when_execution_ttl_expires(self) -> None:
@@ -176,7 +184,9 @@ class TestTokenLoopTests(unittest.TestCase):
         self.assertEqual(run.filled_trade_count, 1)
         self.assertEqual(run.partial_fill_count, 1)
         self.assertEqual(run.records[1].execution_result.status, "PARTIALLY_FILLED")
-        self.assertIn("cancel_replace_size_reduction", run.records[1].execution_result.reasons)
+        self.assertIn(
+            "cancel_replace_size_reduction", run.records[1].execution_result.reasons
+        )
         self.assertEqual(run.records[1].execution_result.metadata["replace_count"], 1)
 
     def test_confirmed_exit_closes_position_and_emits_exit_telemetry(self) -> None:
@@ -184,7 +194,9 @@ class TestTokenLoopTests(unittest.TestCase):
         parameters = profile_payload["values"]
 
         class AlwaysBuyStrategy:
-            def evaluate(self, event: MarketEvent, portfolio: PortfolioState) -> StrategyDecision:
+            def evaluate(
+                self, event: MarketEvent, portfolio: PortfolioState
+            ) -> StrategyDecision:
                 del event, portfolio
                 return StrategyDecision(
                     action="BUY",

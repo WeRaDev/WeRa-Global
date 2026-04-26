@@ -14,7 +14,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from poly_robot.contracts import PortfolioState  # noqa: E402
+from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
 from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
@@ -25,7 +25,11 @@ from poly_robot.reproducibility import hash_events, stable_hash  # noqa: E402
 from poly_robot.risk_engine import RiskEngine  # noqa: E402
 from poly_robot.runtime_supervisor import RuntimeSupervisor, WorkerSpec  # noqa: E402
 from poly_robot.runtime_web_gui import OperatorControlManager  # noqa: E402
-from poly_robot.scenario_pack import apply_scenario_to_events, load_scenario_pack  # noqa: E402
+from poly_robot.scenario_pack import (  # noqa: E402
+    ReplayScenario,
+    apply_scenario_to_events,
+    load_scenario_pack,
+)
 from poly_robot.strategy_baseline import BaselineStrategy  # noqa: E402
 from poly_robot.test_token_loop import TestTokenLoop, serialize_test_token_loop_run  # noqa: E402
 
@@ -49,11 +53,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "(heartbeat, bounded retries, and restart-safe state snapshots)."
         )
     )
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(
@@ -236,11 +246,13 @@ def main(argv: list[str] | None = None) -> int:
     loop = TestTokenLoop(strategy, risk, execution, parameters)
     profile_hash = stable_hash(profile_payload)
     calibration_policy_hash = stable_hash(calibration_policy_payload)
-    scenario_cache: dict[str, tuple[object, list, str, str]] = {}
+    scenario_cache: dict[str, tuple[ReplayScenario, list[MarketEvent], str, str]] = {}
     stop_flags = {"restart_requested": False}
     current_cycle = {"index": 0}
 
-    def _resolve_scenario_run_inputs(scenario_name: str) -> tuple[object, list, str, str]:
+    def _resolve_scenario_run_inputs(
+        scenario_name: str,
+    ) -> tuple[ReplayScenario, list[MarketEvent], str, str]:
         normalized = scenario_name.strip() or default_scenario.name
         cached = scenario_cache.get(normalized)
         if cached is not None:
@@ -272,11 +284,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cycle_output_dir:
         args.cycle_output_dir.mkdir(parents=True, exist_ok=True)
 
-
     def _run_test_token_cycle(heartbeat) -> dict:
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
-        selected_scenario_name = str(control_state.get("selected_scenario", default_scenario.name)).strip()
+        selected_scenario_name = str(
+            control_state.get("selected_scenario", default_scenario.name)
+        ).strip()
         if not selected_scenario_name:
             selected_scenario_name = default_scenario.name
         control_version = int(control_state.get("control_version", 0))
@@ -320,6 +333,16 @@ def main(argv: list[str] | None = None) -> int:
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
                 "total_execution_cost": 0.0,
+                "total_fees_paid": 0.0,
+                "total_slippage_cost": 0.0,
+                "bankroll": args.bankroll,
+                "day_start_equity": args.bankroll,
+                "current_equity": args.bankroll,
+                "net_pnl": 0.0,
+                "open_notional": 0.0,
+                "open_positions": 0,
+                "total_exposure_fraction": 0.0,
+                "daily_drawdown_fraction": 0.0,
                 "result_hash": None,
             }
 
@@ -344,13 +367,25 @@ def main(argv: list[str] | None = None) -> int:
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
                 "total_execution_cost": 0.0,
+                "total_fees_paid": 0.0,
+                "total_slippage_cost": 0.0,
+                "bankroll": args.bankroll,
+                "day_start_equity": args.bankroll,
+                "current_equity": args.bankroll,
+                "net_pnl": 0.0,
+                "open_notional": 0.0,
+                "open_positions": 0,
+                "total_exposure_fraction": 0.0,
+                "daily_drawdown_fraction": 0.0,
                 "result_hash": None,
             }
 
         scenario_name_in_use = selected_scenario_name
         try:
-            scenario, events_for_run, events_hash, scenario_hash = _resolve_scenario_run_inputs(scenario_name_in_use)
-        except Exception:
+            scenario, events_for_run, events_hash, scenario_hash = (
+                _resolve_scenario_run_inputs(scenario_name_in_use)
+            )
+        except ValueError:
             scenario_name_in_use = default_scenario.name
             heartbeat(
                 "control_invalid_scenario_fallback",
@@ -360,7 +395,9 @@ def main(argv: list[str] | None = None) -> int:
                     "fallback_scenario": scenario_name_in_use,
                 },
             )
-            scenario, events_for_run, events_hash, scenario_hash = _resolve_scenario_run_inputs(scenario_name_in_use)
+            scenario, events_for_run, events_hash, scenario_hash = (
+                _resolve_scenario_run_inputs(scenario_name_in_use)
+            )
 
         run = loop.run(
             events_for_run,
@@ -390,8 +427,12 @@ def main(argv: list[str] | None = None) -> int:
                 "cycle_index": cycle_index,
                 "control_version": control_version,
                 "exit_module": {
-                    "target_capture_ratio": float(parameters["exit.target_capture_ratio"]),
-                    "volume_spike_multiplier": float(parameters["exit.volume_spike_multiplier"]),
+                    "target_capture_ratio": float(
+                        parameters["exit.target_capture_ratio"]
+                    ),
+                    "volume_spike_multiplier": float(
+                        parameters["exit.volume_spike_multiplier"]
+                    ),
                     "stale_hours": float(parameters["exit.stale_hours"]),
                     "stale_price_change_threshold": float(
                         parameters["exit.stale_price_change_threshold"]
@@ -431,10 +472,18 @@ def main(argv: list[str] | None = None) -> int:
             "result_hash": result_hash,
             "cycle_index": cycle_index,
         }
+        final_portfolio = run.final_portfolio
+        net_pnl = round(
+            final_portfolio.current_equity - final_portfolio.day_start_equity, 4
+        )
+        total_exposure_fraction = round(final_portfolio.total_exposure_fraction, 6)
+        daily_drawdown_fraction = round(final_portfolio.daily_drawdown_fraction, 6)
 
         if args.cycle_output_dir:
             output_path = args.cycle_output_dir / f"cycle_{cycle_index:03d}.json"
-            output_path.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+            output_path.write_text(
+                json.dumps(result_payload, indent=2) + "\n", encoding="utf-8"
+            )
 
         heartbeat(
             "cycle_completed",
@@ -447,6 +496,15 @@ def main(argv: list[str] | None = None) -> int:
                 "filled_trade_count": run.filled_trade_count,
                 "exit_candidate_count": run.exit_candidate_count,
                 "confirmed_exit_count": run.confirmed_exit_count,
+                "total_execution_cost": run.total_execution_cost,
+                "total_fees_paid": run.total_fees_paid,
+                "total_slippage_cost": run.total_slippage_cost,
+                "net_pnl": net_pnl,
+                "current_equity": final_portfolio.current_equity,
+                "open_notional": final_portfolio.open_notional,
+                "open_positions": final_portfolio.open_positions,
+                "total_exposure_fraction": total_exposure_fraction,
+                "daily_drawdown_fraction": daily_drawdown_fraction,
                 "result_hash_prefix": result_hash[:12],
             },
         )
@@ -462,6 +520,16 @@ def main(argv: list[str] | None = None) -> int:
             "exit_candidate_count": run.exit_candidate_count,
             "confirmed_exit_count": run.confirmed_exit_count,
             "total_execution_cost": run.total_execution_cost,
+            "total_fees_paid": run.total_fees_paid,
+            "total_slippage_cost": run.total_slippage_cost,
+            "bankroll": final_portfolio.bankroll,
+            "day_start_equity": final_portfolio.day_start_equity,
+            "current_equity": final_portfolio.current_equity,
+            "net_pnl": net_pnl,
+            "open_notional": final_portfolio.open_notional,
+            "open_positions": final_portfolio.open_positions,
+            "total_exposure_fraction": total_exposure_fraction,
+            "daily_drawdown_fraction": daily_drawdown_fraction,
             "result_hash": result_hash,
         }
 
@@ -486,7 +554,11 @@ def main(argv: list[str] | None = None) -> int:
         if not args.continue_on_failure and snapshot["status"] == "FAILED":
             break
 
-    overall_status = "SUCCESS" if snapshots and all(s["status"] == "SUCCESS" for s in snapshots) else "FAILED"
+    overall_status = (
+        "SUCCESS"
+        if snapshots and all(s["status"] == "SUCCESS" for s in snapshots)
+        else "FAILED"
+    )
     summary = {
         "schema_version": "runtime_supervisor_state.v1",
         "generated_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
@@ -508,7 +580,7 @@ def main(argv: list[str] | None = None) -> int:
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path}"
     )
-    return 0
+    return 0 if overall_status == "SUCCESS" else 1
 
 
 if __name__ == "__main__":

@@ -41,7 +41,9 @@ class ScenarioPack:
         scenario = self.scenarios.get(scenario_name)
         if scenario is None:
             available = sorted(self.scenarios.keys())
-            raise ValueError(f"Unknown scenario {scenario_name!r}. Available scenarios: {available}")
+            raise ValueError(
+                f"Unknown scenario {scenario_name!r}. Available scenarios: {available}"
+            )
         return scenario
 
 
@@ -100,19 +102,29 @@ def load_scenario_pack(path: Path) -> ScenarioPack:
     )
 
 
-def apply_scenario_to_events(events: list[MarketEvent], scenario: ReplayScenario) -> list[MarketEvent]:
+def apply_scenario_to_events(
+    events: list[MarketEvent], scenario: ReplayScenario
+) -> list[MarketEvent]:
     transformed: list[MarketEvent] = []
 
     for event in events:
         payload = event.to_dict()
         payload["timestamp"] = _shift_timestamp(event.timestamp, scenario.latency_ms)
-        payload["bids_depth_usd"] = max(0.0, event.bids_depth_usd * scenario.depth_multiplier)
-        payload["asks_depth_usd"] = max(0.0, event.asks_depth_usd * scenario.depth_multiplier)
-        payload["liquidity_usd"] = max(0.0, event.liquidity_usd * scenario.liquidity_multiplier)
+        payload["bids_depth_usd"] = max(
+            0.0, event.bids_depth_usd * scenario.depth_multiplier
+        )
+        payload["asks_depth_usd"] = max(
+            0.0, event.asks_depth_usd * scenario.depth_multiplier
+        )
+        payload["liquidity_usd"] = max(
+            0.0, event.liquidity_usd * scenario.liquidity_multiplier
+        )
         payload["estimated_probability"] = _clamp_probability(
             event.estimated_probability + scenario.probability_shift
         )
-        payload["midpoint"] = _clamp_probability(event.midpoint + scenario.midpoint_shift)
+        payload["midpoint"] = _clamp_probability(
+            event.midpoint + scenario.midpoint_shift
+        )
         payload["metadata"] = {
             **event.metadata,
             "scenario_name": scenario.name,

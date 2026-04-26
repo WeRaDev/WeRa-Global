@@ -47,7 +47,9 @@ class HistoricalIngestionAdapter:
         self._sleep_fn = sleep_fn or time.sleep
         self._monotonic_fn = monotonic_fn or time.monotonic
 
-    def _load_once(self, path: Path, *, timeout_seconds: float | None, attempt_number: int) -> IngestionBatch:
+    def _load_once(
+        self, path: Path, *, timeout_seconds: float | None, attempt_number: int
+    ) -> IngestionBatch:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0 when provided")
 
@@ -64,7 +66,10 @@ class HistoricalIngestionAdapter:
             with path.open("r", encoding="utf-8") as handle:
                 for line_number, raw_line in enumerate(handle, start=1):
                     total_rows += 1
-                    if timeout_seconds is not None and (self._monotonic_fn() - started) > timeout_seconds:
+                    if (
+                        timeout_seconds is not None
+                        and (self._monotonic_fn() - started) > timeout_seconds
+                    ):
                         raise TimeoutError("ingestion_timeout")
 
                     line = raw_line.strip()
@@ -90,7 +95,10 @@ class HistoricalIngestionAdapter:
                             )
                         continue
 
-                    if previous_timestamp is not None and event.timestamp < previous_timestamp:
+                    if (
+                        previous_timestamp is not None
+                        and event.timestamp < previous_timestamp
+                    ):
                         monotonic_violations += 1
                         if self.fail_on_monotonic_violation:
                             return IngestionBatch(
@@ -166,11 +174,15 @@ class HistoricalIngestionAdapter:
             },
         )
 
-    def load_jsonl(self, path: Path, *, timeout_seconds: float | None = None) -> IngestionBatch:
+    def load_jsonl(
+        self, path: Path, *, timeout_seconds: float | None = None
+    ) -> IngestionBatch:
         max_attempts = self.max_retry_attempts + 1
         last_failure: IngestionBatch | None = None
         for attempt_number in range(1, max_attempts + 1):
-            outcome = self._load_once(path, timeout_seconds=timeout_seconds, attempt_number=attempt_number)
+            outcome = self._load_once(
+                path, timeout_seconds=timeout_seconds, attempt_number=attempt_number
+            )
             if outcome.status != "FAILED":
                 return outcome
 
@@ -182,7 +194,9 @@ class HistoricalIngestionAdapter:
                 return outcome
 
             if attempt_number < max_attempts:
-                backoff_seconds = self.retry_backoff_seconds * (2 ** (attempt_number - 1))
+                backoff_seconds = self.retry_backoff_seconds * (
+                    2 ** (attempt_number - 1)
+                )
                 self._sleep_fn(backoff_seconds)
 
         return last_failure or IngestionBatch(
@@ -269,7 +283,9 @@ class ExecutionGatewayAdapter:
             },
         )
 
-    def execute(self, *, event: MarketEvent, intent: ExecutionIntent, idempotency_key: str) -> ExecutionResult:
+    def execute(
+        self, *, event: MarketEvent, intent: ExecutionIntent, idempotency_key: str
+    ) -> ExecutionResult:
         if not idempotency_key.strip():
             raise ValueError("idempotency_key must not be empty")
         if idempotency_key in self._idempotency_cache:
@@ -298,11 +314,17 @@ class ExecutionGatewayAdapter:
                 return result
             except TimeoutError:
                 last_failure_reason = "execution_gateway_timeout"
-            except Exception as exc:  # pragma: no cover - exception message text may vary
-                last_failure_reason = f"execution_gateway_error:{exc.__class__.__name__}"
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - exception message text may vary
+                last_failure_reason = (
+                    f"execution_gateway_error:{exc.__class__.__name__}"
+                )
 
             if attempt_number < max_attempts:
-                backoff_seconds = self.retry_backoff_seconds * (2 ** (attempt_number - 1))
+                backoff_seconds = self.retry_backoff_seconds * (
+                    2 ** (attempt_number - 1)
+                )
                 self._sleep_fn(backoff_seconds)
 
         degraded = self._degraded_result(
@@ -335,8 +357,12 @@ class HardenedExecutionAdapter:
     def skip(self, **kwargs: Any) -> ExecutionResult:
         return self.execution_adapter.skip(**kwargs)
 
-    def execute(self, *, event: MarketEvent, intent: ExecutionIntent) -> ExecutionResult:
-        idempotency_key = f"{intent.intent_id}:{event.timestamp}:{intent.requested_notional:.4f}"
+    def execute(
+        self, *, event: MarketEvent, intent: ExecutionIntent
+    ) -> ExecutionResult:
+        idempotency_key = (
+            f"{intent.intent_id}:{event.timestamp}:{intent.requested_notional:.4f}"
+        )
         return self.gateway.execute(
             event=event,
             intent=intent,

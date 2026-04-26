@@ -55,7 +55,9 @@ class StressCertificationTests(unittest.TestCase):
             soak_summary=_soak_summary_stub(recovery_ok=True),
         )
 
-        self.assertEqual(report["schema_version"], STRESS_CERTIFICATION_REPORT_SCHEMA_VERSION)
+        self.assertEqual(
+            report["schema_version"], STRESS_CERTIFICATION_REPORT_SCHEMA_VERSION
+        )
         self.assertEqual(report["overall_status"], "PASS")
         self.assertEqual(report["incidents"], [])
         self.assertTrue(all(item["passed"] for item in report["criteria"]))

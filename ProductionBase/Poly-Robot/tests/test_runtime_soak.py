@@ -10,8 +10,12 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ROOT_DIR / "scripts" / "run_runtime_soak.py"
-PROFILE_PATH = ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
-CALIBRATION_POLICY_PATH = ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+PROFILE_PATH = (
+    ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json"
+)
+CALIBRATION_POLICY_PATH = (
+    ROOT_DIR / "config" / "calibration" / "llm_reliability.v1.json"
+)
 SCENARIO_PACK_PATH = ROOT_DIR / "config" / "replay" / "scenario_pack.v1.json"
 REPLAY_FIXTURE_PATH = ROOT_DIR / "tests" / "fixtures" / "replay_events.jsonl"
 
@@ -89,7 +93,9 @@ class RuntimeSoakIntegrationTests(unittest.TestCase):
                 "--cycle-output-dir",
                 str(root / "cycles"),
             ]
-            result = subprocess.run(command, capture_output=True, text=True, check=False)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False
+            )
 
             self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
             summary = _read_json(summary_path)
@@ -122,7 +128,92 @@ class RuntimeSoakIntegrationTests(unittest.TestCase):
 
             recovery_checks = summary["recovery_checks"]
             self.assertTrue(recovery_checks)
-            self.assertTrue(all(check["recovered_after_interval"] for check in recovery_checks))
+            self.assertTrue(
+                all(check["recovered_after_interval"] for check in recovery_checks)
+            )
+
+    def test_soak_runner_fails_when_expected_drill_failure_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            health_path = root / "soak_health.jsonl"
+            summary_path = root / "soak_summary.json"
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            drill_dir = root / "soak_drill_inputs"
+            drill_dir.mkdir(parents=True, exist_ok=True)
+            (drill_dir / "missing_source_interval_001.jsonl").write_text(
+                REPLAY_FIXTURE_PATH.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+            command = [
+                sys.executable,
+                str(SCRIPT_PATH),
+                "--events",
+                str(REPLAY_FIXTURE_PATH),
+                "--profile",
+                str(PROFILE_PATH),
+                "--calibration-policy",
+                str(CALIBRATION_POLICY_PATH),
+                "--scenario-pack",
+                str(SCENARIO_PACK_PATH),
+                "--scenario-rotation",
+                "baseline",
+                "--intervals",
+                "3",
+                "--max-retries",
+                "0",
+                "--retry-backoff-seconds",
+                "0",
+                "--ingestion-max-retries",
+                "0",
+                "--ingestion-retry-backoff-seconds",
+                "0",
+                "--execution-gateway-max-retries",
+                "0",
+                "--execution-gateway-retry-backoff-seconds",
+                "0",
+                "--drill-restart-intervals",
+                "",
+                "--drill-data-unavailable-intervals",
+                "1",
+                "--drill-delayed-execution-intervals",
+                "",
+                "--drill-delayed-execution-ms",
+                "500000",
+                "--state-path",
+                str(state_path),
+                "--journal-path",
+                str(journal_path),
+                "--control-state-path",
+                str(control_state_path),
+                "--control-audit-path",
+                str(control_audit_path),
+                "--health-snapshot-path",
+                str(health_path),
+                "--summary-path",
+                str(summary_path),
+            ]
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False
+            )
+
+            self.assertNotEqual(
+                result.returncode, 0, msg=result.stderr or result.stdout
+            )
+            summary = _read_json(summary_path)
+            health_rows = _read_jsonl(health_path)
+            self.assertEqual(summary["overall_status"], "FAILED")
+            self.assertEqual(summary["intervals_completed"], 1)
+            self.assertEqual(
+                summary["interval_status_counts"]["drill_unexpected_success"],
+                1,
+            )
+            self.assertEqual(
+                health_rows[0]["interval_status"], "DRILL_UNEXPECTED_SUCCESS"
+            )
 
 
 if __name__ == "__main__":

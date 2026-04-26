@@ -49,11 +49,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "(strategy -> risk -> paper execution) with reproducible output."
         )
     )
-    parser.add_argument("--events", type=Path, required=True, help="Path to replay event JSONL file.")
+    parser.add_argument(
+        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+    )
     parser.add_argument(
         "--profile",
         type=Path,
-        default=ROOT_DIR / "config" / "parameters" / "profiles" / "mvp_test_token.v1.json",
+        default=ROOT_DIR
+        / "config"
+        / "parameters"
+        / "profiles"
+        / "mvp_test_token.v1.json",
         help="Path to parameter profile JSON.",
     )
     parser.add_argument(
@@ -199,9 +205,13 @@ def main(argv: list[str] | None = None) -> int:
         "calibration_policy_path": str(args.calibration_policy),
         "exit_module": {
             "target_capture_ratio": float(parameters["exit.target_capture_ratio"]),
-            "volume_spike_multiplier": float(parameters["exit.volume_spike_multiplier"]),
+            "volume_spike_multiplier": float(
+                parameters["exit.volume_spike_multiplier"]
+            ),
             "stale_hours": float(parameters["exit.stale_hours"]),
-            "stale_price_change_threshold": float(parameters["exit.stale_price_change_threshold"]),
+            "stale_price_change_threshold": float(
+                parameters["exit.stale_price_change_threshold"]
+            ),
             "confirmation_threshold": 2,
         },
         "ingestion_status": ingestion.status,
@@ -239,7 +249,9 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     if args.output:
-        args.output.write_text(json.dumps(result_payload, indent=2) + "\n", encoding="utf-8")
+        args.output.write_text(
+            json.dumps(result_payload, indent=2) + "\n", encoding="utf-8"
+        )
 
     print(
         "Test-token loop complete: "
