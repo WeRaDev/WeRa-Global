@@ -197,6 +197,24 @@ class LivePolymarketIngestionAdapterTests(unittest.TestCase):
         self.assertEqual(event.market_id, "540816")
         self.assertGreater(event.estimated_probability, event.midpoint)
         self.assertEqual(event.metadata["source"], "polymarket_gamma")
+        self.assertEqual(
+            event.metadata["probability_estimator_version"], "live_structured.v2"
+        )
+        self.assertIn(
+            "weekly_change_component", event.metadata["probability_components"]
+        )
+        self.assertIn(
+            "signal_agreement", event.metadata["probability_features"]
+        )
+        expected_raw_probability = round(
+            event.midpoint + sum(event.metadata["probability_components"].values()),
+            6,
+        )
+        self.assertAlmostEqual(
+            event.metadata["raw_estimated_probability"],
+            expected_raw_probability,
+            places=6,
+        )
         self.assertEqual(batch.metadata["selected_rows"], 1)
 
     def test_degraded_when_invalid_rows_are_within_budget(self) -> None:
@@ -311,6 +329,80 @@ class LivePolymarketIngestionAdapterTests(unittest.TestCase):
 
         self.assertEqual(batch.status, "FAILED")
         self.assertEqual(batch.reasons, ("ingestion_timeout",))
+
+    def test_wallet_convergence_can_trigger_whale_signal_without_liquidity(self) -> None:
+        payload = [
+            {
+                "id": "540822",
+                "question": "Can wallet convergence drive whale signal?",
+                "updatedAt": "2026-04-26T15:10:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "outcomePrices": "[\"0.45\", \"0.55\"]",
+                "liquidity": "1200.0",
+                "volume24hr": 420.0,
+                "oneWeekPriceChange": 0.02,
+            }
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            whale_signal_wallet_threshold=3.0,
+            wallet_convergence_loader=lambda: {"540822": 4.0},
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "OK")
+        self.assertEqual(len(batch.events), 1)
+        event = batch.events[0]
+        self.assertTrue(event.check_signals["whale"])
+        self.assertTrue(event.metadata["wallet_convergence_signal"])
+        self.assertFalse(event.metadata["liquidity_whale_signal"])
+        self.assertEqual(event.metadata["wallet_convergence_count"], 4.0)
+        self.assertGreater(
+            event.metadata["probability_features"]["wallet_convergence_score"], 0.0
+        )
+        self.assertGreater(
+            event.metadata["probability_components"]["wallet_convergence_component"],
+            0.0,
+        )
+
+    def test_degraded_when_wallet_convergence_loader_fails(self) -> None:
+        payload = [
+            {
+                "id": "540823",
+                "question": "Will loader failures degrade safely?",
+                "updatedAt": "2026-04-26T15:11:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "outcomePrices": "[\"0.55\", \"0.45\"]",
+                "liquidity": "42000.0",
+                "volume24hr": 600.0,
+                "oneWeekPriceChange": 0.03,
+            }
+        ]
+
+        def failing_loader() -> dict[str, float]:
+            raise OSError("wallet source unavailable")
+
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            wallet_convergence_loader=failing_loader,
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "DEGRADED")
+        self.assertIn("wallet_signal_unavailable", batch.reasons)
+        self.assertEqual(batch.metadata["wallet_signal_loader_error"], "OSError")
 
 
 class ExecutionGatewayAdapterTests(unittest.TestCase):

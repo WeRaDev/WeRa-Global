@@ -236,6 +236,27 @@ def main(argv: list[str] | None = None) -> int:
             "total_fees_paid": result_payload["total_fees_paid"],
             "total_slippage_cost": result_payload["total_slippage_cost"],
             "total_execution_cost": result_payload["total_execution_cost"],
+            "attributed_trade_count": result_payload["attributed_trade_count"],
+            "expected_gross_edge_value": result_payload["expected_gross_edge_value"],
+            "expected_net_edge_value": result_payload["expected_net_edge_value"],
+            "expected_net_edge_value_on_fills": result_payload[
+                "expected_net_edge_value_on_fills"
+            ],
+            "expected_value_after_execution_cost": result_payload[
+                "expected_value_after_execution_cost"
+            ],
+            "average_expected_gross_edge_bps": result_payload[
+                "average_expected_gross_edge_bps"
+            ],
+            "average_expected_net_edge_bps": result_payload[
+                "average_expected_net_edge_bps"
+            ],
+            "expected_edge_capture_ratio": result_payload[
+                "expected_edge_capture_ratio"
+            ],
+            "execution_cost_to_expected_net_ratio": result_payload[
+                "execution_cost_to_expected_net_ratio"
+            ],
             "input_fingerprint": input_fingerprint,
         }
     )
@@ -253,6 +274,17 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(result_payload, indent=2) + "\n", encoding="utf-8"
         )
 
+    edge_capture_display = (
+        f"{run.expected_edge_capture_ratio:.4f}"
+        if run.expected_edge_capture_ratio is not None
+        else "n/a"
+    )
+    expected_net_ratio_display = (
+        f"{run.execution_cost_to_expected_net_ratio:.4f}"
+        if run.execution_cost_to_expected_net_ratio is not None
+        else "n/a"
+    )
+
     print(
         "Test-token loop complete: "
         f"events={len(run.records)} "
@@ -264,6 +296,11 @@ def main(argv: list[str] | None = None) -> int:
         f"fees={run.total_fees_paid:.4f} "
         f"slippage_cost={run.total_slippage_cost:.4f} "
         f"execution_cost={run.total_execution_cost:.4f} "
+        f"expected_gross_edge={run.expected_gross_edge_value:.4f} "
+        f"expected_net_edge={run.expected_net_edge_value_on_fills:.4f} "
+        f"expected_value_after_cost={run.expected_value_after_execution_cost:.4f} "
+        f"edge_capture={edge_capture_display} "
+        f"cost_to_expected_net={expected_net_ratio_display} "
         f"open_positions={run.final_portfolio.open_positions} "
         f"open_notional={run.final_portfolio.open_notional:.2f} "
         f"result_hash={result_hash[:12]}"

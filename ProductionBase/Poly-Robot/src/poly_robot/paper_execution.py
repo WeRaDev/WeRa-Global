@@ -75,6 +75,7 @@ def build_execution_intent(
         metadata={
             "approved_fraction": risk_decision.approved_fraction,
             "risk_reasons": list(risk_decision.reasons),
+            "execution_scope": event.metadata.get("execution_scope"),
         },
     )
 

@@ -47,6 +47,65 @@ def _load_profile_payload(profile_path: Path) -> tuple[dict, dict]:
         raise ValueError(f"Profile values must be an object in {profile_path}")
     return payload, values
 
+def _extract_wallet_convergence_count(value: object) -> float | None:
+    if isinstance(value, dict):
+        for key in (
+            "target_wallet_count",
+            "wallet_count",
+            "convergence_count",
+            "count",
+        ):
+            if key in value:
+                return _extract_wallet_convergence_count(value[key])
+        return None
+    try:
+        count = float(value)
+    except (TypeError, ValueError):
+        return None
+    if count < 0:
+        return None
+    return count
+
+def _load_wallet_convergence_payload(path: Path) -> dict[str, float]:
+    if not path.exists():
+        return {}
+    payload = _load_json(path)
+    source: object = payload
+    if isinstance(payload, dict):
+        if isinstance(payload.get("markets"), dict):
+            source = payload["markets"]
+        elif isinstance(payload.get("markets"), list):
+            source = payload["markets"]
+
+    normalized: dict[str, float] = {}
+    if isinstance(source, dict):
+        for market_id, raw_count in source.items():
+            market_key = str(market_id).strip()
+            if not market_key:
+                continue
+            count = _extract_wallet_convergence_count(raw_count)
+            if count is None:
+                continue
+            normalized[market_key] = count
+        return normalized
+
+    if isinstance(source, list):
+        for row in source:
+            if not isinstance(row, dict):
+                continue
+            market_key = str(
+                row.get("market_id") or row.get("marketId") or row.get("id") or ""
+            ).strip()
+            if not market_key:
+                continue
+            count = _extract_wallet_convergence_count(row)
+            if count is None:
+                continue
+            normalized[market_key] = count
+        return normalized
+
+    return {}
+
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -205,6 +264,32 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Minimum 24h volume required for a live market to be ingested.",
     )
     parser.add_argument(
+        "--live-wallet-convergence-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional JSON path providing wallet convergence counts keyed by "
+            "market ID for live whale-signal enrichment."
+        ),
+    )
+    parser.add_argument(
+        "--live-wallet-convergence-threshold",
+        type=float,
+        default=3.0,
+        help=(
+            "Minimum wallet convergence count required to trigger the live "
+            "whale check."
+        ),
+    )
+    parser.add_argument(
+        "--disable-live-freshness-filter",
+        action="store_true",
+        help=(
+            "Disable live-event freshness filtering that skips previously "
+            "seen event IDs across cycles."
+        ),
+    )
+    parser.add_argument(
         "--ingestion-max-retries",
         type=int,
         default=1,
@@ -253,6 +338,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     if args.cycle_interval_seconds < 0:
         raise ValueError("--cycle-interval-seconds must be >= 0")
+    if args.live_wallet_convergence_threshold <= 0:
+        raise ValueError("--live-wallet-convergence-threshold must be > 0")
     if args.ingestion_mode == "historical_jsonl" and args.events is None:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
@@ -295,6 +382,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         events = historical_ingestion.events
     else:
+        wallet_convergence_loader = None
+        if args.live_wallet_convergence_path is not None:
+            wallet_convergence_path = args.live_wallet_convergence_path
+
+            def wallet_convergence_loader() -> dict[str, float]:
+                return _load_wallet_convergence_payload(wallet_convergence_path)
         live_ingestion_adapter = LivePolymarketIngestionAdapter(
             source_url=args.live_source_url,
             max_markets=args.live_max_markets,
@@ -303,6 +396,8 @@ def main(argv: list[str] | None = None) -> int:
             retry_backoff_seconds=args.ingestion_retry_backoff_seconds,
             max_invalid_rows=args.ingestion_max_invalid_rows,
             deduplicate_event_ids=True,
+            whale_signal_wallet_threshold=args.live_wallet_convergence_threshold,
+            wallet_convergence_loader=wallet_convergence_loader,
         )
     control_manager = OperatorControlManager(
         control_state_path=args.control_state_path,
@@ -323,6 +418,13 @@ def main(argv: list[str] | None = None) -> int:
     scenario_cache: dict[str, tuple[ReplayScenario, list[MarketEvent], str, str]] = {}
     stop_flags = {"restart_requested": False}
     current_cycle = {"index": 0}
+    portfolio_state = PortfolioState(
+        bankroll=args.bankroll,
+        day_start_equity=args.bankroll,
+        current_equity=args.bankroll,
+    )
+    open_positions_state: dict[str, object] = {}
+    seen_live_event_ids: set[str] = set()
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
@@ -361,6 +463,7 @@ def main(argv: list[str] | None = None) -> int:
         args.cycle_output_dir.mkdir(parents=True, exist_ok=True)
 
     def _run_test_token_cycle(heartbeat) -> dict:
+        nonlocal portfolio_state, open_positions_state, seen_live_event_ids
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
@@ -411,14 +514,30 @@ def main(argv: list[str] | None = None) -> int:
                 "total_execution_cost": 0.0,
                 "total_fees_paid": 0.0,
                 "total_slippage_cost": 0.0,
-                "bankroll": args.bankroll,
-                "day_start_equity": args.bankroll,
-                "current_equity": args.bankroll,
-                "net_pnl": 0.0,
-                "open_notional": 0.0,
-                "open_positions": 0,
-                "total_exposure_fraction": 0.0,
-                "daily_drawdown_fraction": 0.0,
+                "attributed_trade_count": 0,
+                "expected_gross_edge_value": 0.0,
+                "expected_net_edge_value": 0.0,
+                "expected_net_edge_value_on_fills": 0.0,
+                "expected_value_after_execution_cost": 0.0,
+                "average_expected_gross_edge_bps": None,
+                "average_expected_net_edge_bps": None,
+                "expected_edge_capture_ratio": None,
+                "execution_cost_to_expected_net_ratio": None,
+                "bankroll": portfolio_state.bankroll,
+                "day_start_equity": portfolio_state.day_start_equity,
+                "current_equity": portfolio_state.current_equity,
+                "net_pnl": round(
+                    portfolio_state.current_equity - portfolio_state.day_start_equity,
+                    4,
+                ),
+                "open_notional": portfolio_state.open_notional,
+                "open_positions": portfolio_state.open_positions,
+                "total_exposure_fraction": round(
+                    portfolio_state.total_exposure_fraction, 6
+                ),
+                "daily_drawdown_fraction": round(
+                    portfolio_state.daily_drawdown_fraction, 6
+                ),
                 "result_hash": None,
             }
 
@@ -445,16 +564,39 @@ def main(argv: list[str] | None = None) -> int:
                 "total_execution_cost": 0.0,
                 "total_fees_paid": 0.0,
                 "total_slippage_cost": 0.0,
-                "bankroll": args.bankroll,
-                "day_start_equity": args.bankroll,
-                "current_equity": args.bankroll,
-                "net_pnl": 0.0,
-                "open_notional": 0.0,
-                "open_positions": 0,
-                "total_exposure_fraction": 0.0,
-                "daily_drawdown_fraction": 0.0,
+                "attributed_trade_count": 0,
+                "expected_gross_edge_value": 0.0,
+                "expected_net_edge_value": 0.0,
+                "expected_net_edge_value_on_fills": 0.0,
+                "expected_value_after_execution_cost": 0.0,
+                "average_expected_gross_edge_bps": None,
+                "average_expected_net_edge_bps": None,
+                "expected_edge_capture_ratio": None,
+                "execution_cost_to_expected_net_ratio": None,
+                "bankroll": portfolio_state.bankroll,
+                "day_start_equity": portfolio_state.day_start_equity,
+                "current_equity": portfolio_state.current_equity,
+                "net_pnl": round(
+                    portfolio_state.current_equity - portfolio_state.day_start_equity,
+                    4,
+                ),
+                "open_notional": portfolio_state.open_notional,
+                "open_positions": portfolio_state.open_positions,
+                "total_exposure_fraction": round(
+                    portfolio_state.total_exposure_fraction, 6
+                ),
+                "daily_drawdown_fraction": round(
+                    portfolio_state.daily_drawdown_fraction, 6
+                ),
                 "result_hash": None,
             }
+
+        freshness_filter_enabled = (
+            args.ingestion_mode == "live_polymarket"
+            and not args.disable_live_freshness_filter
+        )
+        freshness_skipped_event_ids = 0
+        freshness_committed_event_ids: list[str] = []
 
         if args.ingestion_mode == "historical_jsonl":
             scenario_name_in_use = selected_scenario_name
@@ -503,6 +645,25 @@ def main(argv: list[str] | None = None) -> int:
                     f"metadata={cycle_ingestion.metadata}"
                 )
             events_for_run = cycle_ingestion.events
+            if freshness_filter_enabled:
+                fresh_events: list[MarketEvent] = []
+                for event in events_for_run:
+                    if event.event_id in seen_live_event_ids:
+                        continue
+                    fresh_events.append(event)
+                    freshness_committed_event_ids.append(event.event_id)
+                freshness_skipped_event_ids = len(events_for_run) - len(fresh_events)
+                events_for_run = fresh_events
+                if freshness_skipped_event_ids > 0:
+                    heartbeat(
+                        "live_freshness_filter_applied",
+                        {
+                            "cycle_index": cycle_index,
+                            "skipped_seen_event_ids": freshness_skipped_event_ids,
+                            "fresh_event_ids": len(events_for_run),
+                            "seen_event_ids_before_cycle": len(seen_live_event_ids),
+                        },
+                    )
             events_hash = hash_events(events_for_run)
             scenario_hash = stable_hash(
                 {
@@ -510,16 +671,64 @@ def main(argv: list[str] | None = None) -> int:
                     "live_source_url": args.live_source_url,
                     "live_max_markets": args.live_max_markets,
                     "live_min_volume_24h": args.live_min_volume_24h,
+                    "live_wallet_convergence_path": str(
+                        args.live_wallet_convergence_path
+                    )
+                    if args.live_wallet_convergence_path is not None
+                    else None,
+                    "live_wallet_convergence_threshold": (
+                        args.live_wallet_convergence_threshold
+                    ),
                 }
             )
+        effective_ingestion_status = cycle_ingestion.status
+        effective_ingestion_reasons = list(cycle_ingestion.reasons)
+        effective_ingestion_metadata = dict(cycle_ingestion.metadata)
+        effective_ingestion_metadata["live_freshness_filter_enabled"] = (
+            freshness_filter_enabled
+        )
+        effective_ingestion_metadata["seen_event_ids_before_cycle"] = len(
+            seen_live_event_ids
+        )
+        effective_ingestion_metadata["skipped_seen_event_ids"] = (
+            freshness_skipped_event_ids
+        )
+        effective_ingestion_metadata["fresh_event_ids"] = len(events_for_run)
+        effective_ingestion_metadata["seen_event_ids_after_cycle"] = (
+            len(seen_live_event_ids) + len(freshness_committed_event_ids)
+        )
+        if freshness_filter_enabled and freshness_skipped_event_ids > 0:
+            effective_ingestion_reasons.append("seen_event_ids_skipped")
+            if effective_ingestion_status == "OK":
+                effective_ingestion_status = "DEGRADED"
+        if (
+            freshness_filter_enabled
+            and args.ingestion_mode == "live_polymarket"
+            and not events_for_run
+            and cycle_ingestion.events
+        ):
+            effective_ingestion_reasons.append("no_new_events_since_last_cycle")
+            if effective_ingestion_status == "OK":
+                effective_ingestion_status = "DEGRADED"
+        effective_ingestion_reasons = list(dict.fromkeys(effective_ingestion_reasons))
 
+        execution_scope = f"cycle:{cycle_index}"
+        scoped_events: list[MarketEvent] = []
+        for event in events_for_run:
+            event_payload = event.to_dict()
+            event_metadata = dict(event_payload.get("metadata", {}))
+            event_metadata["execution_scope"] = execution_scope
+            event_metadata["cycle_index"] = cycle_index
+            event_payload["metadata"] = event_metadata
+            scoped_events.append(MarketEvent.from_dict(event_payload))
+        events_for_run = scoped_events
+
+        cycle_start_open_notional = round(portfolio_state.open_notional, 4)
+        cycle_start_open_positions = portfolio_state.open_positions
         run = loop.run(
             events_for_run,
-            PortfolioState(
-                bankroll=args.bankroll,
-                day_start_equity=args.bankroll,
-                current_equity=args.bankroll,
-            ),
+            portfolio_state,
+            initial_open_positions=open_positions_state,
         )
         input_fingerprint = stable_hash(
             {
@@ -553,6 +762,17 @@ def main(argv: list[str] | None = None) -> int:
                     "min_volume_24h": args.live_min_volume_24h
                     if args.ingestion_mode == "live_polymarket"
                     else None,
+                    "wallet_convergence_path": str(args.live_wallet_convergence_path)
+                    if (
+                        args.ingestion_mode == "live_polymarket"
+                        and args.live_wallet_convergence_path is not None
+                    )
+                    else None,
+                    "wallet_convergence_threshold": (
+                        args.live_wallet_convergence_threshold
+                        if args.ingestion_mode == "live_polymarket"
+                        else None
+                    ),
                 },
                 "exit_module": {
                     "target_capture_ratio": float(
@@ -567,13 +787,18 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     "confirmation_threshold": 2,
                 },
-                "ingestion_status": cycle_ingestion.status,
-                "ingestion_reasons": list(cycle_ingestion.reasons),
-                "ingestion_metadata": cycle_ingestion.metadata,
+                "ingestion_status": effective_ingestion_status,
+                "ingestion_reasons": effective_ingestion_reasons,
+                "ingestion_metadata": effective_ingestion_metadata,
                 "execution_gateway": {
                     "max_retries": args.execution_gateway_max_retries,
                     "retry_backoff_seconds": args.execution_gateway_retry_backoff_seconds,
                     "timeout_seconds": args.execution_gateway_timeout_seconds,
+                },
+                "stateful_cycle": {
+                    "execution_scope": execution_scope,
+                    "starting_open_notional": cycle_start_open_notional,
+                    "starting_open_positions": cycle_start_open_positions,
                 },
             },
         )
@@ -587,6 +812,29 @@ def main(argv: list[str] | None = None) -> int:
                 "exit_candidate_count": result_payload["exit_candidate_count"],
                 "confirmed_exit_count": result_payload["confirmed_exit_count"],
                 "total_execution_cost": result_payload["total_execution_cost"],
+                "attributed_trade_count": result_payload["attributed_trade_count"],
+                "expected_gross_edge_value": result_payload[
+                    "expected_gross_edge_value"
+                ],
+                "expected_net_edge_value": result_payload["expected_net_edge_value"],
+                "expected_net_edge_value_on_fills": result_payload[
+                    "expected_net_edge_value_on_fills"
+                ],
+                "expected_value_after_execution_cost": result_payload[
+                    "expected_value_after_execution_cost"
+                ],
+                "average_expected_gross_edge_bps": result_payload[
+                    "average_expected_gross_edge_bps"
+                ],
+                "average_expected_net_edge_bps": result_payload[
+                    "average_expected_net_edge_bps"
+                ],
+                "expected_edge_capture_ratio": result_payload[
+                    "expected_edge_capture_ratio"
+                ],
+                "execution_cost_to_expected_net_ratio": result_payload[
+                    "execution_cost_to_expected_net_ratio"
+                ],
                 "input_fingerprint": input_fingerprint,
                 "cycle_index": cycle_index,
             }
@@ -627,6 +875,23 @@ def main(argv: list[str] | None = None) -> int:
                 "total_execution_cost": run.total_execution_cost,
                 "total_fees_paid": run.total_fees_paid,
                 "total_slippage_cost": run.total_slippage_cost,
+                "attributed_trade_count": run.attributed_trade_count,
+                "expected_gross_edge_value": run.expected_gross_edge_value,
+                "expected_net_edge_value": run.expected_net_edge_value,
+                "expected_net_edge_value_on_fills": (
+                    run.expected_net_edge_value_on_fills
+                ),
+                "expected_value_after_execution_cost": (
+                    run.expected_value_after_execution_cost
+                ),
+                "average_expected_gross_edge_bps": (
+                    run.average_expected_gross_edge_bps
+                ),
+                "average_expected_net_edge_bps": run.average_expected_net_edge_bps,
+                "expected_edge_capture_ratio": run.expected_edge_capture_ratio,
+                "execution_cost_to_expected_net_ratio": (
+                    run.execution_cost_to_expected_net_ratio
+                ),
                 "net_pnl": net_pnl,
                 "current_equity": final_portfolio.current_equity,
                 "open_notional": final_portfolio.open_notional,
@@ -636,6 +901,10 @@ def main(argv: list[str] | None = None) -> int:
                 "result_hash_prefix": result_hash[:12],
             },
         )
+        portfolio_state = run.final_portfolio.clone()
+        open_positions_state = dict(run.final_open_positions)
+        if freshness_filter_enabled and freshness_committed_event_ids:
+            seen_live_event_ids.update(freshness_committed_event_ids)
         return {
             "cycle_index": cycle_index,
             "cycle_status": "EXECUTED",
@@ -650,6 +919,19 @@ def main(argv: list[str] | None = None) -> int:
             "total_execution_cost": run.total_execution_cost,
             "total_fees_paid": run.total_fees_paid,
             "total_slippage_cost": run.total_slippage_cost,
+            "attributed_trade_count": run.attributed_trade_count,
+            "expected_gross_edge_value": run.expected_gross_edge_value,
+            "expected_net_edge_value": run.expected_net_edge_value,
+            "expected_net_edge_value_on_fills": run.expected_net_edge_value_on_fills,
+            "expected_value_after_execution_cost": (
+                run.expected_value_after_execution_cost
+            ),
+            "average_expected_gross_edge_bps": run.average_expected_gross_edge_bps,
+            "average_expected_net_edge_bps": run.average_expected_net_edge_bps,
+            "expected_edge_capture_ratio": run.expected_edge_capture_ratio,
+            "execution_cost_to_expected_net_ratio": (
+                run.execution_cost_to_expected_net_ratio
+            ),
             "bankroll": final_portfolio.bankroll,
             "day_start_equity": final_portfolio.day_start_equity,
             "current_equity": final_portfolio.current_equity,

@@ -76,7 +76,8 @@ Parameter governance structure is now in place for MVP planning and test-token o
 ## Milestone C5 operator console hardening status
 - Dashboard now supports operator-facing action-history filtering by actor and action for rapid control-intent audit review.
 - Incident feed supports cursor-based navigation for historical incident triage during soak operations.
-- Run-to-run cycle comparison now exposes configurable windows with per-cycle deltas across key loop metrics (`events`, `risk_allowed_count`, `filled_trade_count`, `exit_candidate_count`, `confirmed_exit_count`).
+- Incident feed now raises profitability-drift warnings from cycle heartbeats when expected value after execution costs turns negative or execution cost exceeds expected net edge.
+- Run-to-run cycle comparison now exposes configurable windows with per-cycle deltas across loop and profitability attribution metrics (`events`, `risk_allowed_count`, `filled_trade_count`, `exit_candidate_count`, `confirmed_exit_count`, `attributed_trade_count`, `total_execution_cost`, `net_pnl`, `expected_gross_edge_value`, `expected_net_edge_value`, `expected_net_edge_value_on_fills`, `expected_value_after_execution_cost`, `expected_edge_capture_ratio`, `execution_cost_to_expected_net_ratio`).
 - Runtime GUI includes filter controls and incident navigation actions (`Apply Filters`, `Reset Filters`, `Newer Incidents`, `Older Incidents`) so the hardened backend observability paths are directly accessible from the console.
 
 ## CI quality gates
@@ -190,14 +191,18 @@ python3 scripts/run_runtime_supervisor.py \
    - `current_equity`, `net_pnl`, and `day_start_equity`
    - `open_notional`, `open_positions`, and `total_exposure_fraction`
    - `total_fees_paid`, `total_slippage_cost`, `total_execution_cost`, and `fill_rate`
-4. Use **Operator Controls** to control Poly-Robot runtime:
+   - profitability attribution fields (`attributed_trade_count`, `expected_gross_edge_value`, `expected_net_edge_value`, `expected_net_edge_value_on_fills`, `expected_value_after_execution_cost`, `expected_edge_capture_ratio`, `execution_cost_to_expected_net_ratio`)
+4. Use **Incident Feed** to detect profitability drift conditions:
+   - negative `expected_value_after_execution_cost` warnings on cycle completion
+   - `execution_cost_to_expected_net_ratio > 1.0` warnings when execution costs outpace expected net edge
+5. Use **Operator Controls** to control Poly-Robot runtime:
    - `Pause`: blocks new cycle execution but keeps runtime alive
    - `Resume`: removes pause gate and continues processing
    - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
    - `Set Scenario`: changes scenario used by the next cycle
    - `Annotate Incident`: appends an audited operator note
-5. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
-6. If GUI is started with `--token-required-read-api`, dashboard GET endpoints (`/api/*`) also require `X-Operator-Token`.
+6. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
+7. If GUI is started with `--token-required-read-api`, dashboard GET endpoints (`/api/*`) also require `X-Operator-Token`.
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:

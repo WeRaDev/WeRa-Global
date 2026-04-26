@@ -239,6 +239,8 @@ class LivePolymarketIngestionAdapter:
         base_rate_midpoint_threshold: float = 0.5,
         news_signal_volume_24h_threshold: float = 300.0,
         whale_signal_liquidity_threshold: float = 30000.0,
+        whale_signal_wallet_threshold: float = 3.0,
+        wallet_convergence_loader: Callable[[], dict[str, Any]] | None = None,
         sleep_fn: Callable[[float], None] | None = None,
         fetch_json_fn: Callable[[str, float], Any] | None = None,
     ) -> None:
@@ -258,6 +260,8 @@ class LivePolymarketIngestionAdapter:
             raise ValueError("volume_to_liquidity_multiplier must be > 0")
         if max_hours_to_resolution_cap <= 0:
             raise ValueError("max_hours_to_resolution_cap must be > 0")
+        if whale_signal_wallet_threshold <= 0:
+            raise ValueError("whale_signal_wallet_threshold must be > 0")
 
         self.source_url = source_url
         self.max_markets = max_markets
@@ -271,6 +275,8 @@ class LivePolymarketIngestionAdapter:
         self.base_rate_midpoint_threshold = base_rate_midpoint_threshold
         self.news_signal_volume_24h_threshold = news_signal_volume_24h_threshold
         self.whale_signal_liquidity_threshold = whale_signal_liquidity_threshold
+        self.whale_signal_wallet_threshold = whale_signal_wallet_threshold
+        self._wallet_convergence_loader = wallet_convergence_loader
         self._sleep_fn = sleep_fn or time.sleep
         self._fetch_json_fn = fetch_json_fn or self._default_fetch_json
         self._previous_midpoint_by_market: dict[str, float] = {}
@@ -307,6 +313,52 @@ class LivePolymarketIngestionAdapter:
             reason = exc.reason
             return isinstance(reason, (TimeoutError, socket.timeout))
         return False
+
+    @classmethod
+    def _extract_wallet_convergence_count(cls, value: Any) -> float | None:
+        if isinstance(value, dict):
+            for key in (
+                "target_wallet_count",
+                "wallet_count",
+                "convergence_count",
+                "count",
+            ):
+                if key in value:
+                    return cls._extract_wallet_convergence_count(value[key])
+            return None
+
+        parsed = cls._parse_float(value, default=-1.0)
+        if parsed < 0:
+            return None
+        return parsed
+
+    def _load_wallet_convergence_map(self) -> tuple[dict[str, float], str | None]:
+        if self._wallet_convergence_loader is None:
+            return {}, None
+        try:
+            payload = self._wallet_convergence_loader()
+        except Exception as exc:  # pragma: no cover - defensive branch
+            return {}, exc.__class__.__name__
+
+        if payload is None:
+            return {}, None
+        if not isinstance(payload, dict):
+            return {}, f"invalid_payload:{type(payload).__name__}"
+
+        source = payload
+        if isinstance(payload.get("markets"), dict):
+            source = payload["markets"]
+
+        normalized: dict[str, float] = {}
+        for market_id, raw_count in source.items():
+            market_key = str(market_id).strip()
+            if not market_key:
+                continue
+            count = self._extract_wallet_convergence_count(raw_count)
+            if count is None:
+                continue
+            normalized[market_key] = count
+        return normalized, None
 
     def _extract_midpoint(self, row: dict[str, Any]) -> float:
         raw_outcome_prices = row.get("outcomePrices")
@@ -364,8 +416,19 @@ class LivePolymarketIngestionAdapter:
             return float(self.max_hours_to_resolution_cap), True
         return raw_hours, False
 
+    @staticmethod
+    def _normalize_positive_feature(value: float, *, saturation: float) -> float:
+        if saturation <= 0:
+            return 0.0
+        bounded = max(0.0, float(value))
+        return min(1.0, bounded / saturation)
+
     def _build_market_event(
-        self, row: dict[str, Any], *, fetched_at: str
+        self,
+        row: dict[str, Any],
+        *,
+        fetched_at: str,
+        wallet_convergence_by_market: dict[str, float] | None = None,
     ) -> tuple[MarketEvent, float]:
         market_id = str(row.get("id") or row.get("conditionId") or "").strip()
         if not market_id:
@@ -383,34 +446,59 @@ class LivePolymarketIngestionAdapter:
         effective_liquidity = max(
             raw_liquidity, volume_24h * self.volume_to_liquidity_multiplier
         )
+        wallet_convergence_count = 0.0
+        if wallet_convergence_by_market is not None:
+            wallet_convergence_count = wallet_convergence_by_market.get(market_id, 0.0)
+        wallet_whale_signal = (
+            wallet_convergence_count >= self.whale_signal_wallet_threshold
+        )
+        liquidity_whale_signal = (
+            effective_liquidity >= self.whale_signal_liquidity_threshold
+        )
+        whale_signal = wallet_whale_signal or liquidity_whale_signal
 
         previous_midpoint = self._previous_midpoint_by_market.get(market_id)
         momentum = midpoint - previous_midpoint if previous_midpoint is not None else 0.0
         self._previous_midpoint_by_market[market_id] = midpoint
-
-        signal_bonus = 0.0
-        if volume_24h >= self.news_signal_volume_24h_threshold:
-            signal_bonus += 0.03
-        if effective_liquidity >= self.whale_signal_liquidity_threshold:
-            signal_bonus += 0.025
-        if one_week_change > 0:
-            signal_bonus += 0.02
-        if momentum > 0:
-            signal_bonus += min(0.05, momentum)
-
-        estimated_probability = _clamp_probability(midpoint + signal_bonus)
+        check_signals = {
+            "base_rate": midpoint >= self.base_rate_midpoint_threshold,
+            "news": volume_24h >= self.news_signal_volume_24h_threshold,
+            "whale": whale_signal,
+            "disposition": one_week_change >= 0,
+        }
+        checks_passed = sum(1 for passed in check_signals.values() if passed)
+        signal_agreement = checks_passed / max(1, len(check_signals))
+        normalized_weekly_change = max(-1.0, min(1.0, one_week_change / 0.05))
+        normalized_momentum = max(-1.0, min(1.0, momentum / 0.03))
+        liquidity_score = self._normalize_positive_feature(
+            effective_liquidity,
+            saturation=max(self.whale_signal_liquidity_threshold * 2.0, 1.0),
+        )
+        volume_score = self._normalize_positive_feature(
+            volume_24h,
+            saturation=max(self.news_signal_volume_24h_threshold * 4.0, 1.0),
+        )
+        wallet_convergence_score = self._normalize_positive_feature(
+            wallet_convergence_count,
+            saturation=max(self.whale_signal_wallet_threshold * 2.0, 1.0),
+        )
+        probability_components = {
+            "alpha_prior_component": 0.035,
+            "weekly_change_component": 0.06 * normalized_weekly_change,
+            "momentum_component": 0.03 * normalized_momentum,
+            "news_volume_component": 0.02 * (volume_score - 0.25),
+            "liquidity_component": 0.02 * (liquidity_score - 0.4),
+            "wallet_convergence_component": 0.035 * wallet_convergence_score,
+            "signal_agreement_component": 0.04 * (signal_agreement - 0.5),
+            "whale_presence_component": 0.015 if whale_signal else -0.005,
+            "disposition_component": 0.01 if check_signals["disposition"] else -0.01,
+        }
+        raw_estimated_probability = midpoint + sum(probability_components.values())
+        estimated_probability = _clamp_probability(raw_estimated_probability)
         hours_to_resolution, normalized_hours = self._normalize_hours_to_resolution(
             end_date_value=str(row.get("endDate") or ""),
             reference_timestamp=timestamp,
         )
-
-        check_signals = {
-            "base_rate": midpoint >= self.base_rate_midpoint_threshold,
-            "news": volume_24h >= self.news_signal_volume_24h_threshold,
-            "whale": effective_liquidity >= self.whale_signal_liquidity_threshold,
-            "disposition": one_week_change >= 0,
-        }
-        checks_passed = sum(1 for passed in check_signals.values() if passed)
         base_confidence = _clamp_probability(0.55 + (checks_passed * 0.1))
         consensus_buy_votes = 2 if checks_passed >= 3 else 1
         event_id = (
@@ -443,8 +531,30 @@ class LivePolymarketIngestionAdapter:
                 "volume_24h": volume_24h,
                 "raw_liquidity": raw_liquidity,
                 "effective_liquidity": effective_liquidity,
+                "wallet_convergence_count": wallet_convergence_count,
+                "wallet_convergence_signal": wallet_whale_signal,
+                "liquidity_whale_signal": liquidity_whale_signal,
                 "one_week_price_change": one_week_change,
                 "momentum": round(momentum, 6),
+                "normalized_weekly_change": round(normalized_weekly_change, 6),
+                "normalized_momentum": round(normalized_momentum, 6),
+                "probability_estimator_version": "live_structured.v2",
+                "probability_features": {
+                    "signal_agreement": round(signal_agreement, 6),
+                    "liquidity_score": round(liquidity_score, 6),
+                    "volume_score": round(volume_score, 6),
+                    "wallet_convergence_score": round(
+                        wallet_convergence_score, 6
+                    ),
+                },
+                "probability_components": {
+                    key: round(value, 6)
+                    for key, value in probability_components.items()
+                },
+                "raw_estimated_probability": round(raw_estimated_probability, 6),
+                "legacy_signal_bonus": round(
+                    max(0.0, estimated_probability - midpoint), 6
+                ),
                 "hours_to_resolution_normalized": normalized_hours,
                 "fetched_at": fetched_at,
             },
@@ -517,6 +627,19 @@ class LivePolymarketIngestionAdapter:
         invalid_rows = 0
         duplicate_rows = 0
         filtered_rows = 0
+        (
+            wallet_convergence_by_market,
+            wallet_signal_loader_error,
+        ) = self._load_wallet_convergence_map()
+        wallet_signal_metadata = {
+            "wallet_signal_enabled": self._wallet_convergence_loader is not None,
+            "wallet_signal_markets": len(wallet_convergence_by_market),
+            "whale_signal_wallet_threshold": self.whale_signal_wallet_threshold,
+        }
+        if wallet_signal_loader_error is not None:
+            wallet_signal_metadata["wallet_signal_loader_error"] = (
+                wallet_signal_loader_error
+            )
 
         for row_number, row in enumerate(rows, start=1):
             if len(events) >= self.max_markets:
@@ -537,7 +660,11 @@ class LivePolymarketIngestionAdapter:
                     )
                 continue
             try:
-                event, volume_24h = self._build_market_event(row, fetched_at=fetched_at)
+                event, volume_24h = self._build_market_event(
+                    row,
+                    fetched_at=fetched_at,
+                    wallet_convergence_by_market=wallet_convergence_by_market,
+                )
             except ValueError:
                 invalid_rows += 1
                 if invalid_rows > self.max_invalid_rows:
@@ -566,39 +693,51 @@ class LivePolymarketIngestionAdapter:
 
         if not events:
             if filtered_rows > 0:
+                filtered_reasons = ["no_markets_after_filters"]
+                if wallet_signal_loader_error is not None:
+                    filtered_reasons.append("wallet_signal_unavailable")
                 return IngestionBatch(
                     status="DEGRADED",
                     events=[],
-                    reasons=("no_markets_after_filters",),
+                    reasons=tuple(filtered_reasons),
                     metadata={
                         "attempt_number": attempt_number,
                         "source_url": self.source_url,
                         "total_rows": len(rows),
                         "invalid_rows": invalid_rows,
                         "filtered_rows": filtered_rows,
+                        **wallet_signal_metadata,
                     },
                 )
             if not rows:
+                empty_reasons = ["source_returned_no_rows"]
+                if wallet_signal_loader_error is not None:
+                    empty_reasons.append("wallet_signal_unavailable")
                 return IngestionBatch(
                     status="DEGRADED",
                     events=[],
-                    reasons=("source_returned_no_rows",),
+                    reasons=tuple(empty_reasons),
                     metadata={
                         "attempt_number": attempt_number,
                         "source_url": self.source_url,
                         "total_rows": len(rows),
+                        **wallet_signal_metadata,
                     },
                 )
+            no_valid_reasons = ["no_valid_events"]
+            if wallet_signal_loader_error is not None:
+                no_valid_reasons.append("wallet_signal_unavailable")
             return IngestionBatch(
                 status="FAILED",
                 events=[],
-                reasons=("no_valid_events",),
+                reasons=tuple(no_valid_reasons),
                 metadata={
                     "attempt_number": attempt_number,
                     "source_url": self.source_url,
                     "total_rows": len(rows),
                     "invalid_rows": invalid_rows,
                     "filtered_rows": filtered_rows,
+                    **wallet_signal_metadata,
                 },
             )
 
@@ -612,6 +751,9 @@ class LivePolymarketIngestionAdapter:
             status = "DEGRADED"
         if filtered_rows > 0:
             reasons.append("rows_filtered_by_volume")
+            status = "DEGRADED"
+        if wallet_signal_loader_error is not None:
+            reasons.append("wallet_signal_unavailable")
             status = "DEGRADED"
 
         return IngestionBatch(
@@ -629,6 +771,7 @@ class LivePolymarketIngestionAdapter:
                 "max_markets": self.max_markets,
                 "min_volume_24h": self.min_volume_24h,
                 "fetched_at": fetched_at,
+                **wallet_signal_metadata,
             },
         )
 
@@ -818,8 +961,13 @@ class HardenedExecutionAdapter:
     def execute(
         self, *, event: MarketEvent, intent: ExecutionIntent
     ) -> ExecutionResult:
+        raw_scope = intent.metadata.get("execution_scope")
+        execution_scope = str(raw_scope).strip() if raw_scope is not None else ""
+        if not execution_scope:
+            execution_scope = "global"
         idempotency_key = (
-            f"{intent.intent_id}:{event.timestamp}:{intent.requested_notional:.4f}"
+            f"{execution_scope}:{intent.intent_id}:{event.timestamp}:"
+            f"{intent.requested_notional:.4f}"
         )
         return self.gateway.execute(
             event=event,
