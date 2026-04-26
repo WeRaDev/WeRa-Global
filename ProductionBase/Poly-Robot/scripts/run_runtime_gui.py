@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -69,8 +70,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         required=False,
         help=(
-            "Operator token for POST control actions via X-Operator-Token header. "
-            "When omitted, control endpoints run in read-only mode and POST actions are rejected."
+            "Operator token for control actions via X-Operator-Token header. "
+            "When omitted, token is read from --operator-token-env; if still unset, "
+            "control endpoints run in read-only mode and POST actions are rejected."
+        ),
+    )
+    parser.add_argument(
+        "--operator-token-env",
+        type=str,
+        default="POLY_ROBOT_OPERATOR_TOKEN",
+        help=(
+            "Environment variable name used to load operator token at runtime. "
+            "If set and present, this value takes precedence over --operator-token."
+        ),
+    )
+    parser.add_argument(
+        "--token-required-read-api",
+        action="store_true",
+        help=(
+            "Require X-Operator-Token for /api/* GET endpoints in addition to "
+            "POST control actions."
         ),
     )
     parser.add_argument(
@@ -119,6 +138,7 @@ def _html_page() -> str:
       <li>Use Pause before maintenance, Resume to continue runtime, and Graceful Restart for controlled restarts.</li>
       <li>Set Scenario to steer the next cycle input profile and use incident annotations for auditability.</li>
       <li>If no operator token was configured at startup, control POST actions are disabled (read-only mode).</li>
+      <li>When read-api token mode is enabled, include a valid token to load dashboard API data.</li>
     </ol>
   </div>
   <div class="card">
@@ -195,6 +215,15 @@ def _html_page() -> str:
     let dashboardQuery = { ...defaultDashboardQuery };
     let incidentCursorHistory = [];
     let lastDashboardPayload = null;
+    function operatorTokenHeaders() {
+      const token = document.getElementById('token').value || '';
+      if (!token) {
+        return {};
+      }
+      return {
+        'X-Operator-Token': token
+      };
+    }
     function hasNumericValue(value) {
       return value !== null && value !== undefined && Number.isFinite(Number(value));
     }
@@ -269,9 +298,13 @@ def _html_page() -> str:
       return '/api/dashboard?' + params.toString();
     }
     async function fetchDashboard() {
-      const response = await fetch(dashboardUrl());
+      const response = await fetch(dashboardUrl(), {
+        headers: operatorTokenHeaders()
+      });
       if (!response.ok) {
-        document.getElementById('summary').textContent = 'Dashboard request failed: ' + response.status;
+        const errorText = await response.text();
+        document.getElementById('summary').textContent =
+          'Dashboard request failed: ' + response.status + (errorText ? ' ' + errorText : '');
         return;
       }
       const payload = await response.json();
@@ -333,12 +366,11 @@ def _html_page() -> str:
     }
 
     async function sendControl(path) {
-      const token = document.getElementById('token').value || '';
       const response = await fetch(path, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Operator-Token': token
+          ...operatorTokenHeaders()
         },
         body: JSON.stringify(controlPayload())
       });
@@ -443,6 +475,20 @@ def _coerce_positive_int(value: str | None, *, field_name: str) -> int | None:
     return parsed
 
 
+def _resolve_operator_token(
+    *,
+    operator_token: str | None,
+    operator_token_env: str,
+) -> str | None:
+    env_name = operator_token_env.strip()
+    if env_name:
+        env_token = os.environ.get(env_name, "").strip()
+        if env_token:
+            return env_token
+    cli_token = (operator_token or "").strip()
+    return cli_token or None
+
+
 def _coerce_non_negative_int(value: str | None, *, field_name: str) -> int | None:
     if value is None or value == "":
         return None
@@ -462,8 +508,27 @@ def _build_handler(
     operator_token: str | None,
     recent_events_limit: int,
     recent_audit_limit: int,
+    read_api_token_required: bool = False,
 ):
     class RuntimeGuiHandler(BaseHTTPRequestHandler):
+        def _request_token_matches(self) -> bool:
+            if not operator_token:
+                return False
+            request_token = self.headers.get("X-Operator-Token", "")
+            return request_token == operator_token
+
+        def _authorize_read_request(self) -> bool:
+            if not read_api_token_required:
+                return True
+            if self._request_token_matches():
+                return True
+            _send_json(
+                self,
+                status=403,
+                payload={"error": "invalid_operator_token"},
+            )
+            return False
+
         def _authorize_control_request(self) -> bool:
             if not operator_token:
                 _send_json(
@@ -472,8 +537,7 @@ def _build_handler(
                     payload={"error": "operator_controls_disabled"},
                 )
                 return False
-            request_token = self.headers.get("X-Operator-Token", "")
-            if request_token == operator_token:
+            if self._request_token_matches():
                 return True
             _send_json(
                 self,
@@ -494,6 +558,8 @@ def _build_handler(
                 return
             if parsed.path == "/healthz":
                 _send_json(self, status=200, payload={"status": "ok"})
+                return
+            if parsed.path.startswith("/api/") and not self._authorize_read_request():
                 return
             try:
                 if parsed.path == "/api/dashboard":
@@ -662,6 +728,15 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--recent-events-limit must be > 0")
     if args.recent_audit_limit <= 0:
         raise ValueError("--recent-audit-limit must be > 0")
+    resolved_operator_token = _resolve_operator_token(
+        operator_token=args.operator_token,
+        operator_token_env=args.operator_token_env,
+    )
+    if args.token_required_read_api and not resolved_operator_token:
+        raise ValueError(
+            "--token-required-read-api requires an operator token via "
+            "--operator-token or --operator-token-env."
+        )
 
     control_manager = OperatorControlManager(
         control_state_path=args.control_state_path,
@@ -675,15 +750,19 @@ def main(argv: list[str] | None = None) -> int:
     handler_cls = _build_handler(
         dashboard_service=dashboard_service,
         control_manager=control_manager,
-        operator_token=args.operator_token,
+        operator_token=resolved_operator_token,
         recent_events_limit=args.recent_events_limit,
         recent_audit_limit=args.recent_audit_limit,
+        read_api_token_required=args.token_required_read_api,
     )
     server = ThreadingHTTPServer((args.host, args.port), handler_cls)
+    control_mode = "token_required" if resolved_operator_token else "read_only"
+    api_read_mode = "token_required" if args.token_required_read_api else "open"
     print(
         "Runtime GUI listening: "
         f"http://{args.host}:{args.port} "
-        f"control_mode={'token_required' if args.operator_token else 'read_only'} "
+        f"control_mode={control_mode} "
+        f"api_read_mode={api_read_mode} "
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path} "
         f"control_state_path={args.control_state_path} "

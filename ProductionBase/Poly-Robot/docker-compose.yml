@@ -20,8 +20,9 @@ services:
       - /app/runtime/operator_control_state.json
       - --audit-path
       - /app/runtime/operator_action_audit.jsonl
-      - --operator-token
-      - "${POLY_ROBOT_OPERATOR_TOKEN:-}"
+      - --token-required-read-api
+    environment:
+      POLY_ROBOT_OPERATOR_TOKEN: ${POLY_ROBOT_OPERATOR_TOKEN:-}
     ports:
       - "8765:8765"
     volumes:

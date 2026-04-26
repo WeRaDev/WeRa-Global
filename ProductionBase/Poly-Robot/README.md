@@ -78,6 +78,14 @@ Parameter governance structure is now in place for MVP planning and test-token o
 - Run-to-run cycle comparison now exposes configurable windows with per-cycle deltas across key loop metrics (`events`, `risk_allowed_count`, `filled_trade_count`, `exit_candidate_count`, `confirmed_exit_count`).
 - Runtime GUI includes filter controls and incident navigation actions (`Apply Filters`, `Reset Filters`, `Newer Incidents`, `Older Incidents`) so the hardened backend observability paths are directly accessible from the console.
 
+## CI quality gates
+The default CI workflow now enforces:
+- Baseline repository structure check.
+- Parameter governance validation.
+- Governance unit tests (`python3 -m unittest` discovery under `tests/`).
+- Static type check for `src/poly_robot` (`mypy`).
+- Docker deployment sanity gates (`docker compose config --quiet` + `docker compose build runtime-gui`).
+
 Run validation:
 ```bash
 python3 scripts/validate_parameters.py \
@@ -167,7 +175,8 @@ python3 scripts/run_runtime_supervisor.py \
    - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
    - `Set Scenario`: changes scenario used by the next cycle
    - `Annotate Incident`: appends an audited operator note
-5. If GUI is started without `--operator-token`, controls are read-only and POST control actions return 403.
+5. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
+6. If GUI is started with `--token-required-read-api`, dashboard GET endpoints (`/api/*`) also require `X-Operator-Token`.
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:
@@ -182,9 +191,11 @@ docker compose up -d --build runtime-gui
 ```bash
 docker compose logs --tail=20 runtime-gui
 ```
-Expected startup line includes `control_mode=token_required`.
-4. Control API calls must include `X-Operator-Token`; otherwise requests return 403:
+Expected startup line includes `control_mode=token_required api_read_mode=token_required`.
+4. Control and read API calls must include `X-Operator-Token`; otherwise requests return 403:
 ```bash
+curl "http://127.0.0.1:8765/api/dashboard?recent_events_limit=20&recent_audit_limit=20" \
+  -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN"
 curl -X POST http://127.0.0.1:8765/api/control/pause \
   -H "Content-Type: application/json" \
   -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN" \
@@ -198,9 +209,12 @@ curl -X POST http://127.0.0.1:8765/api/control/resume \
 
 Runtime GUI API examples for hardened operator views:
 ```bash
-curl "http://127.0.0.1:8765/api/dashboard?audit_actor=operator&audit_action=incident_annotation&incident_limit=20&comparison_window=15"
-curl "http://127.0.0.1:8765/api/incidents?limit=25&cursor=50"
-curl "http://127.0.0.1:8765/api/comparison?window=12"
+curl "http://127.0.0.1:8765/api/dashboard?audit_actor=operator&audit_action=incident_annotation&incident_limit=20&comparison_window=15" \
+  -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN"
+curl "http://127.0.0.1:8765/api/incidents?limit=25&cursor=50" \
+  -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN"
+curl "http://127.0.0.1:8765/api/comparison?window=12" \
+  -H "X-Operator-Token: $POLY_ROBOT_OPERATOR_TOKEN"
 ```
 Docker deployment (local):
 ```bash

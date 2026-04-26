@@ -1,8 +1,10 @@
 from __future__ import annotations
+from contextlib import contextmanager
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
+import fcntl
 import json
 import os
 import tempfile
@@ -84,19 +86,33 @@ class OperatorControlManager:
     def __init__(self, *, control_state_path: Path, audit_path: Path) -> None:
         self.control_state_path = control_state_path
         self.audit_path = audit_path
+        self.lock_path = self.control_state_path.with_name(
+            f"{self.control_state_path.name}.lock"
+        )
         self._mutation_lock = threading.RLock()
+
+    @contextmanager
+    def _interprocess_lock(self) -> Iterator[None]:
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.lock_path.open("a+", encoding="utf-8") as lock_handle:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+
+    def _load_control_state_unlocked(self) -> dict[str, Any]:
+        if not self.control_state_path.exists():
+            return _default_control_state()
+        payload = _read_json(self.control_state_path)
+        if payload.get("schema_version") != RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION:
+            raise ValueError("Operator control state schema version mismatch")
+        return payload
 
     def load_control_state(self) -> dict[str, Any]:
         with self._mutation_lock:
-            if not self.control_state_path.exists():
-                return _default_control_state()
-            payload = _read_json(self.control_state_path)
-            if (
-                payload.get("schema_version")
-                != RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
-            ):
-                raise ValueError("Operator control state schema version mismatch")
-            return payload
+            with self._interprocess_lock():
+                return self._load_control_state_unlocked()
 
     def _mutate_state(
         self,
@@ -107,27 +123,28 @@ class OperatorControlManager:
         mutate_state: Callable[[dict[str, Any]], None],
     ) -> dict[str, Any]:
         with self._mutation_lock:
-            state = self.load_control_state()
-            mutate_state(state)
-            next_version = int(state.get("control_version", 0)) + 1
-            updated_at = _utc_now_iso()
-            state["control_version"] = next_version
-            state["updated_at"] = updated_at
-            state["schema_version"] = RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
-            _write_json(self.control_state_path, state)
-            _append_jsonl(
-                self.audit_path,
-                {
-                    "schema_version": RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
-                    "timestamp": updated_at,
-                    "action_sequence": next_version,
-                    "action": action,
-                    "actor": actor,
-                    "details": details,
-                    "control_state_version": state["control_version"],
-                },
-            )
-            return state
+            with self._interprocess_lock():
+                state = self._load_control_state_unlocked()
+                mutate_state(state)
+                next_version = int(state.get("control_version", 0)) + 1
+                updated_at = _utc_now_iso()
+                state["control_version"] = next_version
+                state["updated_at"] = updated_at
+                state["schema_version"] = RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION
+                _write_json(self.control_state_path, state)
+                _append_jsonl(
+                    self.audit_path,
+                    {
+                        "schema_version": RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
+                        "timestamp": updated_at,
+                        "action_sequence": next_version,
+                        "action": action,
+                        "actor": actor,
+                        "details": details,
+                        "control_state_version": state["control_version"],
+                    },
+                )
+                return state
 
     def set_paused(
         self, *, paused: bool, actor: str, reason: str = ""
@@ -210,7 +227,8 @@ class OperatorControlManager:
         if limit <= 0:
             raise ValueError("limit must be > 0")
         with self._mutation_lock:
-            rows = _read_jsonl(self.audit_path)
+            with self._interprocess_lock():
+                rows = _read_jsonl(self.audit_path)
         filtered = rows
         if action and action.strip():
             expected_action = action.strip()

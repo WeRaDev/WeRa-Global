@@ -19,15 +19,16 @@ A task is done only when:
 - Lint/type checks pass
 - Documentation and operational notes are updated
 
-## Baseline checks (to be finalized)
-- Lint: `ruff check .`
-- Format: `ruff format --check .`
-- Type check: `mypy .`
-- Tests: `pytest`
+## Baseline checks
 - Governance validation:
   - `python3 scripts/validate_parameters.py --catalog config/parameters/catalog.v1.json --profile config/parameters/profiles/mvp_test_token.v1.json --baseline config/parameters/baselines/mvp_test_token.freeze.v1.json --calibration-policy config/calibration/llm_reliability.v1.json`
-- Unit tests:
+- Unit test suite:
   - `PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py"`
+- Type check:
+  - `PYTHONPATH=src python3 -m mypy src/poly_robot`
+- Docker deployment sanity:
+  - `docker compose config --quiet`
+  - `docker compose build runtime-gui`
 
 If a command is not yet available, add it in the same pull request that introduces the related tooling.
 

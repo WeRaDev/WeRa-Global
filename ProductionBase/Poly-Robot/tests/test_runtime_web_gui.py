@@ -156,6 +156,77 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 server.server_close()
                 server_thread.join(timeout=5)
 
+    def test_dashboard_get_requires_token_when_read_api_mode_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+                read_api_token_required=True,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request("GET", "/api/dashboard")
+                response = connection.getresponse()
+                response_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 403)
+                self.assertEqual(response_payload["error"], "invalid_operator_token")
+
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "GET",
+                    "/api/dashboard",
+                    headers={"X-Operator-Token": "secret-token"},
+                )
+                response = connection.getresponse()
+                response_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(
+                    response_payload["schema_version"],
+                    RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
     def test_concurrent_operator_actions_keep_gap_free_action_sequence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
