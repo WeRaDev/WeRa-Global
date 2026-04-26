@@ -3,13 +3,13 @@ Bild is an AI procurement agent project for Leroy Merlin PRO pilot operations: i
 
 ## Quick start
 ```bash
-cd /Users/mikhailananyin/Documents/WeRa\ Global/ProductionBase/Bild
+cd ProductionBase/Bild
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt || true
+python -m pip install -r requirements.txt
 ```
-If `requirements.txt` does not exist yet, create it as part of Sprint 1 when service modules are added.
+If dependency installation fails, fix the reported error before continuing.
 
 ## Project structure
 - `LeroyMerlin_Pilot_Research_Report_v1.0.md`: canonical pilot research baseline.

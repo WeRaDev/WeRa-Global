@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from src.bild.har_endpoints import (
@@ -36,14 +37,22 @@ def main() -> int:
         print(f"HAR file not found: {har_path}")
         return 1
 
-    payload = load_har(har_path)
+    try:
+        payload = load_har(har_path)
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"Failed to load HAR file: {error}")
+        return 1
     records = extract_endpoint_records(payload, host_contains=args.host_contains)
     markdown_output = records_to_markdown(records)
     print(markdown_output)
 
     if args.output_markdown:
         output_path = Path(args.output_markdown)
-        output_path.write_text(markdown_output, encoding="utf-8")
+        try:
+            output_path.write_text(markdown_output, encoding="utf-8")
+        except OSError as error:
+            print(f"Failed to write markdown output: {error}")
+            return 1
         print(f"\nWrote endpoint markdown to: {output_path}")
 
     return 0

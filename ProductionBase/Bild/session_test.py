@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from src.bild.session_state import load_session_state, summarize_session
@@ -30,7 +31,11 @@ def main() -> int:
         print("Create one via headed login capture and store it outside git.")
         return 1
 
-    session_data = load_session_state(session_path)
+    try:
+        session_data = load_session_state(session_path)
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"Failed to load session file: {error}")
+        return 1
     summary = summarize_session(session_data)
     print("Session structure: OK")
     print(f"Cookie entries: {summary['cookie_entries']}")
