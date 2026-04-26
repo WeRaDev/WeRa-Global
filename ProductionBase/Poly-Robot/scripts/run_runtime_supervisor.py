@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
 from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
+    LivePolymarketIngestionAdapter,
 )
 from poly_robot.llm_policy import load_calibration_policy  # noqa: E402
 from poly_robot.paper_execution import PaperExecutionAdapter  # noqa: E402
@@ -54,7 +56,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument(
-        "--events", type=Path, required=True, help="Path to replay event JSONL file."
+        "--events",
+        type=Path,
+        required=False,
+        help=(
+            "Path to replay event JSONL file (required when "
+            "--ingestion-mode=historical_jsonl)."
+        ),
     )
     parser.add_argument(
         "--profile",
@@ -95,6 +103,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=int,
         default=3,
         help="Number of supervision cycles to execute.",
+    )
+    parser.add_argument(
+        "--cycle-interval-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Optional delay between cycles to support real-time ingestion pacing."
+        ),
     )
     parser.add_argument(
         "--max-retries",
@@ -161,6 +177,34 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Ignore operator control state and run using CLI scenario only.",
     )
     parser.add_argument(
+        "--ingestion-mode",
+        type=str,
+        choices=["historical_jsonl", "live_polymarket"],
+        default="historical_jsonl",
+        help="Select ingestion source mode.",
+    )
+    parser.add_argument(
+        "--live-source-url",
+        type=str,
+        default=(
+            "https://gamma-api.polymarket.com/markets"
+            "?active=true&closed=false&limit=50"
+        ),
+        help="Polymarket Gamma source URL used in live ingestion mode.",
+    )
+    parser.add_argument(
+        "--live-max-markets",
+        type=int,
+        default=10,
+        help="Maximum number of live markets to convert into cycle events.",
+    )
+    parser.add_argument(
+        "--live-min-volume-24h",
+        type=float,
+        default=0.0,
+        help="Minimum 24h volume required for a live market to be ingested.",
+    )
+    parser.add_argument(
         "--ingestion-max-retries",
         type=int,
         default=1,
@@ -207,29 +251,59 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
+    if args.cycle_interval_seconds < 0:
+        raise ValueError("--cycle-interval-seconds must be >= 0")
+    if args.ingestion_mode == "historical_jsonl" and args.events is None:
+        raise ValueError(
+            "--events is required when --ingestion-mode=historical_jsonl"
+        )
     profile_payload, parameters = _load_profile_payload(args.profile)
     calibration_policy_payload = _load_json(args.calibration_policy)
     calibration_policy = load_calibration_policy(args.calibration_policy)
-    scenario_pack = load_scenario_pack(args.scenario_pack)
-    default_scenario = scenario_pack.get_scenario(args.scenario)
-    ingestion_adapter = HistoricalIngestionAdapter(
-        max_retry_attempts=args.ingestion_max_retries,
-        retry_backoff_seconds=args.ingestion_retry_backoff_seconds,
-        max_invalid_rows=args.ingestion_max_invalid_rows,
-        deduplicate_event_ids=True,
-        fail_on_monotonic_violation=False,
+    scenario_pack = None
+    default_scenario = None
+    if args.ingestion_mode == "historical_jsonl":
+        scenario_pack = load_scenario_pack(args.scenario_pack)
+        default_scenario = scenario_pack.get_scenario(args.scenario)
+    control_default_scenario_name = (
+        default_scenario.name
+        if default_scenario is not None
+        else "live_polymarket"
     )
-    ingestion = ingestion_adapter.load_jsonl(
-        args.events,
-        timeout_seconds=args.ingestion_timeout_seconds,
-    )
-    if ingestion.status == "FAILED":
-        raise ValueError(
-            "Ingestion adapter failed: "
-            f"reasons={list(ingestion.reasons)} metadata={ingestion.metadata}"
-        )
 
-    events = ingestion.events
+    historical_ingestion = None
+    events: list[MarketEvent] = []
+    live_ingestion_adapter: LivePolymarketIngestionAdapter | None = None
+    if args.ingestion_mode == "historical_jsonl":
+        ingestion_adapter = HistoricalIngestionAdapter(
+            max_retry_attempts=args.ingestion_max_retries,
+            retry_backoff_seconds=args.ingestion_retry_backoff_seconds,
+            max_invalid_rows=args.ingestion_max_invalid_rows,
+            deduplicate_event_ids=True,
+            fail_on_monotonic_violation=False,
+        )
+        historical_ingestion = ingestion_adapter.load_jsonl(
+            args.events,
+            timeout_seconds=args.ingestion_timeout_seconds,
+        )
+        if historical_ingestion.status == "FAILED":
+            raise ValueError(
+                "Ingestion adapter failed: "
+                "reasons="
+                f"{list(historical_ingestion.reasons)} "
+                f"metadata={historical_ingestion.metadata}"
+            )
+        events = historical_ingestion.events
+    else:
+        live_ingestion_adapter = LivePolymarketIngestionAdapter(
+            source_url=args.live_source_url,
+            max_markets=args.live_max_markets,
+            min_volume_24h=args.live_min_volume_24h,
+            max_retry_attempts=args.ingestion_max_retries,
+            retry_backoff_seconds=args.ingestion_retry_backoff_seconds,
+            max_invalid_rows=args.ingestion_max_invalid_rows,
+            deduplicate_event_ids=True,
+        )
     control_manager = OperatorControlManager(
         control_state_path=args.control_state_path,
         audit_path=args.control_audit_path,
@@ -253,6 +327,8 @@ def main(argv: list[str] | None = None) -> int:
     def _resolve_scenario_run_inputs(
         scenario_name: str,
     ) -> tuple[ReplayScenario, list[MarketEvent], str, str]:
+        if scenario_pack is None or default_scenario is None:
+            raise ValueError("scenario_pack_unavailable")
         normalized = scenario_name.strip() or default_scenario.name
         cached = scenario_cache.get(normalized)
         if cached is not None:
@@ -271,14 +347,14 @@ def main(argv: list[str] | None = None) -> int:
             return {
                 "paused": False,
                 "restart_requested": False,
-                "selected_scenario": default_scenario.name,
+                "selected_scenario": control_default_scenario_name,
                 "control_version": 0,
             }
 
         control_state = control_manager.load_control_state()
         selected_scenario = str(control_state.get("selected_scenario", "")).strip()
         if not selected_scenario:
-            control_state["selected_scenario"] = default_scenario.name
+            control_state["selected_scenario"] = control_default_scenario_name
         return control_state
 
     if args.cycle_output_dir:
@@ -288,10 +364,10 @@ def main(argv: list[str] | None = None) -> int:
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
-            control_state.get("selected_scenario", default_scenario.name)
+            control_state.get("selected_scenario", control_default_scenario_name)
         ).strip()
         if not selected_scenario_name:
-            selected_scenario_name = default_scenario.name
+            selected_scenario_name = control_default_scenario_name
         control_version = int(control_state.get("control_version", 0))
         paused = bool(control_state.get("paused", False))
         restart_requested = bool(control_state.get("restart_requested", False))
@@ -380,23 +456,61 @@ def main(argv: list[str] | None = None) -> int:
                 "result_hash": None,
             }
 
-        scenario_name_in_use = selected_scenario_name
-        try:
-            scenario, events_for_run, events_hash, scenario_hash = (
-                _resolve_scenario_run_inputs(scenario_name_in_use)
+        if args.ingestion_mode == "historical_jsonl":
+            scenario_name_in_use = selected_scenario_name
+            try:
+                scenario, events_for_run, events_hash, scenario_hash = (
+                    _resolve_scenario_run_inputs(scenario_name_in_use)
+                )
+            except ValueError:
+                scenario_name_in_use = default_scenario.name
+                heartbeat(
+                    "control_invalid_scenario_fallback",
+                    {
+                        "cycle_index": cycle_index,
+                        "requested_scenario": selected_scenario_name,
+                        "fallback_scenario": scenario_name_in_use,
+                    },
+                )
+                scenario, events_for_run, events_hash, scenario_hash = (
+                    _resolve_scenario_run_inputs(scenario_name_in_use)
+                )
+            run_scenario_name = scenario.name
+            if historical_ingestion is None:
+                raise ValueError("historical ingestion state is unavailable")
+            cycle_ingestion = historical_ingestion
+        else:
+            scenario_name_in_use = "live_polymarket"
+            run_scenario_name = "live_polymarket"
+            if selected_scenario_name != scenario_name_in_use:
+                heartbeat(
+                    "control_scenario_ignored_for_live_mode",
+                    {
+                        "cycle_index": cycle_index,
+                        "requested_scenario": selected_scenario_name,
+                        "applied_scenario": scenario_name_in_use,
+                    },
+                )
+            if live_ingestion_adapter is None:
+                raise ValueError("live ingestion adapter is unavailable")
+            cycle_ingestion = live_ingestion_adapter.load_markets(
+                timeout_seconds=args.ingestion_timeout_seconds,
             )
-        except ValueError:
-            scenario_name_in_use = default_scenario.name
-            heartbeat(
-                "control_invalid_scenario_fallback",
+            if cycle_ingestion.status == "FAILED":
+                raise ValueError(
+                    "Ingestion adapter failed: "
+                    f"reasons={list(cycle_ingestion.reasons)} "
+                    f"metadata={cycle_ingestion.metadata}"
+                )
+            events_for_run = cycle_ingestion.events
+            events_hash = hash_events(events_for_run)
+            scenario_hash = stable_hash(
                 {
-                    "cycle_index": cycle_index,
-                    "requested_scenario": selected_scenario_name,
-                    "fallback_scenario": scenario_name_in_use,
-                },
-            )
-            scenario, events_for_run, events_hash, scenario_hash = (
-                _resolve_scenario_run_inputs(scenario_name_in_use)
+                    "ingestion_mode": args.ingestion_mode,
+                    "live_source_url": args.live_source_url,
+                    "live_max_markets": args.live_max_markets,
+                    "live_min_volume_24h": args.live_min_volume_24h,
+                }
             )
 
         run = loop.run(
@@ -419,13 +533,27 @@ def main(argv: list[str] | None = None) -> int:
         result_payload = serialize_test_token_loop_run(
             run,
             run_context={
-                "scenario_name": scenario.name,
-                "scenario_pack": str(args.scenario_pack),
-                "input_events_path": str(args.events),
+                "scenario_name": run_scenario_name,
+                "scenario_pack": str(args.scenario_pack)
+                if args.ingestion_mode == "historical_jsonl"
+                else None,
+                "input_events_path": str(args.events) if args.events else None,
                 "profile_path": str(args.profile),
                 "calibration_policy_path": str(args.calibration_policy),
                 "cycle_index": cycle_index,
                 "control_version": control_version,
+                "ingestion_mode": args.ingestion_mode,
+                "ingestion_source": {
+                    "source_url": args.live_source_url
+                    if args.ingestion_mode == "live_polymarket"
+                    else None,
+                    "max_markets": args.live_max_markets
+                    if args.ingestion_mode == "live_polymarket"
+                    else None,
+                    "min_volume_24h": args.live_min_volume_24h
+                    if args.ingestion_mode == "live_polymarket"
+                    else None,
+                },
                 "exit_module": {
                     "target_capture_ratio": float(
                         parameters["exit.target_capture_ratio"]
@@ -439,9 +567,9 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     "confirmation_threshold": 2,
                 },
-                "ingestion_status": ingestion.status,
-                "ingestion_reasons": list(ingestion.reasons),
-                "ingestion_metadata": ingestion.metadata,
+                "ingestion_status": cycle_ingestion.status,
+                "ingestion_reasons": list(cycle_ingestion.reasons),
+                "ingestion_metadata": cycle_ingestion.metadata,
                 "execution_gateway": {
                     "max_retries": args.execution_gateway_max_retries,
                     "retry_backoff_seconds": args.execution_gateway_retry_backoff_seconds,
@@ -553,6 +681,8 @@ def main(argv: list[str] | None = None) -> int:
             break
         if not args.continue_on_failure and snapshot["status"] == "FAILED":
             break
+        if cycle_index < args.cycles and args.cycle_interval_seconds > 0:
+            time.sleep(args.cycle_interval_seconds)
 
     overall_status = (
         "SUCCESS"
@@ -577,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
         f"overall_status={summary['overall_status']} "
         f"stopped_by_control_restart={summary['stopped_by_control_restart']} "
         f"failed_workers={len(failed_workers)} "
+        f"ingestion_mode={args.ingestion_mode} "
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path}"
     )

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import socket
 import sys
 import tempfile
 import unittest
+from urllib.error import URLError
 from pathlib import Path
 
 
@@ -17,6 +19,7 @@ from poly_robot.contracts import MarketEvent  # noqa: E402
 from poly_robot.integration_adapters import (  # noqa: E402
     ExecutionGatewayAdapter,
     HistoricalIngestionAdapter,
+    LivePolymarketIngestionAdapter,
 )
 from poly_robot.paper_execution import ExecutionIntent, ExecutionResult  # noqa: E402
 
@@ -161,6 +164,153 @@ class HistoricalIngestionAdapterTests(unittest.TestCase):
             self.assertEqual(len(batch.events), 2)
             self.assertIn("non_monotonic_rows_detected", batch.reasons)
             self.assertEqual(batch.metadata["monotonic_violations"], 1)
+
+class LivePolymarketIngestionAdapterTests(unittest.TestCase):
+    def test_normalizes_live_market_payload(self) -> None:
+        payload = [
+            {
+                "id": "540816",
+                "question": "Russia-Ukraine Ceasefire before GTA VI?",
+                "updatedAt": "2026-04-26T14:55:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "liquidity": "47182.9661",
+                "outcomePrices": "[\"0.525\", \"0.475\"]",
+                "volume24hr": 5007.46185,
+                "oneWeekPriceChange": 0.02,
+            }
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "OK")
+        self.assertEqual(len(batch.events), 1)
+        event = batch.events[0]
+        self.assertTrue(event.event_id.startswith("540816:"))
+        self.assertEqual(event.market_id, "540816")
+        self.assertGreater(event.estimated_probability, event.midpoint)
+        self.assertEqual(event.metadata["source"], "polymarket_gamma")
+        self.assertEqual(batch.metadata["selected_rows"], 1)
+
+    def test_degraded_when_invalid_rows_are_within_budget(self) -> None:
+        payload = [
+            {"id": "missing-prices"},
+            {
+                "id": "540817",
+                "question": "New Rihanna Album before GTA VI?",
+                "updatedAt": "2026-04-26T14:56:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "outcomePrices": "[\"0.655\", \"0.345\"]",
+                "liquidity": "30872.6836",
+                "volume24hr": 374.250312,
+                "oneWeekPriceChange": -0.01,
+            },
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=1,
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "DEGRADED")
+        self.assertEqual(len(batch.events), 1)
+        self.assertIn("invalid_rows_skipped", batch.reasons)
+        self.assertEqual(batch.metadata["invalid_rows"], 1)
+
+    def test_retries_after_source_unavailable_then_succeeds(self) -> None:
+        state = {"calls": 0}
+
+        def fetch(_url: str, _timeout: float):
+            state["calls"] += 1
+            if state["calls"] == 1:
+                raise OSError("temporary network issue")
+            return [
+                {
+                    "id": "540818",
+                    "question": "New Frank Ocean Album before GTA VI?",
+                    "updatedAt": "2026-04-26T14:57:01Z",
+                    "endDate": "2026-07-31T12:00:00Z",
+                    "outcomePrices": "[\"0.321\", \"0.679\"]",
+                    "liquidity": "61234.1",
+                    "volume24hr": 1820.0,
+                    "oneWeekPriceChange": 0.05,
+                }
+            ]
+
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=1,
+            retry_backoff_seconds=0.0,
+            max_invalid_rows=0,
+            sleep_fn=lambda _seconds: None,
+            fetch_json_fn=fetch,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(state["calls"], 2)
+        self.assertEqual(batch.status, "OK")
+        self.assertEqual(len(batch.events), 1)
+
+    def test_degraded_when_all_rows_filtered_out(self) -> None:
+        payload = [
+            {
+                "id": "540821",
+                "question": "Will test data be filtered out?",
+                "updatedAt": "2026-04-26T14:58:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "outcomePrices": "[\"0.52\", \"0.48\"]",
+                "liquidity": "1000.0",
+                "volume24hr": 25.0,
+                "oneWeekPriceChange": 0.01,
+            }
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=100.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "DEGRADED")
+        self.assertEqual(batch.events, [])
+        self.assertIn("no_markets_after_filters", batch.reasons)
+
+    def test_classifies_urlerror_timeout_as_ingestion_timeout(self) -> None:
+        def fetch(_url: str, _timeout: float):
+            raise URLError(socket.timeout("timed out"))
+
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            fetch_json_fn=fetch,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "FAILED")
+        self.assertEqual(batch.reasons, ("ingestion_timeout",))
 
 
 class ExecutionGatewayAdapterTests(unittest.TestCase):

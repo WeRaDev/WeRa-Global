@@ -24,7 +24,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
-- `src/poly_robot/integration_adapters.py`: hardened ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
+- `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
 - `src/poly_robot/stress_certification.py`: certification evaluator that scores scenario-matrix and soak evidence against explicit gates.
 - `tests/`: governance + replay + strategy/risk + execution + loop integration unit tests.
@@ -61,6 +61,7 @@ Parameter governance structure is now in place for MVP planning and test-token o
 - Ingestion path now runs through a hardened adapter with schema validation, bounded retries, timeout budgeting, deduplication, and explicit degraded/failed outcomes.
 - Execution path now runs through a bounded execution gateway with idempotency-key caching, timeout enforcement, retry caps, and degraded reject behavior on persistent failures.
 - Test-token loop and runtime supervisor runners are wired to these adapters with configuration surfaced via CLI flags.
+- Runtime supervisor now supports live ingestion mode (`live_polymarket`) for per-cycle market refresh without replay fixture dependency.
 
 ## Milestone C3 exit and soak orchestration status
 - Exit decisions are now first-class runtime outputs with multi-trigger confirmation across target capture, abnormal volume spikes, and stale-thesis detection.
@@ -139,6 +140,26 @@ python3 scripts/run_runtime_supervisor.py \
   --control-audit-path runtime/operator_action_audit.jsonl \
   --cycle-output-dir runtime/cycles
 ```
+Run C1 runtime supervisor with live Polymarket ingestion (real-time cycle decisions):
+```bash
+python3 scripts/run_runtime_supervisor.py \
+  --ingestion-mode live_polymarket \
+  --live-source-url "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=50" \
+  --live-max-markets 10 \
+  --live-min-volume-24h 300 \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --cycles 5 \
+  --cycle-interval-seconds 10 \
+  --control-state-path runtime/operator_control_state.json \
+  --control-audit-path runtime/operator_action_audit.jsonl \
+  --cycle-output-dir runtime/live_cycles
+```
+In live mode, replay scenario controls are ignored and `--scenario-pack` is optional.
+Live-mode behavior notes:
+- Live ingestion runs at the start of each cycle, so decisions use fresh fetched market snapshots instead of replay fixtures.
+- If all fetched markets are filtered out (for example by `--live-min-volume-24h`), the cycle still executes with zero events and marks ingestion as degraded (`no_markets_after_filters`) rather than failing the run.
+- Cycle artifacts (`runtime/live_cycles/cycle_*.json`) include live-source provenance in `run_context.ingestion_source` and ingestion quality details in `run_context.ingestion_status`, `run_context.ingestion_reasons`, and `run_context.ingestion_metadata`.
 
 Run runtime web GUI:
 ```bash

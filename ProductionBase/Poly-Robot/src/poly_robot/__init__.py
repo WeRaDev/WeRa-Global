@@ -14,6 +14,7 @@ from .integration_adapters import (  # noqa: F401
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
     IngestionBatch,
+    LivePolymarketIngestionAdapter,
 )
 from .schemas import (  # noqa: F401
     EVENT_SCHEMA_VERSION,
