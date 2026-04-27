@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Iterable, Protocol
+from dataclasses import asdict, dataclass, field
+from typing import Any, Iterable, Protocol
 
 from .contracts import (
     MarketEvent,
@@ -34,6 +34,71 @@ class TestTokenLoopRecord:
 class TestTokenLoopRun:
     records: list[TestTokenLoopRecord]
     final_portfolio: PortfolioState
+    final_open_positions: dict[str, PositionSnapshot] = field(default_factory=dict)
+
+    @staticmethod
+    def _as_non_negative_float(value: Any) -> float:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, parsed)
+
+    @staticmethod
+    def _as_float_or_none(value: Any) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _profitability_attribution_totals(self) -> dict[str, float]:
+        totals = {
+            "attributed_trade_count": 0.0,
+            "approved_notional": 0.0,
+            "filled_notional": 0.0,
+            "expected_gross_edge_value": 0.0,
+            "expected_net_edge_value": 0.0,
+            "expected_net_edge_value_on_fills": 0.0,
+            "weighted_gross_edge_bps_numerator": 0.0,
+            "weighted_net_edge_bps_numerator": 0.0,
+        }
+        for record in self.records:
+            risk_decision = record.replay_record.risk_decision
+            if not risk_decision.allowed or risk_decision.approved_notional <= 0:
+                continue
+            gross_edge_bps = self._as_float_or_none(
+                risk_decision.metadata.get("gross_edge_bps")
+            )
+            net_edge_bps = self._as_float_or_none(
+                risk_decision.metadata.get("net_edge_bps")
+            )
+            if gross_edge_bps is None or net_edge_bps is None:
+                continue
+            approved_notional = self._as_non_negative_float(
+                risk_decision.approved_notional
+            )
+            filled_notional = self._as_non_negative_float(
+                record.execution_result.filled_notional
+            )
+            totals["attributed_trade_count"] += 1.0
+            totals["approved_notional"] += approved_notional
+            totals["filled_notional"] += filled_notional
+            totals["expected_gross_edge_value"] += (
+                approved_notional * gross_edge_bps / 10_000
+            )
+            totals["expected_net_edge_value"] += (
+                approved_notional * net_edge_bps / 10_000
+            )
+            totals["expected_net_edge_value_on_fills"] += (
+                filled_notional * net_edge_bps / 10_000
+            )
+            totals["weighted_gross_edge_bps_numerator"] += (
+                approved_notional * gross_edge_bps
+            )
+            totals["weighted_net_edge_bps_numerator"] += (
+                approved_notional * net_edge_bps
+            )
+        return totals
 
     @property
     def risk_allowed_count(self) -> int:
@@ -83,6 +148,76 @@ class TestTokenLoopRun:
     @property
     def confirmed_exit_count(self) -> int:
         return sum(1 for record in self.records if record.exit_decision.should_exit)
+
+    @property
+    def attributed_trade_count(self) -> int:
+        totals = self._profitability_attribution_totals()
+        return int(totals["attributed_trade_count"])
+
+    @property
+    def expected_gross_edge_value(self) -> float:
+        totals = self._profitability_attribution_totals()
+        return round(totals["expected_gross_edge_value"], 4)
+
+    @property
+    def expected_net_edge_value(self) -> float:
+        totals = self._profitability_attribution_totals()
+        return round(totals["expected_net_edge_value"], 4)
+
+    @property
+    def expected_net_edge_value_on_fills(self) -> float:
+        totals = self._profitability_attribution_totals()
+        return round(totals["expected_net_edge_value_on_fills"], 4)
+
+    @property
+    def expected_value_after_execution_cost(self) -> float:
+        return round(
+            self.expected_net_edge_value_on_fills - self.total_execution_cost,
+            4,
+        )
+
+    @property
+    def average_expected_gross_edge_bps(self) -> float | None:
+        totals = self._profitability_attribution_totals()
+        approved_notional = totals["approved_notional"]
+        if approved_notional <= 0:
+            return None
+        return round(
+            totals["weighted_gross_edge_bps_numerator"] / approved_notional,
+            2,
+        )
+
+    @property
+    def average_expected_net_edge_bps(self) -> float | None:
+        totals = self._profitability_attribution_totals()
+        approved_notional = totals["approved_notional"]
+        if approved_notional <= 0:
+            return None
+        return round(
+            totals["weighted_net_edge_bps_numerator"] / approved_notional,
+            2,
+        )
+
+    @property
+    def expected_edge_capture_ratio(self) -> float | None:
+        totals = self._profitability_attribution_totals()
+        expected_net_edge_value = totals["expected_net_edge_value"]
+        if expected_net_edge_value <= 0:
+            return None
+        return round(
+            totals["expected_net_edge_value_on_fills"] / expected_net_edge_value,
+            6,
+        )
+
+    @property
+    def execution_cost_to_expected_net_ratio(self) -> float | None:
+        expected_net_edge_value_on_fills = self.expected_net_edge_value_on_fills
+        if expected_net_edge_value_on_fills <= 0:
+            return None
+        return round(
+            self.total_execution_cost / expected_net_edge_value_on_fills,
+            6,
+        )
 
 
 class ExecutionAdapter(Protocol):
@@ -139,14 +274,18 @@ class TestTokenLoop:
         self.exit_module = exit_module or ExitModule(parameters)
 
     def run(
-        self, events: Iterable[MarketEvent], initial_portfolio: PortfolioState
+        self,
+        events: Iterable[MarketEvent],
+        initial_portfolio: PortfolioState,
+        *,
+        initial_open_positions: dict[str, PositionSnapshot] | None = None,
     ) -> TestTokenLoopRun:
         ordered_events = sorted(
             events, key=lambda event: (event.timestamp, event.event_id)
         )
         portfolio = initial_portfolio.clone()
         records: list[TestTokenLoopRecord] = []
-        open_positions: dict[str, PositionSnapshot] = {}
+        open_positions: dict[str, PositionSnapshot] = dict(initial_open_positions or {})
 
         for event in ordered_events:
             position = open_positions.get(event.market_id)
@@ -230,7 +369,11 @@ class TestTokenLoop:
                 )
             )
 
-        return TestTokenLoopRun(records=records, final_portfolio=portfolio)
+        return TestTokenLoopRun(
+            records=records,
+            final_portfolio=portfolio,
+            final_open_positions=dict(open_positions),
+        )
 
 
 def serialize_test_token_loop_run(
@@ -243,6 +386,10 @@ def serialize_test_token_loop_run(
         "schema_version": TEST_TOKEN_LOOP_RESULT_SCHEMA_VERSION,
         "records": [asdict(record) for record in run.records],
         "final_portfolio": asdict(run.final_portfolio),
+        "final_open_positions": {
+            market_id: asdict(position)
+            for market_id, position in run.final_open_positions.items()
+        },
         "risk_allowed_count": run.risk_allowed_count,
         "filled_trade_count": run.filled_trade_count,
         "partial_fill_count": run.partial_fill_count,
@@ -251,6 +398,15 @@ def serialize_test_token_loop_run(
         "total_fees_paid": run.total_fees_paid,
         "total_slippage_cost": run.total_slippage_cost,
         "total_execution_cost": run.total_execution_cost,
+        "attributed_trade_count": run.attributed_trade_count,
+        "expected_gross_edge_value": run.expected_gross_edge_value,
+        "expected_net_edge_value": run.expected_net_edge_value,
+        "expected_net_edge_value_on_fills": run.expected_net_edge_value_on_fills,
+        "expected_value_after_execution_cost": run.expected_value_after_execution_cost,
+        "average_expected_gross_edge_bps": run.average_expected_gross_edge_bps,
+        "average_expected_net_edge_bps": run.average_expected_net_edge_bps,
+        "expected_edge_capture_ratio": run.expected_edge_capture_ratio,
+        "execution_cost_to_expected_net_ratio": run.execution_cost_to_expected_net_ratio,
     }
     if run_context is not None:
         payload["run_context"] = run_context

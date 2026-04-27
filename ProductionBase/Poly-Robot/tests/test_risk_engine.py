@@ -207,6 +207,41 @@ class RiskEngineTests(unittest.TestCase):
         self.assertFalse(result.allowed)
         self.assertIn("approved_notional_zero", result.reasons)
 
+    def test_denies_when_net_edge_after_costs_is_non_positive(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2, win_probability=0.651)
+        result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("non_positive_net_edge_after_costs", result.reasons)
+        self.assertGreater(result.metadata["fee_rate_bps"], 0)
+
+    def test_scales_size_when_expected_costs_reduce_edge(self) -> None:
+        low_cost_parameters = dict(self.parameters)
+        low_cost_parameters["ops.fee_rate_bps"] = 0
+        low_cost_parameters["execution.max_slippage_bps"] = 0
+        low_cost_engine = RiskEngine(low_cost_parameters)
+
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2, win_probability=0.68)
+        low_cost_result = low_cost_engine.evaluate(self.event, decision, portfolio)
+        cost_aware_result = self.engine.evaluate(self.event, decision, portfolio)
+
+        self.assertTrue(low_cost_result.allowed)
+        self.assertTrue(cost_aware_result.allowed)
+        self.assertIn("net_edge_size_scaled", cost_aware_result.reasons)
+        self.assertLess(
+            cost_aware_result.approved_notional, low_cost_result.approved_notional
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -53,6 +53,15 @@ def _append_cycle_completed_event(
     filled_trade_count: int,
     exit_candidate_count: int,
     confirmed_exit_count: int,
+    total_execution_cost: float = 0.0,
+    net_pnl: float = 0.0,
+    attributed_trade_count: int = 0,
+    expected_gross_edge_value: float = 0.0,
+    expected_net_edge_value: float = 0.0,
+    expected_net_edge_value_on_fills: float = 0.0,
+    expected_value_after_execution_cost: float = 0.0,
+    expected_edge_capture_ratio: float = 0.0,
+    execution_cost_to_expected_net_ratio: float = 0.0,
     selected_scenario: str = "baseline",
     control_version: int = 1,
     result_hash_prefix: str = "hash",
@@ -76,6 +85,19 @@ def _append_cycle_completed_event(
                     "filled_trade_count": filled_trade_count,
                     "exit_candidate_count": exit_candidate_count,
                     "confirmed_exit_count": confirmed_exit_count,
+                    "total_execution_cost": total_execution_cost,
+                    "net_pnl": net_pnl,
+                    "attributed_trade_count": attributed_trade_count,
+                    "expected_gross_edge_value": expected_gross_edge_value,
+                    "expected_net_edge_value": expected_net_edge_value,
+                    "expected_net_edge_value_on_fills": expected_net_edge_value_on_fills,
+                    "expected_value_after_execution_cost": (
+                        expected_value_after_execution_cost
+                    ),
+                    "expected_edge_capture_ratio": expected_edge_capture_ratio,
+                    "execution_cost_to_expected_net_ratio": (
+                        execution_cost_to_expected_net_ratio
+                    ),
                     "result_hash_prefix": result_hash_prefix,
                 },
             },
@@ -227,6 +249,30 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 server.server_close()
                 server_thread.join(timeout=5)
 
+    def test_runtime_gui_loopback_host_detection(self) -> None:
+        gui_module = _load_runtime_gui_script_module()
+        self.assertTrue(gui_module._is_loopback_host("127.0.0.1"))
+        self.assertTrue(gui_module._is_loopback_host("::1"))
+        self.assertTrue(gui_module._is_loopback_host("localhost"))
+        self.assertFalse(gui_module._is_loopback_host("0.0.0.0"))
+        self.assertFalse(gui_module._is_loopback_host("192.168.1.10"))
+        self.assertFalse(gui_module._is_loopback_host("runtime-gui.internal"))
+
+    def test_main_rejects_non_loopback_bind_without_operator_token(self) -> None:
+        gui_module = _load_runtime_gui_script_module()
+        with self.assertRaises(ValueError) as exc_info:
+            gui_module.main(
+                [
+                    "--host",
+                    "0.0.0.0",
+                    "--recent-events-limit",
+                    "10",
+                    "--recent-audit-limit",
+                    "10",
+                ]
+            )
+        self.assertIn("non-loopback host", str(exc_info.exception))
+
     def test_concurrent_operator_actions_keep_gap_free_action_sequence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -302,6 +348,15 @@ class RuntimeWebGuiTests(unittest.TestCase):
                                 "total_fees_paid": 0.125,
                                 "total_slippage_cost": 0.22,
                                 "total_execution_cost": 0.345,
+                                "attributed_trade_count": 1,
+                                "expected_gross_edge_value": 1.234,
+                                "expected_net_edge_value": 0.789,
+                                "expected_net_edge_value_on_fills": 0.5,
+                                "expected_value_after_execution_cost": 0.155,
+                                "average_expected_gross_edge_bps": 180.0,
+                                "average_expected_net_edge_bps": 95.0,
+                                "expected_edge_capture_ratio": 0.633713,
+                                "execution_cost_to_expected_net_ratio": 0.69,
                                 "bankroll": 1000.0,
                                 "day_start_equity": 1000.0,
                                 "current_equity": 999.655,
@@ -363,6 +418,17 @@ class RuntimeWebGuiTests(unittest.TestCase):
             )
             self.assertEqual(payload["loop_metrics"]["filled_trade_count"], 1)
             self.assertEqual(payload["loop_metrics"]["total_execution_cost"], 0.345)
+            self.assertEqual(payload["loop_metrics"]["attributed_trade_count"], 1)
+            self.assertEqual(
+                payload["loop_metrics"]["expected_gross_edge_value"], 1.234
+            )
+            self.assertEqual(payload["loop_metrics"]["expected_net_edge_value"], 0.789)
+            self.assertEqual(
+                payload["loop_metrics"]["expected_net_edge_value_on_fills"], 0.5
+            )
+            self.assertEqual(
+                payload["loop_metrics"]["expected_value_after_execution_cost"], 0.155
+            )
             self.assertEqual(payload["financial_metrics"]["bankroll"], 1000.0)
             self.assertEqual(payload["financial_metrics"]["current_equity"], 999.655)
             self.assertEqual(payload["financial_metrics"]["net_pnl"], -0.345)
@@ -376,6 +442,33 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 payload["financial_metrics"]["average_execution_cost_per_fill"], 0.345
             )
             self.assertEqual(payload["financial_metrics"]["fill_rate"], 1.0)
+            self.assertEqual(payload["financial_metrics"]["attributed_trade_count"], 1)
+            self.assertEqual(
+                payload["financial_metrics"]["expected_gross_edge_value"], 1.234
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["expected_net_edge_value"], 0.789
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["expected_net_edge_value_on_fills"], 0.5
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["expected_value_after_execution_cost"],
+                0.155,
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["average_expected_gross_edge_bps"], 180.0
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["average_expected_net_edge_bps"], 95.0
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["expected_edge_capture_ratio"], 0.633713
+            )
+            self.assertEqual(
+                payload["financial_metrics"]["execution_cost_to_expected_net_ratio"],
+                0.69,
+            )
             self.assertEqual(
                 payload["control_state"]["schema_version"],
                 RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
@@ -415,6 +508,15 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 filled_trade_count=2,
                 exit_candidate_count=4,
                 confirmed_exit_count=1,
+                total_execution_cost=0.6,
+                net_pnl=0.3,
+                attributed_trade_count=2,
+                expected_gross_edge_value=1.5,
+                expected_net_edge_value=0.9,
+                expected_net_edge_value_on_fills=0.7,
+                expected_value_after_execution_cost=0.1,
+                expected_edge_capture_ratio=0.777778,
+                execution_cost_to_expected_net_ratio=0.857143,
                 result_hash_prefix="aaa",
             )
             _append_jsonl(
@@ -451,6 +553,15 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 filled_trade_count=3,
                 exit_candidate_count=5,
                 confirmed_exit_count=2,
+                total_execution_cost=0.8,
+                net_pnl=0.55,
+                attributed_trade_count=3,
+                expected_gross_edge_value=1.9,
+                expected_net_edge_value=1.2,
+                expected_net_edge_value_on_fills=1.0,
+                expected_value_after_execution_cost=0.2,
+                expected_edge_capture_ratio=0.833333,
+                execution_cost_to_expected_net_ratio=0.8,
                 result_hash_prefix="bbb",
             )
             _append_jsonl(
@@ -522,6 +633,14 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(len(payload["cycle_comparison"]["items"]), 2)
             self.assertIsNone(payload["cycle_comparison"]["items"][0]["delta"])
             self.assertEqual(
+                payload["cycle_comparison"]["items"][0]["expected_net_edge_value_on_fills"],
+                0.7,
+            )
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["expected_net_edge_value_on_fills"],
+                1.0,
+            )
+            self.assertEqual(
                 payload["cycle_comparison"]["items"][1]["delta"]["events"], 2
             )
             self.assertEqual(
@@ -543,6 +662,121 @@ class RuntimeWebGuiTests(unittest.TestCase):
                     "confirmed_exit_count"
                 ],
                 1,
+            )
+            self.assertEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "attributed_trade_count"
+                ],
+                1,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "total_execution_cost"
+                ],
+                0.2,
+                places=4,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"]["net_pnl"],
+                0.25,
+                places=4,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "expected_gross_edge_value"
+                ],
+                0.4,
+                places=4,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "expected_net_edge_value"
+                ],
+                0.3,
+                places=4,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "expected_net_edge_value_on_fills"
+                ],
+                0.3,
+                places=4,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "expected_value_after_execution_cost"
+                ],
+                0.1,
+                places=4,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "expected_edge_capture_ratio"
+                ],
+                0.055555,
+                places=6,
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "execution_cost_to_expected_net_ratio"
+                ],
+                -0.057143,
+                places=6,
+            )
+
+    def test_incident_feed_flags_profitability_drift_from_cycle_heartbeats(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal_path = root / "runtime_journal.jsonl"
+            service = RuntimeDashboardService(
+                state_path=root / "runtime_state.json",
+                journal_path=journal_path,
+                control_manager=OperatorControlManager(
+                    control_state_path=root / "operator_state.json",
+                    audit_path=root / "operator_audit.jsonl",
+                ),
+            )
+
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:00Z",
+                cycle_index=1,
+                events=10,
+                risk_allowed_count=8,
+                filled_trade_count=2,
+                exit_candidate_count=4,
+                confirmed_exit_count=1,
+                expected_value_after_execution_cost=-0.12,
+                execution_cost_to_expected_net_ratio=0.95,
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:01Z",
+                cycle_index=2,
+                events=12,
+                risk_allowed_count=9,
+                filled_trade_count=3,
+                exit_candidate_count=5,
+                confirmed_exit_count=2,
+                expected_value_after_execution_cost=0.18,
+                execution_cost_to_expected_net_ratio=1.25,
+            )
+
+            feed = service.build_incident_feed(limit=10)
+
+            self.assertEqual(feed["paging"]["total_incidents"], 2)
+            self.assertEqual(len(feed["items"]), 2)
+            self.assertEqual(feed["items"][0]["event_type"], "worker_heartbeat")
+            self.assertEqual(feed["items"][1]["event_type"], "worker_heartbeat")
+            self.assertEqual(feed["items"][0]["severity"], "warning")
+            self.assertEqual(feed["items"][1]["severity"], "warning")
+            self.assertIn(
+                "Negative expected value after execution costs detected",
+                feed["items"][0]["summary"],
+            )
+            self.assertIn(
+                "Execution cost exceeded expected net edge",
+                feed["items"][1]["summary"],
             )
 
     def test_incident_feed_pagination_accepts_string_and_integer_cursor(self) -> None:
@@ -668,6 +902,113 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(events[-1]["action_sequence"], 6)
             self.assertEqual(events[-1]["action"], "resume")
 
+    def test_kill_switch_and_cancel_all_actions_update_control_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manager = OperatorControlManager(
+                control_state_path=root / "operator_state.json",
+                audit_path=root / "operator_audit.jsonl",
+            )
+
+            state = manager.set_kill_switch(
+                active=True,
+                actor="alice",
+                reason="emergency stop",
+            )
+            self.assertTrue(state["kill_switch_active"])
+            self.assertTrue(state["cancel_all_requested"])
+            state = manager.acknowledge_cancel_all(
+                actor="runtime_supervisor",
+                note="cancel-all applied",
+            )
+            self.assertFalse(state["cancel_all_requested"])
+            state = manager.set_kill_switch(
+                active=False,
+                actor="alice",
+                reason="resume validated",
+            )
+            self.assertFalse(state["kill_switch_active"])
+            state = manager.request_cancel_all(actor="alice", reason="manual sweep")
+            self.assertTrue(state["cancel_all_requested"])
+
+            events = manager.list_audit_events(limit=10)
+            self.assertEqual(
+                [event["action"] for event in events[-4:]],
+                [
+                    "kill_switch_enabled",
+                    "cancel_all_acknowledged",
+                    "kill_switch_disabled",
+                    "cancel_all_requested",
+                ],
+            )
+
+    def test_runtime_gui_control_endpoints_include_kill_switch_and_cancel_all(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                for path in (
+                    "/api/control/kill-switch/on",
+                    "/api/control/kill-switch/off",
+                    "/api/control/cancel-all",
+                ):
+                    connection = http.client.HTTPConnection(host, port, timeout=5)
+                    connection.request(
+                        "POST",
+                        path,
+                        body=json.dumps({"actor": "alice", "reason": "test"}),
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Operator-Token": "secret-token",
+                        },
+                    )
+                    response = connection.getresponse()
+                    payload = json.loads(response.read().decode("utf-8"))
+                    connection.close()
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual(payload["status"], "ok")
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
     def test_invalid_control_arguments_raise_value_error(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -720,6 +1061,8 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('onclick="loadOlderIncidents()"', html)
         self.assertIn('id="financialPayload"', html)
         self.assertIn("How to Use and Control Poly-Robot", html)
+        self.assertIn("Kill Switch ON", html)
+        self.assertIn("Cancel All Orders", html)
 
 
 if __name__ == "__main__":

@@ -77,6 +77,8 @@ def _default_control_state() -> dict[str, Any]:
         "control_version": 0,
         "paused": False,
         "restart_requested": False,
+        "kill_switch_active": False,
+        "cancel_all_requested": False,
         "selected_scenario": "baseline",
         "last_annotation": "",
     }
@@ -171,6 +173,49 @@ class OperatorControlManager:
             action="graceful_restart_requested",
             actor=actor,
             details={"reason": reason},
+            mutate_state=_apply,
+        )
+
+    def set_kill_switch(
+        self, *, active: bool, actor: str, reason: str = ""
+    ) -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["kill_switch_active"] = active
+            if active:
+                state["cancel_all_requested"] = True
+            if reason:
+                state["kill_switch_reason"] = reason
+
+        return self._mutate_state(
+            action="kill_switch_enabled" if active else "kill_switch_disabled",
+            actor=actor,
+            details={"kill_switch_active": active, "reason": reason},
+            mutate_state=_apply,
+        )
+
+    def request_cancel_all(self, *, actor: str, reason: str = "") -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["cancel_all_requested"] = True
+            if reason:
+                state["cancel_all_reason"] = reason
+
+        return self._mutate_state(
+            action="cancel_all_requested",
+            actor=actor,
+            details={"reason": reason},
+            mutate_state=_apply,
+        )
+
+    def acknowledge_cancel_all(self, *, actor: str, note: str = "") -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["cancel_all_requested"] = False
+            if note:
+                state["cancel_all_ack_note"] = note
+
+        return self._mutate_state(
+            action="cancel_all_acknowledged",
+            actor=actor,
+            details={"note": note},
             mutate_state=_apply,
         )
 
@@ -378,6 +423,29 @@ class RuntimeDashboardService:
             "exit_candidate_count": last_metadata.get("exit_candidate_count"),
             "confirmed_exit_count": last_metadata.get("confirmed_exit_count"),
             "total_execution_cost": last_metadata.get("total_execution_cost"),
+            "attributed_trade_count": last_metadata.get("attributed_trade_count"),
+            "expected_gross_edge_value": last_metadata.get(
+                "expected_gross_edge_value"
+            ),
+            "expected_net_edge_value": last_metadata.get("expected_net_edge_value"),
+            "expected_net_edge_value_on_fills": last_metadata.get(
+                "expected_net_edge_value_on_fills"
+            ),
+            "expected_value_after_execution_cost": last_metadata.get(
+                "expected_value_after_execution_cost"
+            ),
+            "average_expected_gross_edge_bps": last_metadata.get(
+                "average_expected_gross_edge_bps"
+            ),
+            "average_expected_net_edge_bps": last_metadata.get(
+                "average_expected_net_edge_bps"
+            ),
+            "expected_edge_capture_ratio": last_metadata.get(
+                "expected_edge_capture_ratio"
+            ),
+            "execution_cost_to_expected_net_ratio": last_metadata.get(
+                "execution_cost_to_expected_net_ratio"
+            ),
             "result_hash": last_metadata.get("result_hash"),
         }
 
@@ -433,6 +501,13 @@ class RuntimeDashboardService:
         partial_fill_count = RuntimeDashboardService._to_int(
             loop_metrics.get("partial_fill_count")
         )
+        attributed_trade_count = RuntimeDashboardService._to_int(
+            last_metadata.get("attributed_trade_count")
+        )
+        if attributed_trade_count is None:
+            attributed_trade_count = RuntimeDashboardService._to_int(
+                loop_metrics.get("attributed_trade_count")
+            )
 
         net_pnl = RuntimeDashboardService._to_float(last_metadata.get("net_pnl"))
         if (
@@ -470,6 +545,68 @@ class RuntimeDashboardService:
             total_execution_cost,
             RuntimeDashboardService._to_float(filled_trade_count),
         )
+        expected_gross_edge_value = RuntimeDashboardService._to_float(
+            last_metadata.get("expected_gross_edge_value")
+        )
+        if expected_gross_edge_value is None:
+            expected_gross_edge_value = RuntimeDashboardService._to_float(
+                loop_metrics.get("expected_gross_edge_value")
+            )
+        expected_net_edge_value = RuntimeDashboardService._to_float(
+            last_metadata.get("expected_net_edge_value")
+        )
+        if expected_net_edge_value is None:
+            expected_net_edge_value = RuntimeDashboardService._to_float(
+                loop_metrics.get("expected_net_edge_value")
+            )
+        expected_net_edge_value_on_fills = RuntimeDashboardService._to_float(
+            last_metadata.get("expected_net_edge_value_on_fills")
+        )
+        if expected_net_edge_value_on_fills is None:
+            expected_net_edge_value_on_fills = RuntimeDashboardService._to_float(
+                loop_metrics.get("expected_net_edge_value_on_fills")
+            )
+        expected_value_after_execution_cost = RuntimeDashboardService._to_float(
+            last_metadata.get("expected_value_after_execution_cost")
+        )
+        if (
+            expected_value_after_execution_cost is None
+            and expected_net_edge_value_on_fills is not None
+            and total_execution_cost is not None
+        ):
+            expected_value_after_execution_cost = (
+                expected_net_edge_value_on_fills - total_execution_cost
+            )
+        average_expected_gross_edge_bps = RuntimeDashboardService._to_float(
+            last_metadata.get("average_expected_gross_edge_bps")
+        )
+        if average_expected_gross_edge_bps is None:
+            average_expected_gross_edge_bps = RuntimeDashboardService._to_float(
+                loop_metrics.get("average_expected_gross_edge_bps")
+            )
+        average_expected_net_edge_bps = RuntimeDashboardService._to_float(
+            last_metadata.get("average_expected_net_edge_bps")
+        )
+        if average_expected_net_edge_bps is None:
+            average_expected_net_edge_bps = RuntimeDashboardService._to_float(
+                loop_metrics.get("average_expected_net_edge_bps")
+            )
+        expected_edge_capture_ratio = RuntimeDashboardService._to_float(
+            last_metadata.get("expected_edge_capture_ratio")
+        )
+        if expected_edge_capture_ratio is None:
+            expected_edge_capture_ratio = RuntimeDashboardService._ratio(
+                expected_net_edge_value_on_fills,
+                expected_net_edge_value,
+            )
+        execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
+            last_metadata.get("execution_cost_to_expected_net_ratio")
+        )
+        if execution_cost_to_expected_net_ratio is None:
+            execution_cost_to_expected_net_ratio = RuntimeDashboardService._ratio(
+                total_execution_cost,
+                expected_net_edge_value_on_fills,
+            )
 
         return {
             "bankroll": RuntimeDashboardService._round_float(bankroll, digits=4),
@@ -493,6 +630,7 @@ class RuntimeDashboardService:
             "risk_allowed_count": risk_allowed_count,
             "filled_trade_count": filled_trade_count,
             "partial_fill_count": partial_fill_count,
+            "attributed_trade_count": attributed_trade_count,
             "fill_rate": RuntimeDashboardService._round_float(fill_rate, digits=6),
             "total_fees_paid": RuntimeDashboardService._round_float(
                 total_fees_paid, digits=4
@@ -505,6 +643,30 @@ class RuntimeDashboardService:
             ),
             "average_execution_cost_per_fill": RuntimeDashboardService._round_float(
                 average_execution_cost_per_fill, digits=4
+            ),
+            "expected_gross_edge_value": RuntimeDashboardService._round_float(
+                expected_gross_edge_value, digits=4
+            ),
+            "expected_net_edge_value": RuntimeDashboardService._round_float(
+                expected_net_edge_value, digits=4
+            ),
+            "expected_net_edge_value_on_fills": RuntimeDashboardService._round_float(
+                expected_net_edge_value_on_fills, digits=4
+            ),
+            "expected_value_after_execution_cost": RuntimeDashboardService._round_float(
+                expected_value_after_execution_cost, digits=4
+            ),
+            "average_expected_gross_edge_bps": RuntimeDashboardService._round_float(
+                average_expected_gross_edge_bps, digits=2
+            ),
+            "average_expected_net_edge_bps": RuntimeDashboardService._round_float(
+                average_expected_net_edge_bps, digits=2
+            ),
+            "expected_edge_capture_ratio": RuntimeDashboardService._round_float(
+                expected_edge_capture_ratio, digits=6
+            ),
+            "execution_cost_to_expected_net_ratio": RuntimeDashboardService._round_float(
+                execution_cost_to_expected_net_ratio, digits=6
             ),
         }
 
@@ -554,6 +716,41 @@ class RuntimeDashboardService:
             cycle_index = payload.get("cycle_index")
             summary = f"Restart request acknowledged before cycle execution (cycle_index={cycle_index})."
             severity = "info"
+        elif (
+            event_type == "worker_heartbeat"
+            and payload.get("worker_name") == "test_token_loop"
+            and payload.get("stage") == "cycle_completed"
+        ):
+            details = payload.get("details") or {}
+            cycle_index = details.get("cycle_index", payload.get("cycle_index"))
+            expected_value_after_execution_cost = RuntimeDashboardService._to_float(
+                details.get("expected_value_after_execution_cost")
+            )
+            execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
+                details.get("execution_cost_to_expected_net_ratio")
+            )
+            if (
+                expected_value_after_execution_cost is not None
+                and expected_value_after_execution_cost < 0
+            ):
+                summary = (
+                    "Negative expected value after execution costs detected "
+                    f"(cycle_index={cycle_index}, "
+                    f"value={expected_value_after_execution_cost:.4f})."
+                )
+                severity = "warning"
+            elif (
+                execution_cost_to_expected_net_ratio is not None
+                and execution_cost_to_expected_net_ratio > 1.0
+            ):
+                summary = (
+                    "Execution cost exceeded expected net edge "
+                    f"(cycle_index={cycle_index}, "
+                    f"ratio={execution_cost_to_expected_net_ratio:.4f})."
+                )
+                severity = "warning"
+            else:
+                return None
         else:
             return None
 
@@ -637,6 +834,23 @@ class RuntimeDashboardService:
                 "filled_trade_count": details.get("filled_trade_count"),
                 "exit_candidate_count": details.get("exit_candidate_count"),
                 "confirmed_exit_count": details.get("confirmed_exit_count"),
+                "total_execution_cost": details.get("total_execution_cost"),
+                "net_pnl": details.get("net_pnl"),
+                "attributed_trade_count": details.get("attributed_trade_count"),
+                "expected_gross_edge_value": details.get("expected_gross_edge_value"),
+                "expected_net_edge_value": details.get("expected_net_edge_value"),
+                "expected_net_edge_value_on_fills": details.get(
+                    "expected_net_edge_value_on_fills"
+                ),
+                "expected_value_after_execution_cost": details.get(
+                    "expected_value_after_execution_cost"
+                ),
+                "expected_edge_capture_ratio": details.get(
+                    "expected_edge_capture_ratio"
+                ),
+                "execution_cost_to_expected_net_ratio": details.get(
+                    "execution_cost_to_expected_net_ratio"
+                ),
                 "result_hash_prefix": details.get("result_hash_prefix"),
             }
         return [by_cycle_index[index] for index in sorted(by_cycle_index.keys())]
@@ -649,6 +863,17 @@ class RuntimeDashboardService:
         except (TypeError, ValueError):
             return None
         return current_int - previous_int
+
+    @staticmethod
+    def _delta_float(
+        previous_value: Any, current_value: Any, *, digits: int = 6
+    ) -> float | None:
+        try:
+            previous_float = float(previous_value)
+            current_float = float(current_value)
+        except (TypeError, ValueError):
+            return None
+        return round(current_float - previous_float, digits)
 
     @staticmethod
     def _build_cycle_comparison_payload(
@@ -687,6 +912,60 @@ class RuntimeDashboardService:
                     "confirmed_exit_count": RuntimeDashboardService._delta(
                         previous.get("confirmed_exit_count"),
                         entry.get("confirmed_exit_count"),
+                    ),
+                    "total_execution_cost": RuntimeDashboardService._delta_float(
+                        previous.get("total_execution_cost"),
+                        entry.get("total_execution_cost"),
+                        digits=4,
+                    ),
+                    "net_pnl": RuntimeDashboardService._delta_float(
+                        previous.get("net_pnl"),
+                        entry.get("net_pnl"),
+                        digits=4,
+                    ),
+                    "attributed_trade_count": RuntimeDashboardService._delta(
+                        previous.get("attributed_trade_count"),
+                        entry.get("attributed_trade_count"),
+                    ),
+                    "expected_gross_edge_value": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("expected_gross_edge_value"),
+                            entry.get("expected_gross_edge_value"),
+                            digits=4,
+                        )
+                    ),
+                    "expected_net_edge_value": RuntimeDashboardService._delta_float(
+                        previous.get("expected_net_edge_value"),
+                        entry.get("expected_net_edge_value"),
+                        digits=4,
+                    ),
+                    "expected_net_edge_value_on_fills": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("expected_net_edge_value_on_fills"),
+                            entry.get("expected_net_edge_value_on_fills"),
+                            digits=4,
+                        )
+                    ),
+                    "expected_value_after_execution_cost": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("expected_value_after_execution_cost"),
+                            entry.get("expected_value_after_execution_cost"),
+                            digits=4,
+                        )
+                    ),
+                    "expected_edge_capture_ratio": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("expected_edge_capture_ratio"),
+                            entry.get("expected_edge_capture_ratio"),
+                            digits=6,
+                        )
+                    ),
+                    "execution_cost_to_expected_net_ratio": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("execution_cost_to_expected_net_ratio"),
+                            entry.get("execution_cost_to_expected_net_ratio"),
+                            digits=6,
+                        )
                     ),
                 }
             comparison_items.append(enriched)

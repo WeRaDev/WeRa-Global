@@ -14,6 +14,8 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `config/parameters/`: Phase-1 parameter governance catalog, profiles, and freeze baselines.
 - `config/calibration/`: LLM calibration status and reliability threshold policy.
 - `config/replay/`: replay scenario-pack definitions for deterministic stress transforms.
+- `config/certification/`: Milestone C staged soak/certification sequence and threshold profiles (`12h`, `24h`, `48h`).
+- `config/integration/`: Polymarket live-integration endpoints/authentication model/rate limits and staged real-asset rollout controls.
 - `docs/requirements/`: formal MVP requirements and strategy-variable definitions.
 - `scripts/validate_parameters.py`: governance validation entrypoint.
 - `scripts/run_replay_harness.py`: deterministic replay runner for strategy+risk contract validation.
@@ -22,9 +24,10 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_runtime_supervisor.py`: C1 runtime supervision runner (heartbeat/retries/snapshot journal).
 - `scripts/run_runtime_soak.py`: deterministic soak orchestration runner with drill injection and interval health snapshots.
 - `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
+- `scripts/run_milestone_c_sequence.py`: staged Milestone C runner that chains soak + certification phases (`12h -> 24h -> 48h`) with per-phase artifacts.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
-- `src/poly_robot/integration_adapters.py`: hardened ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
+- `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
 - `src/poly_robot/stress_certification.py`: certification evaluator that scores scenario-matrix and soak evidence against explicit gates.
 - `tests/`: governance + replay + strategy/risk + execution + loop integration unit tests.
@@ -61,6 +64,8 @@ Parameter governance structure is now in place for MVP planning and test-token o
 - Ingestion path now runs through a hardened adapter with schema validation, bounded retries, timeout budgeting, deduplication, and explicit degraded/failed outcomes.
 - Execution path now runs through a bounded execution gateway with idempotency-key caching, timeout enforcement, retry caps, and degraded reject behavior on persistent failures.
 - Test-token loop and runtime supervisor runners are wired to these adapters with configuration surfaced via CLI flags.
+- Runtime supervisor now supports live ingestion mode (`live_polymarket`) for per-cycle market refresh without replay fixture dependency.
+- Polymarket integration baseline config now captures official CLOB/Gamma/Data/WS endpoints, L1/L2 auth requirements, wallet signature types, and staged live-trading rollout controls.
 
 ## Milestone C3 exit and soak orchestration status
 - Exit decisions are now first-class runtime outputs with multi-trigger confirmation across target capture, abnormal volume spikes, and stale-thesis detection.
@@ -71,11 +76,13 @@ Parameter governance structure is now in place for MVP planning and test-token o
 ## Milestone C4 stress certification status
 - Stress campaign execution now supports a certification builder that evaluates scenario-matrix and soak artifacts against explicit pass/fail thresholds.
 - Certification outputs include criterion-level decisions, incident summaries for failed gates, and reproducibility-linked evidence hashes.
+- Milestone C campaign cadence is now staged through `12h`, `24h`, and `48h` soak/certification phases using `scripts/run_milestone_c_sequence.py` and `config/certification/milestone_c_sequence.v1.json`.
 
 ## Milestone C5 operator console hardening status
 - Dashboard now supports operator-facing action-history filtering by actor and action for rapid control-intent audit review.
 - Incident feed supports cursor-based navigation for historical incident triage during soak operations.
-- Run-to-run cycle comparison now exposes configurable windows with per-cycle deltas across key loop metrics (`events`, `risk_allowed_count`, `filled_trade_count`, `exit_candidate_count`, `confirmed_exit_count`).
+- Incident feed now raises profitability-drift warnings from cycle heartbeats when expected value after execution costs turns negative or execution cost exceeds expected net edge.
+- Run-to-run cycle comparison now exposes configurable windows with per-cycle deltas across loop and profitability attribution metrics (`events`, `risk_allowed_count`, `filled_trade_count`, `exit_candidate_count`, `confirmed_exit_count`, `attributed_trade_count`, `total_execution_cost`, `net_pnl`, `expected_gross_edge_value`, `expected_net_edge_value`, `expected_net_edge_value_on_fills`, `expected_value_after_execution_cost`, `expected_edge_capture_ratio`, `execution_cost_to_expected_net_ratio`).
 - Runtime GUI includes filter controls and incident navigation actions (`Apply Filters`, `Reset Filters`, `Newer Incidents`, `Older Incidents`) so the hardened backend observability paths are directly accessible from the console.
 
 ## CI quality gates
@@ -139,6 +146,26 @@ python3 scripts/run_runtime_supervisor.py \
   --control-audit-path runtime/operator_action_audit.jsonl \
   --cycle-output-dir runtime/cycles
 ```
+Run C1 runtime supervisor with live Polymarket ingestion (real-time cycle decisions):
+```bash
+python3 scripts/run_runtime_supervisor.py \
+  --ingestion-mode live_polymarket \
+  --live-source-url "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=50" \
+  --live-max-markets 10 \
+  --live-min-volume-24h 300 \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --cycles 5 \
+  --cycle-interval-seconds 10 \
+  --control-state-path runtime/operator_control_state.json \
+  --control-audit-path runtime/operator_action_audit.jsonl \
+  --cycle-output-dir runtime/live_cycles
+```
+In live mode, replay scenario controls are ignored and `--scenario-pack` is optional.
+Live-mode behavior notes:
+- Live ingestion runs at the start of each cycle, so decisions use fresh fetched market snapshots instead of replay fixtures.
+- If all fetched markets are filtered out (for example by `--live-min-volume-24h`), the cycle still executes with zero events and marks ingestion as degraded (`no_markets_after_filters`) rather than failing the run.
+- Cycle artifacts (`runtime/live_cycles/cycle_*.json`) include live-source provenance in `run_context.ingestion_source` and ingestion quality details in `run_context.ingestion_status`, `run_context.ingestion_reasons`, and `run_context.ingestion_metadata`.
 
 Run runtime web GUI:
 ```bash
@@ -169,14 +196,19 @@ python3 scripts/run_runtime_supervisor.py \
    - `current_equity`, `net_pnl`, and `day_start_equity`
    - `open_notional`, `open_positions`, and `total_exposure_fraction`
    - `total_fees_paid`, `total_slippage_cost`, `total_execution_cost`, and `fill_rate`
-4. Use **Operator Controls** to control Poly-Robot runtime:
+   - profitability attribution fields (`attributed_trade_count`, `expected_gross_edge_value`, `expected_net_edge_value`, `expected_net_edge_value_on_fills`, `expected_value_after_execution_cost`, `expected_edge_capture_ratio`, `execution_cost_to_expected_net_ratio`)
+4. Use **Incident Feed** to detect profitability drift conditions:
+   - negative `expected_value_after_execution_cost` warnings on cycle completion
+   - `execution_cost_to_expected_net_ratio > 1.0` warnings when execution costs outpace expected net edge
+5. Use **Operator Controls** to control Poly-Robot runtime:
    - `Pause`: blocks new cycle execution but keeps runtime alive
    - `Resume`: removes pause gate and continues processing
    - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
    - `Set Scenario`: changes scenario used by the next cycle
    - `Annotate Incident`: appends an audited operator note
-5. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
-6. If GUI is started with `--token-required-read-api`, dashboard GET endpoints (`/api/*`) also require `X-Operator-Token`.
+6. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
+7. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
+8. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:
@@ -260,4 +292,15 @@ python3 scripts/run_stress_certification.py \
   --soak-summary runtime/soak_summary.json \
   --matrix-output runtime/stress_matrix_report.json \
   --output runtime/stress_campaign_certification.json
+```
+
+Run staged Milestone C soak/certification sequence (`12h -> 24h -> 48h`):
+```bash
+python3 scripts/run_milestone_c_sequence.py \
+  --events tests/fixtures/replay_events.jsonl \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --scenario-pack config/replay/scenario_pack.v1.json \
+  --phase-config config/certification/milestone_c_sequence.v1.json \
+  --output-root runtime/milestone_c_sequence
 ```

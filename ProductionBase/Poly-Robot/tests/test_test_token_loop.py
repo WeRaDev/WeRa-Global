@@ -154,6 +154,107 @@ class TestTokenLoopTests(unittest.TestCase):
         self.assertEqual(run.final_portfolio.open_notional, 0.0)
         self.assertEqual(run.total_execution_cost, 0.0)
 
+    def test_profitability_attribution_metrics_are_serialized(self) -> None:
+        profile_payload = _load_json(PROFILE_PATH)
+        parameters = profile_payload["values"]
+
+        class AlwaysBuyStrategy:
+            def evaluate(
+                self, event: MarketEvent, portfolio: PortfolioState
+            ) -> StrategyDecision:
+                del event, portfolio
+                return StrategyDecision(
+                    action="BUY",
+                    win_probability=0.72,
+                    confidence=0.9,
+                    checks_passed=4,
+                    consensus_buy_votes=2,
+                    llm_effective_mode="advisory_only",
+                    llm_used_for_probability=False,
+                    reasons=("entry_candidate",),
+                    metadata={},
+                )
+
+        class AttributedRisk:
+            def evaluate(
+                self,
+                event: MarketEvent,
+                decision: StrategyDecision,
+                portfolio: PortfolioState,
+            ) -> RiskDecision:
+                del event, decision, portfolio
+                return RiskDecision(
+                    allowed=True,
+                    approved_notional=100.0,
+                    approved_fraction=0.1,
+                    kill_switch=False,
+                    reasons=("risk_allow",),
+                    metadata={"gross_edge_bps": 300.0, "net_edge_bps": 120.0},
+                )
+
+        class PartialFillExecution:
+            def execute(self, *, event, intent) -> ExecutionResult:
+                del event, intent
+                return ExecutionResult(
+                    status="FILLED",
+                    requested_notional=100.0,
+                    filled_notional=50.0,
+                    reference_price=0.45,
+                    fill_price=0.46,
+                    slippage_bps=20,
+                    fee_paid=0.1,
+                    slippage_cost=0.1,
+                    total_execution_cost=0.2,
+                    reasons=("test_fill",),
+                    metadata={},
+                )
+
+            def skip(self, *, event, risk_decision) -> ExecutionResult:
+                del event, risk_decision
+                raise AssertionError("skip should not be called in this test")
+
+        loop = TestTokenLoop(
+            strategy=AlwaysBuyStrategy(),
+            risk=AttributedRisk(),
+            execution=PartialFillExecution(),
+            parameters=parameters,
+        )
+        run = loop.run(
+            [
+                _build_custom_event(
+                    event_id="evt-attribution",
+                    timestamp="2026-01-01T00:00:00Z",
+                    midpoint=0.45,
+                    estimated_probability=0.72,
+                    volume_usd=1000.0,
+                )
+            ],
+            PortfolioState(
+                bankroll=1000.0,
+                day_start_equity=1000.0,
+                current_equity=1000.0,
+            ),
+        )
+        payload = serialize_test_token_loop_run(run)
+
+        self.assertEqual(run.attributed_trade_count, 1)
+        self.assertEqual(run.expected_gross_edge_value, 3.0)
+        self.assertEqual(run.expected_net_edge_value, 1.2)
+        self.assertEqual(run.expected_net_edge_value_on_fills, 0.6)
+        self.assertEqual(run.expected_value_after_execution_cost, 0.4)
+        self.assertEqual(run.average_expected_gross_edge_bps, 300.0)
+        self.assertEqual(run.average_expected_net_edge_bps, 120.0)
+        self.assertEqual(run.expected_edge_capture_ratio, 0.5)
+        self.assertEqual(run.execution_cost_to_expected_net_ratio, 0.333333)
+        self.assertEqual(payload["expected_gross_edge_value"], 3.0)
+        self.assertEqual(payload["expected_net_edge_value"], 1.2)
+        self.assertEqual(payload["expected_net_edge_value_on_fills"], 0.6)
+        self.assertEqual(payload["expected_value_after_execution_cost"], 0.4)
+        self.assertEqual(payload["average_expected_gross_edge_bps"], 300.0)
+        self.assertEqual(payload["average_expected_net_edge_bps"], 120.0)
+        self.assertEqual(payload["expected_edge_capture_ratio"], 0.5)
+        self.assertEqual(payload["execution_cost_to_expected_net_ratio"], 0.333333)
+
     def test_loop_records_replace_path_and_partial_fill(self) -> None:
         profile_payload = _load_json(PROFILE_PATH)
         parameters = profile_payload["values"]
@@ -296,6 +397,118 @@ class TestTokenLoopTests(unittest.TestCase):
         self.assertTrue(run.records[1].exit_decision.should_exit)
         self.assertEqual(payload["confirmed_exit_count"], 1)
         self.assertEqual(payload["exit_candidate_count"], 1)
+
+    def test_loop_carries_open_positions_between_runs(self) -> None:
+        profile_payload = _load_json(PROFILE_PATH)
+        parameters = profile_payload["values"]
+
+        class AlwaysBuyStrategy:
+            def evaluate(
+                self, event: MarketEvent, portfolio: PortfolioState
+            ) -> StrategyDecision:
+                del event, portfolio
+                return StrategyDecision(
+                    action="BUY",
+                    win_probability=0.75,
+                    confidence=0.9,
+                    checks_passed=4,
+                    consensus_buy_votes=2,
+                    llm_effective_mode="advisory_only",
+                    llm_used_for_probability=False,
+                    reasons=("entry_candidate",),
+                    metadata={},
+                )
+
+        class AlwaysAllowRisk:
+            def evaluate(
+                self,
+                event: MarketEvent,
+                decision: StrategyDecision,
+                portfolio: PortfolioState,
+            ) -> RiskDecision:
+                del event, decision, portfolio
+                return RiskDecision(
+                    allowed=True,
+                    approved_notional=100.0,
+                    approved_fraction=0.1,
+                    kill_switch=False,
+                    reasons=("test_allow",),
+                    metadata={},
+                )
+
+        class DeterministicExecution:
+            def execute(self, *, event, intent) -> ExecutionResult:
+                return ExecutionResult(
+                    status="FILLED",
+                    requested_notional=float(intent.requested_notional),
+                    filled_notional=float(intent.requested_notional),
+                    reference_price=float(event.midpoint),
+                    fill_price=float(event.midpoint),
+                    slippage_bps=0,
+                    fee_paid=0.0,
+                    slippage_cost=0.0,
+                    total_execution_cost=0.0,
+                    reasons=("test_fill",),
+                    metadata={},
+                )
+
+            def skip(self, *, event, risk_decision) -> ExecutionResult:
+                del risk_decision
+                return ExecutionResult(
+                    status="SKIPPED",
+                    requested_notional=0.0,
+                    filled_notional=0.0,
+                    reference_price=float(event.midpoint),
+                    fill_price=None,
+                    slippage_bps=0,
+                    reasons=("skipped",),
+                    metadata={},
+                )
+
+        loop = TestTokenLoop(
+            strategy=AlwaysBuyStrategy(),
+            risk=AlwaysAllowRisk(),
+            execution=DeterministicExecution(),
+            parameters=parameters,
+        )
+        entry_run = loop.run(
+            [
+                _build_custom_event(
+                    event_id="evt-entry",
+                    timestamp="2026-01-01T00:00:00Z",
+                    midpoint=0.45,
+                    estimated_probability=0.7,
+                    volume_usd=1000.0,
+                )
+            ],
+            PortfolioState(
+                bankroll=1000.0,
+                day_start_equity=1000.0,
+                current_equity=1000.0,
+            ),
+        )
+
+        self.assertEqual(entry_run.final_portfolio.open_positions, 1)
+        self.assertIn("mkt-1", entry_run.final_open_positions)
+
+        carry_run = loop.run(
+            [
+                _build_custom_event(
+                    event_id="evt-exit",
+                    timestamp="2026-01-01T03:00:00Z",
+                    midpoint=0.67,
+                    estimated_probability=0.72,
+                    volume_usd=3600.0,
+                )
+            ],
+            entry_run.final_portfolio,
+            initial_open_positions=entry_run.final_open_positions,
+        )
+
+        self.assertEqual(carry_run.confirmed_exit_count, 1)
+        self.assertEqual(carry_run.final_portfolio.open_positions, 0)
+        self.assertEqual(carry_run.final_portfolio.open_notional, 0.0)
+        self.assertEqual(carry_run.records[0].execution_result.status, "SKIPPED")
 
 
 if __name__ == "__main__":

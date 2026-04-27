@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import sys
@@ -89,7 +90,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Require X-Operator-Token for /api/* GET endpoints in addition to "
-            "POST control actions."
+            "POST control actions. This is automatically enabled when binding "
+            "to a non-loopback host."
         ),
     )
     parser.add_argument(
@@ -136,6 +138,8 @@ def _html_page() -> str:
       <li>Use Dashboard Views filters to focus on incidents, action history, and cycle comparisons.</li>
       <li>Review the Financial Dashboard for equity, PnL, exposure, and execution-cost metrics.</li>
       <li>Use Pause before maintenance, Resume to continue runtime, and Graceful Restart for controlled restarts.</li>
+      <li>Use Kill Switch ON to halt submissions immediately (and request cancel-all); use Kill Switch OFF after manual verification.</li>
+      <li>Use Cancel All Orders to request deterministic cancellation of all currently open orders.</li>
       <li>Set Scenario to steer the next cycle input profile and use incident annotations for auditability.</li>
       <li>If no operator token was configured at startup, control POST actions are disabled (read-only mode).</li>
       <li>When read-api token mode is enabled, include a valid token to load dashboard API data.</li>
@@ -149,6 +153,9 @@ def _html_page() -> str:
     <button onclick="sendControl('/api/control/pause')">Pause</button>
     <button onclick="sendControl('/api/control/resume')">Resume</button>
     <button onclick="sendControl('/api/control/restart')">Graceful Restart</button>
+    <button onclick="sendControl('/api/control/kill-switch/on')">Kill Switch ON</button>
+    <button onclick="sendControl('/api/control/kill-switch/off')">Kill Switch OFF</button>
+    <button onclick="sendControl('/api/control/cancel-all')">Cancel All Orders</button>
     <br />
     <input id="scenario" placeholder="scenario name" value="baseline" />
     <button onclick="sendControl('/api/control/scenario')">Set Scenario</button>
@@ -489,6 +496,18 @@ def _resolve_operator_token(
     return cli_token or None
 
 
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().lower().strip("[]")
+    if not normalized:
+        return False
+    if normalized in {"localhost", "ip6-localhost"}:
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
 def _coerce_non_negative_int(value: str | None, *, field_name: str) -> int | None:
     if value is None or value == "":
         return None
@@ -689,6 +708,18 @@ def _build_handler(
                     )
                 elif parsed.path == "/api/control/restart":
                     state = control_manager.request_restart(actor=actor, reason=reason)
+                elif parsed.path == "/api/control/kill-switch/on":
+                    state = control_manager.set_kill_switch(
+                        active=True, actor=actor, reason=reason
+                    )
+                elif parsed.path == "/api/control/kill-switch/off":
+                    state = control_manager.set_kill_switch(
+                        active=False, actor=actor, reason=reason
+                    )
+                elif parsed.path == "/api/control/cancel-all":
+                    state = control_manager.request_cancel_all(
+                        actor=actor, reason=reason
+                    )
                 elif parsed.path == "/api/control/scenario":
                     scenario_name = str(payload.get("scenario_name", "")).strip()
                     state = control_manager.set_scenario(
@@ -728,13 +759,16 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--recent-events-limit must be > 0")
     if args.recent_audit_limit <= 0:
         raise ValueError("--recent-audit-limit must be > 0")
+    host_is_loopback = _is_loopback_host(args.host)
     resolved_operator_token = _resolve_operator_token(
         operator_token=args.operator_token,
         operator_token_env=args.operator_token_env,
     )
-    if args.token_required_read_api and not resolved_operator_token:
+    read_api_token_required = args.token_required_read_api or not host_is_loopback
+    if read_api_token_required and not resolved_operator_token:
         raise ValueError(
-            "--token-required-read-api requires an operator token via "
+            "Read API token authentication is required when --token-required-read-api "
+            "is enabled or when binding to a non-loopback host; provide a token via "
             "--operator-token or --operator-token-env."
         )
 
@@ -753,16 +787,22 @@ def main(argv: list[str] | None = None) -> int:
         operator_token=resolved_operator_token,
         recent_events_limit=args.recent_events_limit,
         recent_audit_limit=args.recent_audit_limit,
-        read_api_token_required=args.token_required_read_api,
+        read_api_token_required=read_api_token_required,
     )
     server = ThreadingHTTPServer((args.host, args.port), handler_cls)
     control_mode = "token_required" if resolved_operator_token else "read_only"
-    api_read_mode = "token_required" if args.token_required_read_api else "open"
+    api_read_mode = "token_required" if read_api_token_required else "open"
+    api_read_policy = (
+        "explicit"
+        if args.token_required_read_api
+        else "auto_non_loopback" if read_api_token_required else "loopback_open"
+    )
     print(
         "Runtime GUI listening: "
         f"http://{args.host}:{args.port} "
         f"control_mode={control_mode} "
         f"api_read_mode={api_read_mode} "
+        f"api_read_policy={api_read_policy} "
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path} "
         f"control_state_path={args.control_state_path} "

@@ -20,6 +20,17 @@ def kelly_fraction(*, p_win: float, market_price: float) -> float:
     if b <= 0:
         return 0.0
     return (p * b - q) / b
+def estimate_expected_slippage_bps(
+    *, event: MarketEvent, notional: float, max_slippage_bps: int
+) -> int:
+    if notional <= 0 or max_slippage_bps <= 0:
+        return 0
+    available_depth = max(1.0, min(event.bids_depth_usd, event.asks_depth_usd))
+    depth_utilization = min(1.0, notional / available_depth)
+    estimated_bps = int(round(max_slippage_bps * depth_utilization))
+    if estimated_bps <= 0 and depth_utilization > 0:
+        return 1
+    return max(0, min(max_slippage_bps, estimated_bps))
 
 
 class RiskEngine(RiskModule):
@@ -138,6 +149,53 @@ class RiskEngine(RiskModule):
                 reasons=("no_remaining_risk_capacity",),
             )
 
+        gross_edge_fraction = max(0.0, decision.win_probability - event.midpoint)
+        max_slippage_bps = int(self.parameters["execution.max_slippage_bps"])
+        fee_rate_bps = max(0, int(self.parameters.get("ops.fee_rate_bps", 0)))
+        preliminary_notional = round(portfolio.bankroll * approved_fraction, 2)
+        expected_slippage_bps = estimate_expected_slippage_bps(
+            event=event,
+            notional=preliminary_notional,
+            max_slippage_bps=max_slippage_bps,
+        )
+        total_expected_cost_bps = fee_rate_bps + expected_slippage_bps
+        total_expected_cost_fraction = total_expected_cost_bps / 10_000
+        net_edge_fraction = gross_edge_fraction - total_expected_cost_fraction
+        if net_edge_fraction <= 0:
+            failure_reasons = list(reasons)
+            failure_reasons.append("non_positive_net_edge_after_costs")
+            return RiskDecision(
+                allowed=False,
+                approved_notional=0.0,
+                approved_fraction=0.0,
+                kill_switch=False,
+                reasons=tuple(dict.fromkeys(failure_reasons)),
+                metadata={
+                    "max_slippage_bps": max_slippage_bps,
+                    "expected_slippage_bps": expected_slippage_bps,
+                    "fee_rate_bps": fee_rate_bps,
+                    "gross_edge_bps": round(gross_edge_fraction * 10_000, 2),
+                    "net_edge_bps": round(net_edge_fraction * 10_000, 2),
+                },
+            )
+
+        if gross_edge_fraction > 0:
+            net_edge_scale = min(
+                1.0, max(0.0, net_edge_fraction / gross_edge_fraction)
+            )
+            if net_edge_scale < 1.0:
+                approved_fraction *= net_edge_scale
+                reasons.append("net_edge_size_scaled")
+
+        if approved_fraction <= 0:
+            return RiskDecision(
+                allowed=False,
+                approved_notional=0.0,
+                approved_fraction=0.0,
+                kill_switch=False,
+                reasons=("no_remaining_risk_capacity",),
+            )
+
         approved_notional = round(portfolio.bankroll * approved_fraction, 2)
         if approved_notional <= 0:
             return RiskDecision(
@@ -155,6 +213,10 @@ class RiskEngine(RiskModule):
             kill_switch=False,
             reasons=tuple(reasons),
             metadata={
-                "max_slippage_bps": int(self.parameters["execution.max_slippage_bps"])
+                "max_slippage_bps": max_slippage_bps,
+                "expected_slippage_bps": expected_slippage_bps,
+                "fee_rate_bps": fee_rate_bps,
+                "gross_edge_bps": round(gross_edge_fraction * 10_000, 2),
+                "net_edge_bps": round(net_edge_fraction * 10_000, 2),
             },
         )
