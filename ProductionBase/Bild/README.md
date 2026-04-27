@@ -3,13 +3,13 @@ Bild is an AI procurement agent project for Leroy Merlin PRO pilot operations: i
 
 ## Quick start
 ```bash
-cd /Users/mikhailananyin/Documents/WeRa\ Global/ProductionBase/Bild
+cd ProductionBase/Bild
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt || true
+python -m pip install -r requirements.txt
 ```
-If `requirements.txt` does not exist yet, create it as part of Sprint 1 when service modules are added.
+If dependency installation fails, fix the reported error before continuing.
 
 ## Project structure
 - `LeroyMerlin_Pilot_Research_Report_v1.0.md`: canonical pilot research baseline.
@@ -20,10 +20,11 @@ If `requirements.txt` does not exist yet, create it as part of Sprint 1 when ser
 - `WARP.md`: project execution and safety policy for contributors and agents.
 
 ## Core workflows
-- Build: TBD in Sprint 1 after module scaffold (`calculator/`, `agent/`, `api/`) is created.
-- Test: TBD in Sprint 1; minimum path should cover session capture, endpoint mapping, and basket creation smoke tests.
-- Lint/typecheck: TBD in Sprint 1 (recommended baseline: `ruff`, `mypy`, `pytest`).
-- Run: TBD in Sprint 2 after first Calculator MVP implementation.
+- Build: `python -m pip install -r requirements.txt`
+- Test: `python -m pytest -q`
+- Lint/typecheck: `ruff check . && ruff format --check . && mypy src session_test.py har_extract.py`
+- Run (Sprint 1 scaffold validation): `python session_test.py --dry-run`
+- Run (HAR endpoint extraction): `python har_extract.py --har-file /path/to/capture.har --output-markdown observed_endpoints.md`
 
 ## Constraints and known limits
 - Primary technical risk: DataDome + Cloudflare bot defenses may block standard headless automation.
@@ -31,6 +32,11 @@ If `requirements.txt` does not exist yet, create it as part of Sprint 1 when ser
 - Fallback approach: Camoufox when API-only calls are insufficient.
 - Legal requirement: signed purchasing-agent authorization and DPA before any client credential usage.
 - Data governance: EU-hosted Nextcloud workspace and encrypted credential/session storage only.
+
+## Evidence and claim status
+- Evidence register: `docs/evidence-status.md`
+- API discovery log: `API_ENDPOINTS.md`
+- Rule: non-trivial claims must be tagged as `verified`, `unverified`, or `hypothesis` with source notes.
 
 ## Contribution and ownership
 - Product owner: Fransis Team / Mike Ananyin.
