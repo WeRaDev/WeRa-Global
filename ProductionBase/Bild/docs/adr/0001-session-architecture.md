@@ -22,4 +22,3 @@ Adopt a session-bootstrap architecture:
 ## References
 - `LeroyMerlin_Pilot_Research_Report_v1.0.md`
 - `docs/evidence-status.md`
-

@@ -11,4 +11,3 @@ session*.json
 *.har
 captures/
 observed_endpoints*.md
-

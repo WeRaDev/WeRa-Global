@@ -32,4 +32,3 @@ This file tracks endpoint discovery status during Sprint 1.
 - Capture headed authenticated session HAR.
 - Record request path, method, headers constraints (without secret values), and response shape.
 - Upgrade status labels only when reproducible evidence is captured.
-

@@ -30,4 +30,3 @@ This file operationalizes short-cycle readiness rules for Sprint 0–2.
 - No production-like automation without signed legal package.
 - No credential/session file storage in repository.
 - No claim escalation from `hypothesis` to `verified` without reproducible artifacts.
-

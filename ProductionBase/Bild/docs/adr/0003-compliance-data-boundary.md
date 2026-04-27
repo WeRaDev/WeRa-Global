@@ -21,4 +21,3 @@ Adopt compliance-first boundary rules:
 ## References
 - `LeroyMerlin_Pilot_Research_Report_v1.0.md`
 - `tasks/execution-readiness.md`
-

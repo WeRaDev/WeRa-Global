@@ -27,4 +27,3 @@ This register enforces KB claim governance in project execution.
 ## Update protocol
 - Update this file in every PR that changes assumptions, architecture, or legal/operational claims.
 - Each status change must reference concrete evidence artifacts (file path, command output, or external legal memo ID).
-
