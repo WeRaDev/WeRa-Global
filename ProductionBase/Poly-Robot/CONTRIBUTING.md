@@ -34,6 +34,8 @@ A task is done only when:
   - `PYTHONPATH=src python3 -m mypy src/poly_robot`
 - UX regression checks:
   - `PYTHONPATH=src python3 -m unittest tests.test_runtime_web_gui tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live`
+- D3 rollout rehearsal protocol:
+  - `python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json`
 - Docker deployment sanity:
   - `docker compose config --quiet`
   - `docker compose build runtime-gui`
@@ -54,3 +56,4 @@ If a command is not yet available, add it in the same pull request that introduc
   - `export POLYMARKET_API_KEY_SOURCE="vault"`
   - `export POLYMARKET_API_KEY_LAST_ROTATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"`
 - Treat startup failures containing `Live credential preflight failed` as blocking incidents and resolve by rotating/reloading credentials plus metadata refresh before retry.
+- Treat non-empty `rollback_recommendations` in `runtime/rollout_rehearsal_report.json` as rollout-blocking incidents; resolve trigger conditions and rerun D3 rehearsal before advancing rollout stage.

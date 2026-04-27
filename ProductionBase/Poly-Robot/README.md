@@ -304,6 +304,18 @@ python3 scripts/run_runtime_soak.py \
   --summary-path runtime/soak_summary.json
 ```
 
+Run D3 rollout rehearsal protocol (kill-switch, cancel-all, restart drills + rollback recommendations):
+```bash
+python3 scripts/run_rollout_rehearsal.py \
+  --protocol-config config/integration/live_rollout_rehearsal.v1.json \
+  --work-dir runtime/rollout_rehearsal \
+  --output-path runtime/rollout_rehearsal_report.json
+```
+D3 rehearsal artifact usage:
+- `runtime/rollout_rehearsal_report.json` includes per-scenario checks, control-heartbeat evidence, and overall pass/fail summary.
+- `rollback_recommendations` is derived from `config/integration/live_rollout_rehearsal.v1.json` `rollback_decision_matrix`; any populated entry is rollout-blocking until resolved.
+- Scenario runtime evidence is stored per drill under `runtime/rollout_rehearsal/<scenario_id>/` (`runtime_state.json`, `runtime_journal.jsonl`, `operator_control_state.json`, `operator_action_audit.jsonl`, `cycles/`).
+
 Run stress campaign certification:
 ```bash
 python3 scripts/run_stress_certification.py \
