@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
 jobs:
   baseline-check:
     runs-on: ubuntu-latest
@@ -17,7 +20,7 @@ jobs:
       - name: Install static tooling
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install mypy
+          python3 -m pip install mypy ruff bandit
       - name: Baseline repository structure check
         run: |
           test -f README.md
@@ -25,6 +28,9 @@ jobs:
           test -f CONTRIBUTING.md
           test -d tasks
           test -d skills
+      - name: Lint check
+        run: |
+          ruff check src/poly_robot tests scripts
       - name: Parameter governance validation
         run: |
           python3 scripts/validate_parameters.py \
@@ -35,6 +41,21 @@ jobs:
       - name: Governance unit tests
         run: |
           PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py"
+      - name: Security regression checks
+        run: |
+          PYTHONPATH=src python3 -m unittest \
+            tests.test_integration_adapters \
+            tests.test_llm_policy \
+            tests.test_parameter_governance
+      - name: Security static analysis
+        run: |
+          bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105
+      - name: UX regression checks
+        run: |
+          PYTHONPATH=src python3 -m unittest \
+            tests.test_runtime_web_gui \
+            tests.test_runtime_supervisor_controls \
+            tests.test_runtime_supervisor_live
       - name: Static typing check
         run: |
           PYTHONPATH=src python3 -m mypy src/poly_robot

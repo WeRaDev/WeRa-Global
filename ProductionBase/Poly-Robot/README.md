@@ -88,8 +88,12 @@ Parameter governance structure is now in place for MVP planning and test-token o
 ## CI quality gates
 The default CI workflow now enforces:
 - Baseline repository structure check.
+- Lint check for core modules, scripts, and tests (`ruff`).
 - Parameter governance validation.
 - Governance unit tests (`python3 -m unittest` discovery under `tests/`).
+- Security regression checks for integration boundaries and policy enforcement.
+- Security static analysis (`bandit`) for source modules and runtime scripts.
+- UX regression checks for runtime web GUI and operator controls.
 - Static type check for `src/poly_robot` (`mypy`).
 - Docker deployment sanity gates (`docker compose config --quiet` + `docker compose build runtime-gui`).
 

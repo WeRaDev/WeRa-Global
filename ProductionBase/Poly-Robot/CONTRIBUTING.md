@@ -20,12 +20,20 @@ A task is done only when:
 - Documentation and operational notes are updated
 
 ## Baseline checks
+- Lint:
+  - `ruff check src/poly_robot tests scripts`
 - Governance validation:
   - `python3 scripts/validate_parameters.py --catalog config/parameters/catalog.v1.json --profile config/parameters/profiles/mvp_test_token.v1.json --baseline config/parameters/baselines/mvp_test_token.freeze.v1.json --calibration-policy config/calibration/llm_reliability.v1.json`
 - Unit test suite:
   - `PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py"`
+- Security regression checks:
+  - `PYTHONPATH=src python3 -m unittest tests.test_integration_adapters tests.test_llm_policy tests.test_parameter_governance`
+- Security static analysis:
+  - `bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105`
 - Type check:
   - `PYTHONPATH=src python3 -m mypy src/poly_robot`
+- UX regression checks:
+  - `PYTHONPATH=src python3 -m unittest tests.test_runtime_web_gui tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live`
 - Docker deployment sanity:
   - `docker compose config --quiet`
   - `docker compose build runtime-gui`

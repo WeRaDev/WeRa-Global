@@ -1,0 +1,79 @@
+{
+  "schema_version": "poly_robot_next_phase_queue.v1",
+  "phase": {
+    "name": "Phase D kickoff",
+    "prepared_at_utc": "2026-04-27T12:33:55Z",
+    "goal": "Advance from milestone-C hardening into production-readiness controls, validation depth, and operational rollout discipline."
+  },
+  "entry_criteria": [
+    "Milestone-C live-trading gap closure branch is pushed and has an open PR.",
+    "Full baseline quality checks pass on current implementation."
+  ],
+  "priority_work_items": [
+    {
+      "id": "D1",
+      "title": "Finalize and merge QA policy updates",
+      "problem_statement": "Carry-over QA/CI hardening edits are present locally and need formal review/merge flow.",
+      "scope": [
+        "Review and stage CI, README, CONTRIBUTING, WARP, and skills QA updates.",
+        "Run CI-equivalent local checks for lint, security, UX, and typing.",
+        "Open dedicated PR if not bundled with current stream."
+      ],
+      "acceptance_criteria": [
+        "CI pipeline definition reflects agreed QA gates.",
+        "Contributor and project docs are aligned with executable commands.",
+        "QA skill artifact is versioned and discoverable in skills index."
+      ],
+      "validation_commands": [
+        "ruff check src/poly_robot tests scripts",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_*.py\"",
+        "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters tests.test_llm_policy tests.test_parameter_governance",
+        "PYTHONPATH=src python3 -m unittest tests.test_runtime_web_gui tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live",
+        "bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105",
+        "PYTHONPATH=src python3 -m mypy src/poly_robot"
+      ]
+    },
+    {
+      "id": "D2",
+      "title": "Operationalize live credential lifecycle",
+      "problem_statement": "Secret provenance checks exist in code but operational credential sourcing/rotation workflow needs enforced runbook integration.",
+      "scope": [
+        "Define non-interactive credential sourcing procedure for runtime and supervisor runs.",
+        "Add explicit preflight checks for required secret source and rotation metadata.",
+        "Document rotation SLO and alerting hook strategy."
+      ],
+      "acceptance_criteria": [
+        "Runtime startup fails fast on credential provenance or stale rotation state.",
+        "Operator runbook includes secure sourcing and rotation verification steps.",
+        "Regression tests cover stale/missing provenance edge cases."
+      ],
+      "validation_commands": [
+        "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters"
+      ]
+    },
+    {
+      "id": "D3",
+      "title": "Expand live-mode rehearsal and rollback protocol",
+      "problem_statement": "Live ingestion and control actions are wired, but phase-to-phase rollout and rollback discipline require explicit rehearsal artifacts.",
+      "scope": [
+        "Add phased rehearsal scenarios for kill-switch and cancel-all recovery drills.",
+        "Add pre-check/post-check command bundle for rollout windows.",
+        "Define rollback decision matrix for operator actions and reconciliation anomalies."
+      ],
+      "acceptance_criteria": [
+        "Rehearsal outputs include deterministic evidence for control actions.",
+        "Rollback trigger conditions are explicit and testable.",
+        "Runbook and scripts remain reproducible from clean environment."
+      ],
+      "validation_commands": [
+        "python3 scripts/run_runtime_supervisor.py --help",
+        "python3 scripts/run_runtime_gui.py --help",
+        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls tests.test_runtime_web_gui"
+      ]
+    }
+  ],
+  "handoff_notes": [
+    "Preserve current carry-over edits while starting next phase; do not reset them automatically.",
+    "Use short-lived feature branches under feat/poly-robot-* naming for each D-phase workstream."
+  ]
+}
