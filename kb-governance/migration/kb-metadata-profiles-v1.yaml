@@ -1,0 +1,47 @@
+version: 1.0
+status: draft-phase-a
+owner: migration steward
+scope: REALIGN-PHASE-A
+profiles:
+  domain_operational:
+    required_signals:
+      - metadata.primary_domain
+      - metadata.secondary_domains
+      - metadata.temporal_scope
+      - metadata.evidence_status
+      - metadata.upstream_dependencies
+      - metadata.downstream_dependencies
+      - metadata.validation_hooks
+      - provenance.actor
+      - provenance.source
+      - provenance.confidence
+      - provenance.review_status
+  governance_operational:
+    required_signals:
+      - metadata.primary_domain
+      - metadata.temporal_scope
+      - metadata.evidence_status
+      - metadata.governance_owner
+      - metadata.validation_hooks
+      - provenance.actor
+      - provenance.source
+      - provenance.review_status
+      - provenance.consolidation_date
+  governance_event:
+    required_signals:
+      - governance_event.date
+      - governance_event.workflow
+      - governance_event.documents
+      - governance_event.decisions
+      - governance_event.open_actions
+      - governance_event.owner
+      - governance_event.status
+      - temporal_scope
+  compatibility_stub:
+    required_signals:
+      - canonical_reference.path
+      - canonical_reference.status
+      - canonical_reference.last_verified
+      - deprecation.policy
+      - deprecation.cutover_target
+      - deprecation.owner

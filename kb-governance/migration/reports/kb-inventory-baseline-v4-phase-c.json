@@ -1,0 +1,183 @@
+{
+  "canonical_domain_doc_count": 36,
+  "canonical_domain_docs": [
+    "KnowledgeBase/kb-customers/docs/gtm/07-customers-and-gtm.md",
+    "KnowledgeBase/kb-customers/docs/standards/22-anonymized-case-schema-lifecycle-v1.md",
+    "KnowledgeBase/kb-governance/docs/architecture/19-domain-taxonomy-map-v1.md",
+    "KnowledgeBase/kb-governance/docs/architecture/20-file-domain-ownership-map-v1.md",
+    "KnowledgeBase/kb-governance/docs/architecture/25-cross-domain-integration-matrix-v1.md",
+    "KnowledgeBase/kb-governance/docs/audit/14-kb-audit-v1.1.md",
+    "KnowledgeBase/kb-governance/docs/contracts/nextcloud-human-operations-integration-contract-v1.md",
+    "KnowledgeBase/kb-governance/docs/contracts/trl4-trl5-agent-readiness-contract-kb-mempalace-openfang-v1.md",
+    "KnowledgeBase/kb-governance/docs/events/2026-04-17-realign-11-canonical-pilot-chain-review.md",
+    "KnowledgeBase/kb-governance/docs/events/2026-04-18-follow-01-runner-ci-phase-advance-review.md",
+    "KnowledgeBase/kb-governance/docs/events/2026-04-19-follow19-01-container-checkout-pilot-review.md",
+    "KnowledgeBase/kb-governance/docs/events/2026-04-24-q31-emergency-closure-kickoff.md",
+    "KnowledgeBase/kb-governance/docs/legal/06-legal-structure.md",
+    "KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md",
+    "KnowledgeBase/kb-governance/docs/references/11-academic-references.md",
+    "KnowledgeBase/kb-governance/docs/reviews/18-mempalace-critical-review-action-plan.md",
+    "KnowledgeBase/kb-governance/docs/reviews/kb-mempalace-upgrade.md",
+    "KnowledgeBase/kb-governance/docs/standards/00-glossary.md",
+    "KnowledgeBase/kb-governance/docs/standards/21-controlled-vocabulary-entity-standards-v1.md",
+    "KnowledgeBase/kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md",
+    "KnowledgeBase/kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md",
+    "KnowledgeBase/kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md",
+    "KnowledgeBase/kb-governance/docs/tokenomics/05-tokenomics-and-governance.md",
+    "KnowledgeBase/kb-governance/docs/validation/26-validation-protocol-v1.md",
+    "KnowledgeBase/kb-governance/docs/workflows/24-governance-workflows-v1.md",
+    "KnowledgeBase/kb-key-activities/docs/execution/17-execution-readiness-and-next-30-days.md",
+    "KnowledgeBase/kb-key-activities/docs/platform/16-filantropiasolar-platform.md",
+    "KnowledgeBase/kb-key-partners/docs/partnerships/08-partnerships.md",
+    "KnowledgeBase/kb-key-resources/docs/architecture/04-system-architecture.md",
+    "KnowledgeBase/kb-key-resources/docs/suppliers/15-sunified-quantum-resistance.md",
+    "KnowledgeBase/kb-metrics/docs/financial/13-financial-model.md",
+    "KnowledgeBase/kb-problem/docs/market/10-market-context.md",
+    "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md",
+    "KnowledgeBase/kb-solution/docs/strategy/09-strategy-and-investment.md",
+    "KnowledgeBase/kb-value-proposition/docs/company/01-company-overview.md",
+    "KnowledgeBase/kb-value-proposition/docs/products/02-products.md"
+  ],
+  "domain_coverage": {
+    "kb-channels": {
+      "docs": [],
+      "docs_count": 0
+    },
+    "kb-cost-structure": {
+      "docs": [],
+      "docs_count": 0
+    },
+    "kb-customers": {
+      "docs": [
+        "KnowledgeBase/kb-customers/docs/gtm/07-customers-and-gtm.md",
+        "KnowledgeBase/kb-customers/docs/standards/22-anonymized-case-schema-lifecycle-v1.md"
+      ],
+      "docs_count": 2
+    },
+    "kb-governance": {
+      "docs": [
+        "KnowledgeBase/kb-governance/docs/architecture/19-domain-taxonomy-map-v1.md",
+        "KnowledgeBase/kb-governance/docs/architecture/20-file-domain-ownership-map-v1.md",
+        "KnowledgeBase/kb-governance/docs/architecture/25-cross-domain-integration-matrix-v1.md",
+        "KnowledgeBase/kb-governance/docs/audit/14-kb-audit-v1.1.md",
+        "KnowledgeBase/kb-governance/docs/contracts/nextcloud-human-operations-integration-contract-v1.md",
+        "KnowledgeBase/kb-governance/docs/contracts/trl4-trl5-agent-readiness-contract-kb-mempalace-openfang-v1.md",
+        "KnowledgeBase/kb-governance/docs/events/2026-04-17-realign-11-canonical-pilot-chain-review.md",
+        "KnowledgeBase/kb-governance/docs/events/2026-04-18-follow-01-runner-ci-phase-advance-review.md",
+        "KnowledgeBase/kb-governance/docs/events/2026-04-19-follow19-01-container-checkout-pilot-review.md",
+        "KnowledgeBase/kb-governance/docs/events/2026-04-24-q31-emergency-closure-kickoff.md",
+        "KnowledgeBase/kb-governance/docs/legal/06-legal-structure.md",
+        "KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md",
+        "KnowledgeBase/kb-governance/docs/references/11-academic-references.md",
+        "KnowledgeBase/kb-governance/docs/reviews/18-mempalace-critical-review-action-plan.md",
+        "KnowledgeBase/kb-governance/docs/reviews/kb-mempalace-upgrade.md",
+        "KnowledgeBase/kb-governance/docs/standards/00-glossary.md",
+        "KnowledgeBase/kb-governance/docs/standards/21-controlled-vocabulary-entity-standards-v1.md",
+        "KnowledgeBase/kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md",
+        "KnowledgeBase/kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md",
+        "KnowledgeBase/kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md",
+        "KnowledgeBase/kb-governance/docs/tokenomics/05-tokenomics-and-governance.md",
+        "KnowledgeBase/kb-governance/docs/validation/26-validation-protocol-v1.md",
+        "KnowledgeBase/kb-governance/docs/workflows/24-governance-workflows-v1.md"
+      ],
+      "docs_count": 23
+    },
+    "kb-key-activities": {
+      "docs": [
+        "KnowledgeBase/kb-key-activities/docs/execution/17-execution-readiness-and-next-30-days.md",
+        "KnowledgeBase/kb-key-activities/docs/platform/16-filantropiasolar-platform.md"
+      ],
+      "docs_count": 2
+    },
+    "kb-key-partners": {
+      "docs": [
+        "KnowledgeBase/kb-key-partners/docs/partnerships/08-partnerships.md"
+      ],
+      "docs_count": 1
+    },
+    "kb-key-resources": {
+      "docs": [
+        "KnowledgeBase/kb-key-resources/docs/architecture/04-system-architecture.md",
+        "KnowledgeBase/kb-key-resources/docs/suppliers/15-sunified-quantum-resistance.md"
+      ],
+      "docs_count": 2
+    },
+    "kb-metrics": {
+      "docs": [
+        "KnowledgeBase/kb-metrics/docs/financial/13-financial-model.md"
+      ],
+      "docs_count": 1
+    },
+    "kb-problem": {
+      "docs": [
+        "KnowledgeBase/kb-problem/docs/market/10-market-context.md"
+      ],
+      "docs_count": 1
+    },
+    "kb-revenue-streams": {
+      "docs": [
+        "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md"
+      ],
+      "docs_count": 1
+    },
+    "kb-solution": {
+      "docs": [
+        "KnowledgeBase/kb-solution/docs/strategy/09-strategy-and-investment.md"
+      ],
+      "docs_count": 1
+    },
+    "kb-unfair-advantage": {
+      "docs": [],
+      "docs_count": 0
+    },
+    "kb-value-proposition": {
+      "docs": [
+        "KnowledgeBase/kb-value-proposition/docs/company/01-company-overview.md",
+        "KnowledgeBase/kb-value-proposition/docs/products/02-products.md"
+      ],
+      "docs_count": 2
+    }
+  },
+  "generator": "kb_inventory_baseline.py",
+  "kb_root": "KnowledgeBase",
+  "legacy_top_level_non_numbered_count": 3,
+  "legacy_top_level_non_numbered_docs": [
+    "KB-memPalace-upgrade.md",
+    "README.md",
+    "kb-domain-index-v1.md"
+  ],
+  "legacy_top_level_numbered_count": 22,
+  "legacy_top_level_numbered_docs": [
+    "00-Glossary.md",
+    "01-Company-Overview.md",
+    "02-Products.md",
+    "03-Business-Model.md",
+    "04-System-Architecture.md",
+    "05-Tokenomics-and-Governance.md",
+    "06-Legal-Structure.md",
+    "07-Customers-and-GTM.md",
+    "08-Partnerships.md",
+    "09-Strategy-and-Investment.md",
+    "10-Market-Context.md",
+    "11-Academic-References.md",
+    "12-Open-Questions.md",
+    "13-Financial-Model.md",
+    "14-KB-Audit-v1.1.md",
+    "15-Sunified-Quantum-Resistance.md",
+    "16-FilantropiaSolar-Platform.md",
+    "17-Execution-Readiness-and-Next-30-Days.md",
+    "18-KB-MemPalace-Critical-Review-and-Action-Plan.md",
+    "31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md",
+    "32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md",
+    "33-KB-AI-Native-Bridge-v3.2-2026-04-24.md"
+  ],
+  "readme_missing_top_level_targets": [],
+  "repo_root": "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase",
+  "template_doc_count": 4,
+  "template_docs": [
+    "KnowledgeBase/templates/KB-Domain-Document-Template-v1.md",
+    "KnowledgeBase/templates/KB-Formal-Proof-Contract-v1.md",
+    "KnowledgeBase/templates/KB-Governance-Event-Template-v1.md",
+    "KnowledgeBase/templates/LOI-SolarSeed-Template.md"
+  ]
+}

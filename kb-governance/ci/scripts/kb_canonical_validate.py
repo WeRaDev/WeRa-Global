@@ -5,6 +5,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from kb_migrate_legacy_docs import parse_manifest_entries
 
 VALID_TEMPORAL_SCOPES = {"current", "past", "future", "mixed"}
 VALID_EVIDENCE_STATUS = {"verified", "unverified", "hypothesis"}
@@ -15,6 +16,34 @@ LEGACY_EVIDENCE_STATUS = {
     "mixed (signed + relationship-based leads)",
     "mixed (model-backed assumptions + pending partner confirmations)",
 }
+FROZEN_LEGACY_TOP_LEVEL_NUMBERED_DOCS = {
+    "00-Glossary.md",
+    "01-Company-Overview.md",
+    "02-Products.md",
+    "03-Business-Model.md",
+    "04-System-Architecture.md",
+    "05-Tokenomics-and-Governance.md",
+    "06-Legal-Structure.md",
+    "07-Customers-and-GTM.md",
+    "08-Partnerships.md",
+    "09-Strategy-and-Investment.md",
+    "10-Market-Context.md",
+    "11-Academic-References.md",
+    "12-Open-Questions.md",
+    "13-Financial-Model.md",
+    "14-KB-Audit-v1.1.md",
+    "15-Sunified-Quantum-Resistance.md",
+    "16-FilantropiaSolar-Platform.md",
+    "17-Execution-Readiness-and-Next-30-Days.md",
+    "18-KB-MemPalace-Critical-Review-and-Action-Plan.md",
+    "31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md",
+    "32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md",
+    "33-KB-AI-Native-Bridge-v3.2-2026-04-24.md",
+}
+NUMBERED_DOC_FILENAME = re.compile(r"^\d{2}-.+\.md$")
+CANONICAL_REFERENCE_PATH_RE = re.compile(
+    r"canonical_reference:\s*\n(?:\s+[^\n]*\n)*?\s*path:\s*([^\n]+)"
+)
 
 
 def repo_root() -> Path:
@@ -34,6 +63,60 @@ def normalize_metadata_enum(raw_value: str) -> str:
     value = value.rstrip(",.;")
     value = value.strip("`'\"")
     return value
+
+def load_manifest_legacy_to_canonical_map(root: Path) -> dict[str, str]:
+    manifest_path = root / "kb-governance" / "migration" / "kb-legacy-map-v1.yaml"
+    if not manifest_path.exists():
+        return {}
+
+    mapping: dict[str, str] = {}
+    for entry in parse_manifest_entries(manifest_path):
+        mapping[entry.legacy_path] = entry.canonical_path
+    return mapping
+
+
+def parse_stub_canonical_reference(text: str) -> str | None:
+    match = CANONICAL_REFERENCE_PATH_RE.search(text)
+    if match is None:
+        return None
+    return match.group(1).strip()
+
+
+def check_legacy_stub_contract(
+    root: Path,
+    legacy_path: Path,
+    expected_canonical_path: str,
+    errors: list[str],
+) -> None:
+    rel = legacy_path.relative_to(root).as_posix()
+    if not legacy_path.exists():
+        errors.append(f"[legacy-cutover] expected legacy compatibility file missing: {rel}")
+        return
+
+    text = read_text(legacy_path)
+    if "canonical_reference:" not in text or "deprecation:" not in text:
+        errors.append(
+            f"[legacy-cutover] legacy file must be a compatibility stub after Phase C: {rel}"
+        )
+        return
+
+    actual_reference = parse_stub_canonical_reference(text)
+    if actual_reference is None:
+        errors.append(
+            f"[legacy-cutover] compatibility stub missing canonical_reference.path in {rel}"
+        )
+    elif actual_reference != expected_canonical_path:
+        errors.append(
+            "[legacy-cutover] compatibility stub canonical_reference.path mismatch in "
+            f"{rel}: expected {expected_canonical_path}, found {actual_reference}"
+        )
+
+    canonical_target = root / expected_canonical_path
+    if not canonical_target.exists():
+        errors.append(
+            "[legacy-cutover] compatibility stub points to missing canonical path "
+            f"from {rel}: {expected_canonical_path}"
+        )
 
 
 def check_no_top_level_domain_dirs(root: Path, errors: list[str]) -> None:
@@ -57,6 +140,54 @@ def check_no_top_level_domain_dirs(root: Path, errors: list[str]) -> None:
             errors.append(
                 f"[canonical-path] top-level domain directory must not exist outside KnowledgeBase/: {name}"
             )
+
+def check_legacy_top_level_numbered_doc_freeze(root: Path, errors: list[str]) -> None:
+    kb_root = root / "KnowledgeBase"
+    if not kb_root.exists():
+        return
+    manifest_map = load_manifest_legacy_to_canonical_map(root)
+    manifest_numbered_names = {
+        Path(legacy_path).name
+        for legacy_path in manifest_map
+        if legacy_path.startswith("KnowledgeBase/")
+        and NUMBERED_DOC_FILENAME.fullmatch(Path(legacy_path).name)
+    }
+    allowed_numbered_names = (
+        manifest_numbered_names if manifest_numbered_names else FROZEN_LEGACY_TOP_LEVEL_NUMBERED_DOCS
+    )
+
+    for path in sorted(kb_root.glob("*.md")):
+        name = path.name
+        if not NUMBERED_DOC_FILENAME.fullmatch(name):
+            continue
+        if name not in allowed_numbered_names:
+            errors.append(
+                "[legacy-freeze] top-level numbered KB source files are frozen in Phase A; "
+                f"migrate this document into canonical domain paths instead: KnowledgeBase/{name}"
+            )
+            continue
+
+        if manifest_map:
+            legacy_rel = f"KnowledgeBase/{name}"
+            expected_canonical_path = manifest_map.get(legacy_rel)
+            if expected_canonical_path is None:
+                errors.append(
+                    "[legacy-cutover] top-level numbered KB file is not mapped in "
+                    f"kb-governance/migration/kb-legacy-map-v1.yaml: {legacy_rel}"
+                )
+                continue
+            check_legacy_stub_contract(root, path, expected_canonical_path, errors)
+
+    if manifest_map:
+        for legacy_rel, canonical_rel in sorted(manifest_map.items()):
+            legacy_path = root / legacy_rel
+            if legacy_path.parent != kb_root:
+                continue
+            if legacy_path.name == "README.md":
+                continue
+            if NUMBERED_DOC_FILENAME.fullmatch(legacy_path.name):
+                continue
+            check_legacy_stub_contract(root, legacy_path, canonical_rel, errors)
 
 
 def check_markdown_files(root: Path, errors: list[str]) -> None:
@@ -125,6 +256,7 @@ def check_markdown_files(root: Path, errors: list[str]) -> None:
 def collect_errors(root: Path) -> list[str]:
     errors: list[str] = []
     check_no_top_level_domain_dirs(root, errors)
+    check_legacy_top_level_numbered_doc_freeze(root, errors)
     check_markdown_files(root, errors)
     return errors
 

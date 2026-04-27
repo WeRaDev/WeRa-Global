@@ -1,0 +1,218 @@
+version: 1.0
+status: draft-phase-a
+owner: migration steward
+scope: REALIGN-PHASE-A
+canonical_root: KnowledgeBase
+generated_on: 2026-04-27
+manifest_policy:
+  freeze_policy: no-new-top-level-numbered-kb-docs
+  canonical_source_tree: KnowledgeBase/kb-*/docs
+  compatibility_mode: mirror-stub-allowed-until-cutover
+entries:
+  - legacy_path: KnowledgeBase/00-Glossary.md
+    canonical_path: KnowledgeBase/kb-governance/docs/standards/00-glossary.md
+    primary_domain: kb-governance
+    doc_class: standards
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: kb-steward
+    temporal_scope: mixed
+    status: canonicalized
+  - legacy_path: KnowledgeBase/01-Company-Overview.md
+    canonical_path: KnowledgeBase/kb-value-proposition/docs/company/01-company-overview.md
+    primary_domain: kb-value-proposition
+    doc_class: company
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: value-proposition-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/02-Products.md
+    canonical_path: KnowledgeBase/kb-value-proposition/docs/products/02-products.md
+    primary_domain: kb-value-proposition
+    doc_class: products
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: value-proposition-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/03-Business-Model.md
+    canonical_path: KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md
+    primary_domain: kb-revenue-streams
+    doc_class: model
+    migration_mode: mirror_stub
+    required_metadata_profile: domain_operational
+    owner_role: revenue-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/04-System-Architecture.md
+    canonical_path: KnowledgeBase/kb-key-resources/docs/architecture/04-system-architecture.md
+    primary_domain: kb-key-resources
+    doc_class: architecture
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: key-resources-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/05-Tokenomics-and-Governance.md
+    canonical_path: KnowledgeBase/kb-governance/docs/tokenomics/05-tokenomics-and-governance.md
+    primary_domain: kb-governance
+    doc_class: tokenomics
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: mixed
+    status: canonicalized
+  - legacy_path: KnowledgeBase/06-Legal-Structure.md
+    canonical_path: KnowledgeBase/kb-governance/docs/legal/06-legal-structure.md
+    primary_domain: kb-governance
+    doc_class: legal
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: past
+    status: canonicalized
+  - legacy_path: KnowledgeBase/07-Customers-and-GTM.md
+    canonical_path: KnowledgeBase/kb-customers/docs/gtm/07-customers-and-gtm.md
+    primary_domain: kb-customers
+    doc_class: gtm
+    migration_mode: mirror_stub
+    required_metadata_profile: domain_operational
+    owner_role: customer-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/08-Partnerships.md
+    canonical_path: KnowledgeBase/kb-key-partners/docs/partnerships/08-partnerships.md
+    primary_domain: kb-key-partners
+    doc_class: partnerships
+    migration_mode: mirror_stub
+    required_metadata_profile: domain_operational
+    owner_role: partner-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/09-Strategy-and-Investment.md
+    canonical_path: KnowledgeBase/kb-solution/docs/strategy/09-strategy-and-investment.md
+    primary_domain: kb-solution
+    doc_class: strategy
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: solution-steward
+    temporal_scope: future
+    status: canonicalized
+  - legacy_path: KnowledgeBase/10-Market-Context.md
+    canonical_path: KnowledgeBase/kb-problem/docs/market/10-market-context.md
+    primary_domain: kb-problem
+    doc_class: market
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: problem-steward
+    temporal_scope: future
+    status: canonicalized
+  - legacy_path: KnowledgeBase/11-Academic-References.md
+    canonical_path: KnowledgeBase/kb-governance/docs/references/11-academic-references.md
+    primary_domain: kb-governance
+    doc_class: references
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: past
+    status: canonicalized
+  - legacy_path: KnowledgeBase/12-Open-Questions.md
+    canonical_path: KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md
+    primary_domain: kb-governance
+    doc_class: open_questions
+    migration_mode: mirror_stub
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: mixed
+    status: canonicalized
+  - legacy_path: KnowledgeBase/13-Financial-Model.md
+    canonical_path: KnowledgeBase/kb-metrics/docs/financial/13-financial-model.md
+    primary_domain: kb-metrics
+    doc_class: financial
+    migration_mode: mirror_stub
+    required_metadata_profile: domain_operational
+    owner_role: metrics-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/14-KB-Audit-v1.1.md
+    canonical_path: KnowledgeBase/kb-governance/docs/audit/14-kb-audit-v1.1.md
+    primary_domain: kb-governance
+    doc_class: audit
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: past
+    status: canonicalized
+  - legacy_path: KnowledgeBase/15-Sunified-Quantum-Resistance.md
+    canonical_path: KnowledgeBase/kb-key-resources/docs/suppliers/15-sunified-quantum-resistance.md
+    primary_domain: kb-key-resources
+    doc_class: suppliers
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: key-resources-steward
+    temporal_scope: future
+    status: canonicalized
+  - legacy_path: KnowledgeBase/16-FilantropiaSolar-Platform.md
+    canonical_path: KnowledgeBase/kb-key-activities/docs/platform/16-filantropiasolar-platform.md
+    primary_domain: kb-key-activities
+    doc_class: platform
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: key-activities-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/17-Execution-Readiness-and-Next-30-Days.md
+    canonical_path: KnowledgeBase/kb-key-activities/docs/execution/17-execution-readiness-and-next-30-days.md
+    primary_domain: kb-key-activities
+    doc_class: execution
+    migration_mode: move
+    required_metadata_profile: domain_operational
+    owner_role: key-activities-steward
+    temporal_scope: current
+    status: canonicalized
+  - legacy_path: KnowledgeBase/18-KB-MemPalace-Critical-Review-and-Action-Plan.md
+    canonical_path: KnowledgeBase/kb-governance/docs/reviews/18-mempalace-critical-review-action-plan.md
+    primary_domain: kb-governance
+    doc_class: reviews
+    migration_mode: mirror_stub
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: past
+    status: canonicalized
+  - legacy_path: KnowledgeBase/31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md
+    canonical_path: KnowledgeBase/kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md
+    primary_domain: kb-governance
+    doc_class: status
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: mixed
+    status: canonicalized
+  - legacy_path: KnowledgeBase/32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md
+    canonical_path: KnowledgeBase/kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md
+    primary_domain: kb-governance
+    doc_class: status_policy
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: mixed
+    status: canonicalized
+  - legacy_path: KnowledgeBase/33-KB-AI-Native-Bridge-v3.2-2026-04-24.md
+    canonical_path: KnowledgeBase/kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md
+    primary_domain: kb-governance
+    doc_class: status_policy
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: future
+    status: canonicalized
+  - legacy_path: KnowledgeBase/KB-memPalace-upgrade.md
+    canonical_path: KnowledgeBase/kb-governance/docs/reviews/kb-mempalace-upgrade.md
+    primary_domain: kb-governance
+    doc_class: reviews
+    migration_mode: move
+    required_metadata_profile: governance_operational
+    owner_role: governance-steward
+    temporal_scope: mixed
+    status: canonicalized

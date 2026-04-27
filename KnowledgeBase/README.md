@@ -52,42 +52,39 @@
 
 ## File Index
 
+> Legacy top-level files are compatibility stubs. The canonical source-of-truth paths listed below are under `kb-*/docs/...`.
+
 | # | File | Contents |
 |---|---|---|
-| 00 | `00-Glossary.md` | Canonical naming, acronyms, entity definitions |
-| 01 | `01-Company-Overview.md` | Brand, vision, mission, founding, incubation status |
-| 02 | `02-Products.md` | SolarSeed hardware, WERA Cloud, FilantropiaSolar, pricing |
-| 03 | `03-Business-Model.md` | Leasing mechanics, cloud revenue, cost structure, financial flywheel |
-| 04 | `04-System-Architecture.md` | Federated infrastructure, virtual power plant, data pipeline |
-| 05 | `05-Tokenomics-and-Governance.md` | Three tokens (WeD/WeG/WeP), governance boards, Polygon/DDR |
-| 06 | `06-Legal-Structure.md` | Three-entity architecture, cap table, IP, MiCA alignment |
-| 07 | `07-Customers-and-GTM.md` | Customer segments, sales pipeline, ambassador programme |
-| 08 | `08-Partnerships.md` | Renew Iberia, Soula, Ubbu, WiFi Map, Mitsubishi, equipment |
-| 09 | `09-Strategy-and-Investment.md` | DePIN thesis, Triple Jump, funding ask, use of funds, revenue targets |
-| 10 | `10-Market-Context.md` | Portugal solar market, DePIN landscape, EU regulation, competitors |
-| 11 | `11-Academic-References.md` | Scholarly sources on DePIN, tokenization, energy communities |
-| 12 | `12-Open-Questions.md` | Compatibility mirror/index for unresolved items; canonical register at `kb-governance/docs/open-questions/12-open-questions.md` |
-| 13 | `13-Financial-Model.md` | Full P&L, OpEx/CapEx, unit economics, fundraising model, cash position |
-| 14 | `14-KB-Audit-v1.1.md` | Systematic audit of v1.1 against all 7 source documents |
-| 15 | `15-Sunified-Quantum-Resistance.md` | Sunified Group UNITY sensor, quantum resistance thesis, WeRa integration |
-| 16 | `16-FilantropiaSolar-Platform.md` | Platform architecture, map app, proposal calculator, ML pipeline |
-| 17 | `17-Execution-Readiness-and-Next-30-Days.md` | Immediate sequencing, investor gate criteria, and operational risk controls |
-| 18 | `18-KB-MemPalace-Critical-Review-and-Action-Plan.md` | Critical review of memPalace spec, corrected decisions, and actionable KB-upgrade workstreams |
-| 19 | `19-KB-Domain-Taxonomy-Map-v1.md` | Verified current structure and defined canonical 12-domain BMC+Lean taxonomy |
-| 20 | `20-KB-File-to-Domain-Ownership-Map-v1.md` | Mapped existing KB files to primary/secondary domains and ownership model |
-| 21 | `21-KB-Controlled-Vocabulary-and-Entity-Standards-v1.md` | Canonical terminology, status enums, evidence labels, and provenance requirements |
-| 22 | `22-KB-Anonymized-Case-Schema-and-Lifecycle-v1.md` | Privacy boundary contract, anonymized case schema, and lifecycle transition rules |
-| 23 | `23-KB-Domain-Template-Pack-v1.md` | Domain-specific template definitions for all canonical BMC+Lean domains |
-| 24 | `24-KB-Governance-Workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
-| 25 | `25-KB-Cross-Domain-Integration-Matrix-v1.md` | Cross-domain integration patterns, matrix, and pilot operational link path |
-| 26 | `26-KB-Validation-Protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
-| 27 | `27-KB-Security-Policy-ONNX-and-Benchmark-Execution-v1.md` | Docker-only benchmark policy, ONNX CVE controls, security checks, and incident response triggers |
-| 28 | `28-KB-Governance-Event-2026-04-15-Benchmark-Execution-Breach-and-Remediation.md` | Formal governance incident log documenting host-execution breach, impact, and corrective controls |
-| 29 | `29-KB-Benchmark-Verification-Report-2026-04-15.md` | Evidence-backed verification report for hardened container benchmark controls and sample run results |
-| 30 | `30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md` | Expanded-scope (100-question) verification report for hardened container benchmark controls |
-| 31 | `31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md` | KB-upgrade completion-state status and post-upgrade handoff summary |
-| 32 | `32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md` | Canonical completion decision, unresolved-question deferral policy, and TRL4-scoped MemPalace integration rule |
-| 33 | `33-KB-AI-Native-Bridge-v3.2-2026-04-24.md` | v3.2 bridge from AI-native research proposal to KPI-gated operational rollout policy |
+| 00 | `kb-governance/docs/standards/00-glossary.md` | Canonical naming, acronyms, entity definitions |
+| 01 | `kb-value-proposition/docs/company/01-company-overview.md` | Brand, vision, mission, founding, incubation status |
+| 02 | `kb-value-proposition/docs/products/02-products.md` | SolarSeed hardware, WERA Cloud, FilantropiaSolar, pricing |
+| 03 | `kb-revenue-streams/docs/model/03-business-model.md` | Leasing mechanics, cloud revenue, cost structure, financial flywheel |
+| 04 | `kb-key-resources/docs/architecture/04-system-architecture.md` | Federated infrastructure, virtual power plant, data pipeline |
+| 05 | `kb-governance/docs/tokenomics/05-tokenomics-and-governance.md` | Three tokens (WeD/WeG/WeP), governance boards, Polygon/DDR |
+| 06 | `kb-governance/docs/legal/06-legal-structure.md` | Three-entity architecture, cap table, IP, MiCA alignment |
+| 07 | `kb-customers/docs/gtm/07-customers-and-gtm.md` | Customer segments, sales pipeline, ambassador programme |
+| 08 | `kb-key-partners/docs/partnerships/08-partnerships.md` | Renew Iberia, Soula, Ubbu, WiFi Map, Mitsubishi, equipment |
+| 09 | `kb-solution/docs/strategy/09-strategy-and-investment.md` | DePIN thesis, Triple Jump, funding ask, use of funds, revenue targets |
+| 10 | `kb-problem/docs/market/10-market-context.md` | Portugal solar market, DePIN landscape, EU regulation, competitors |
+| 11 | `kb-governance/docs/references/11-academic-references.md` | Scholarly sources on DePIN, tokenization, energy communities |
+| 12 | `kb-governance/docs/open-questions/12-open-questions.md` | Compatibility mirror/index for unresolved items; canonical register at `kb-governance/docs/open-questions/12-open-questions.md` |
+| 13 | `kb-metrics/docs/financial/13-financial-model.md` | Full P&L, OpEx/CapEx, unit economics, fundraising model, cash position |
+| 14 | `kb-governance/docs/audit/14-kb-audit-v1.1.md` | Systematic audit of v1.1 against all 7 source documents |
+| 15 | `kb-key-resources/docs/suppliers/15-sunified-quantum-resistance.md` | Sunified Group UNITY sensor, quantum resistance thesis, WeRa integration |
+| 16 | `kb-key-activities/docs/platform/16-filantropiasolar-platform.md` | Platform architecture, map app, proposal calculator, ML pipeline |
+| 17 | `kb-key-activities/docs/execution/17-execution-readiness-and-next-30-days.md` | Immediate sequencing, investor gate criteria, and operational risk controls |
+| 18 | `kb-governance/docs/reviews/18-mempalace-critical-review-action-plan.md` | Critical review of memPalace spec, corrected decisions, and actionable KB-upgrade workstreams |
+| 19 | `kb-governance/docs/architecture/19-domain-taxonomy-map-v1.md` | Verified current structure and defined canonical 12-domain BMC+Lean taxonomy |
+| 20 | `kb-governance/docs/architecture/20-file-domain-ownership-map-v1.md` | Mapped existing KB files to primary/secondary domains and ownership model |
+| 21 | `kb-governance/docs/standards/21-controlled-vocabulary-entity-standards-v1.md` | Canonical terminology, status enums, evidence labels, and provenance requirements |
+| 22 | `kb-customers/docs/standards/22-anonymized-case-schema-lifecycle-v1.md` | Privacy boundary contract, anonymized case schema, and lifecycle transition rules |
+| 24 | `kb-governance/docs/workflows/24-governance-workflows-v1.md` | Governance workflows for intake, evidence, privacy, cross-domain review, cadence, and PR readiness |
+| 25 | `kb-governance/docs/architecture/25-cross-domain-integration-matrix-v1.md` | Cross-domain integration patterns, matrix, and pilot operational link path |
+| 26 | `kb-governance/docs/validation/26-validation-protocol-v1.md` | Validation layers and checklists for cross-domain consistency and case-safety |
+| 31 | `kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md` | KB-upgrade completion-state status and post-upgrade handoff summary |
+| 32 | `kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md` | Canonical completion decision, unresolved-question deferral policy, and TRL4-scoped MemPalace integration rule |
+| 33 | `kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md` | v3.2 bridge from AI-native research proposal to KPI-gated operational rollout policy |
 | — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
 | — | `kb-governance/docs/open-questions/12-open-questions.md` | Canonical unresolved-question register for governance execution |
 | — | `kb-governance/docs/events/2026-04-24-q31-emergency-closure-kickoff.md` | Emergency governance kickoff event for Q31 closure package |
