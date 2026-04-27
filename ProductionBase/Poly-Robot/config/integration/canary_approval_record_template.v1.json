@@ -1,0 +1,38 @@
+{
+  "config_name": "poly_robot_canary_approval_record_template",
+  "config_version": "1.0.0",
+  "updated_at": "2026-04-27T16:22:00Z",
+  "schema_version": "canary_approval_record.v1",
+  "record_id": "canary-stage-enable-template",
+  "requested_by": "release_manager",
+  "requested_stage": "canary_live",
+  "requested_at": "2026-04-27T16:22:00Z",
+  "certification_report_path": "runtime/canary_rollout_certification_report.json",
+  "required_approvers": [
+    "release_manager",
+    "runtime_operator_on_call"
+  ],
+  "approvals": [
+    {
+      "actor": "release_manager",
+      "decision": "pending",
+      "recorded_at": "",
+      "note": "Approve after reviewing canary certification blockers and readiness score."
+    },
+    {
+      "actor": "runtime_operator_on_call",
+      "decision": "pending",
+      "recorded_at": "",
+      "note": "Approve after verifying rollback controls and emergency action readiness."
+    }
+  ],
+  "rollback_authority": [
+    "runtime_operator_on_call",
+    "incident_commander"
+  ],
+  "audit_policy": {
+    "append_only_required": true,
+    "audit_file_path": "runtime/canary_stage_enablement_audit.jsonl",
+    "event_schema_version": "canary_stage_enablement_audit_event.v1"
+  }
+}

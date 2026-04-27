@@ -26,10 +26,12 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
 - `scripts/run_milestone_c_sequence.py`: staged Milestone C runner that chains soak + certification phases (`12h -> 24h -> 48h`) with per-phase artifacts.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
+- `scripts/run_canary_stage_enablement.py`: canary stage promotion gate runner that emits ALLOW/DENY decisions from certification + approval records and appends enablement audit evidence.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
 - `src/poly_robot/stress_certification.py`: certification evaluator that scores scenario-matrix and soak evidence against explicit gates.
+- `src/poly_robot/canary_enablement.py`: canary stage enablement decision evaluator and append-only audit event writer.
 - `tests/`: governance + replay + strategy/risk + execution + loop integration unit tests.
 - `tasks/`: task backlogs and sprint-ready items.
 - `skills/`: project-specific Warp agent skills.
@@ -331,6 +333,24 @@ E3 certification artifact usage:
 - Canary promotion is blocked whenever `overall_status=FAIL` (for example unresolved `blocker`/`critical`/`high` rollback recommendations or failed runtime control scenarios).
 - `promotion_decision.canary_enablement_allowed` remains `false` until manual approval is recorded as `approved`.
 - Manual approval boundary is defined in `config/integration/canary_promotion_criteria.v1.json` `manual_approval_policy`: promotion owner is `release_manager`, required approvers are `release_manager` + `runtime_operator_on_call`, and rollback authority is `runtime_operator_on_call` + `incident_commander`.
+
+Run F2 canary stage enablement decision (audited approval boundary):
+```bash
+python3 scripts/run_canary_stage_enablement.py \
+  --certification-report runtime/canary_rollout_certification_report.json \
+  --approval-record config/integration/canary_approval_record_template.v1.json \
+  --rollout-config config/integration/live_trade_rollout.v1.json \
+  --requested-stage canary_live \
+  --decision-output runtime/canary_stage_enablement_decision.json \
+  --audit-output runtime/canary_stage_enablement_audit.jsonl \
+  --actor release_manager \
+  --reason "phase-f2-gate-evaluation"
+```
+F2 enablement artifact usage:
+- `runtime/canary_stage_enablement_decision.json` emits criterion-level `ALLOW`/`DENY` with explicit `failed_reason_codes` for certification, approval, and rollout-stage gate checks.
+- Enablement is denied whenever certification is not `PASS`, certification blockers are present, or required approvers are missing/not approved.
+- `runtime/canary_stage_enablement_audit.jsonl` is append-only and records actor, reason, decision status, and evidence hashes per evaluation.
+- `config/integration/canary_approval_record_template.v1.json` is the canonical approval-record format for required approvers (`release_manager`, `runtime_operator_on_call`) and rollback authority mapping.
 
 Run stress campaign certification:
 ```bash

@@ -91,6 +91,41 @@ jobs:
               f"rollback_recommendations={len(rollback_recommendations)}"
           )
           PY
+      - name: Canary readiness certification policy gate
+        run: |
+          python3 scripts/run_canary_readiness_certification.py \
+            --rehearsal-report runtime/rollout_rehearsal_report.json \
+            --criteria-config config/integration/canary_promotion_criteria.v1.json \
+            --approval-status pending \
+            --output runtime/canary_rollout_certification_report.json || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path("runtime/canary_rollout_certification_report.json")
+          if not report_path.exists():
+              raise SystemExit(
+                  "Missing canary readiness certification report artifact"
+              )
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          overall_status = str(report.get("overall_status", "UNKNOWN"))
+          readiness_score = report.get("readiness_score")
+          blockers = report.get("blockers", [])
+          blocker_count = len(blockers) if isinstance(blockers, list) else 0
+          if overall_status != "PASS":
+              raise SystemExit(
+                  "Canary readiness certification failed: "
+                  f"overall_status={overall_status} "
+                  f"readiness_score={readiness_score} "
+                  f"blockers={blocker_count}"
+              )
+          print(
+              "Canary readiness policy gate passed: "
+              f"overall_status={overall_status} "
+              f"readiness_score={readiness_score} "
+              f"blockers={blocker_count}"
+          )
+          PY
       - name: Upload rollout rehearsal artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,6 +133,7 @@ jobs:
           name: rollout-rehearsal-report
           path: |
             runtime/rollout_rehearsal_report.json
+            runtime/canary_rollout_certification_report.json
             runtime/rollout_rehearsal/**
           if-no-files-found: warn
           retention-days: 14

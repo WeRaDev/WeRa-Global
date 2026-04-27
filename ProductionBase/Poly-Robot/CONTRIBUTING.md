@@ -40,6 +40,11 @@ A task is done only when:
 - E3 canary readiness certification:
   - `python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status pending --output runtime/canary_rollout_certification_report.json`
   - Treat `overall_status=FAIL` in `runtime/canary_rollout_certification_report.json` as canary-promotion blocking.
+  - CI gate sequence is mandatory: rehearsal report gate first, then canary readiness certification gate.
+- F2 canary stage enablement approval gate:
+  - `python3 scripts/run_canary_stage_enablement.py --certification-report runtime/canary_rollout_certification_report.json --approval-record config/integration/canary_approval_record_template.v1.json --rollout-config config/integration/live_trade_rollout.v1.json --requested-stage canary_live --decision-output runtime/canary_stage_enablement_decision.json --audit-output runtime/canary_stage_enablement_audit.jsonl --actor release_manager --reason "phase-f2-gate-evaluation"`
+  - Treat `decision_status=DENY` in `runtime/canary_stage_enablement_decision.json` as rollout-blocking.
+  - Treat missing append-only audit evidence in `runtime/canary_stage_enablement_audit.jsonl` as policy non-compliance for promotion actions.
 - Docker deployment sanity:
   - `docker compose config --quiet`
   - `docker compose build runtime-gui`
@@ -65,4 +70,6 @@ If a command is not yet available, add it in the same pull request that introduc
   - Promotion owner: `release_manager`.
   - Required approvers: `release_manager` and `runtime_operator_on_call`.
   - Rollback authority: `runtime_operator_on_call` and `incident_commander`.
-  - Keep `promotion_decision.approval_status=pending` until both required approvers sign off; do not enable `canary_live` stage before this boundary is satisfied.
+  - Keep approval entries in `config/integration/canary_approval_record_template.v1.json` as `pending` until explicit sign-off is recorded for each required approver.
+  - Do not enable `canary_live` stage unless `runtime/canary_stage_enablement_decision.json` reports `decision_status=ALLOW`.
+  - Preserve `runtime/canary_stage_enablement_audit.jsonl` as append-only evidence for every promotion attempt (allowed or denied).
