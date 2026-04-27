@@ -1,0 +1,34 @@
+{
+  "errors": [],
+  "files": [
+    {
+      "changed": true,
+      "path": "KnowledgeBase/README.md",
+      "removed_row_paths": [
+        "23-KB-Domain-Template-Pack-v1.md",
+        "27-KB-Security-Policy-ONNX-and-Benchmark-Execution-v1.md",
+        "28-KB-Governance-Event-2026-04-15-Benchmark-Execution-Breach-and-Remediation.md",
+        "29-KB-Benchmark-Verification-Report-2026-04-15.md",
+        "30-KB-Benchmark-Verification-Report-2026-04-15-Expanded-Scope.md"
+      ],
+      "removed_rows": 5,
+      "rewritten_rows": 29
+    },
+    {
+      "changed": false,
+      "path": "kb-governance/wiki-seed/Home.md",
+      "replacements": 0
+    },
+    {
+      "changed": false,
+      "path": "kb-governance/wiki-seed/Domain-Index.md",
+      "replacements": 0
+    },
+    {
+      "changed": false,
+      "path": "kb-governance/wiki-seed/Governance-Index.md",
+      "replacements": 0
+    }
+  ],
+  "mode": "apply"
+}

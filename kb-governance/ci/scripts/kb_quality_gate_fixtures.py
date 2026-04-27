@@ -15,8 +15,11 @@ def run_check(
     fixture_root: Path,
     expected_exit_code: int,
     failures: list[str],
+    extra_args: list[str] | None = None,
 ) -> None:
     command = [sys.executable, str(script_path), "--root", str(fixture_root)]
+    if extra_args:
+        command.extend(extra_args)
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode == expected_exit_code:
         return
@@ -37,23 +40,29 @@ def main() -> int:
 
     positive_root = fixtures_dir / "positive"
     negative_root = fixtures_dir / "negative"
+    index_positive_root = fixtures_dir / "index-positive"
+    index_negative_root = fixtures_dir / "index-negative"
 
     checks = (
-        (scripts_dir / "kb_canonical_validate.py", positive_root, 0),
-        (scripts_dir / "kb_governance_routing_check.py", positive_root, 0),
-        (scripts_dir / "kb_canonical_validate.py", negative_root, 1),
-        (scripts_dir / "kb_governance_routing_check.py", negative_root, 1),
+        (scripts_dir / "kb_canonical_validate.py", positive_root, 0, None),
+        (scripts_dir / "kb_governance_routing_check.py", positive_root, 0, None),
+        (scripts_dir / "kb_formal_proof_gate.py", positive_root, 0, ["--scan-all"]),
+        (scripts_dir / "kb_rewrite_links_and_index.py", index_positive_root, 0, ["--mode", "verify"]),
+        (scripts_dir / "kb_canonical_validate.py", negative_root, 1, None),
+        (scripts_dir / "kb_governance_routing_check.py", negative_root, 1, None),
+        (scripts_dir / "kb_formal_proof_gate.py", negative_root, 1, ["--scan-all"]),
+        (scripts_dir / "kb_rewrite_links_and_index.py", index_negative_root, 1, ["--mode", "verify"]),
     )
 
     failures: list[str] = []
-    for script_path, fixture_root, expected_exit_code in checks:
+    for script_path, fixture_root, expected_exit_code, extra_args in checks:
         if not script_path.exists():
             failures.append(f"[fixture-check] missing script: {script_path}")
             continue
         if not fixture_root.exists():
             failures.append(f"[fixture-check] missing fixture root: {fixture_root}")
             continue
-        run_check(script_path, fixture_root, expected_exit_code, failures)
+        run_check(script_path, fixture_root, expected_exit_code, failures, extra_args=extra_args)
 
     if failures:
         print("kb_quality_gate_fixtures: FAILED")

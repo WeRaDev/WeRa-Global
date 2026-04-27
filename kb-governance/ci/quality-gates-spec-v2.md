@@ -13,6 +13,7 @@ Run gates when a change touches any of:
 - `KnowledgeBase/**/*.md`
 - `KnowledgeBase/templates/**/*.md`
 - `kb-governance/**/*.md`
+- `kb-governance/formal-proofs/**/*.lean`
 
 ## Required checks
 1. Metadata schema check
@@ -31,6 +32,20 @@ Run gates when a change touches any of:
    - Consolidated and newly created governed docs include provenance block or equivalent metadata.
 8. Canonical path policy check
    - Reject source-of-truth additions outside canonical `KnowledgeBase/` tree for KB content.
+9. TRL6 formal proof contract gate
+   - Every changed operational KB document must include a `formal_proof` block with `engine: ml-hilbert`, `trl_phase: TRL6`, `obligation_id`, `proof_artifact`, and `verification_status`.
+   - Referenced proof artifact must be a repository-relative Lean file with no `sorry`.
+   - Proof artifact must declare `proof_engine: ml-hilbert` and reference the same obligation ID.
+10. Legacy numbered-doc freeze gate (Phase A)
+   - Top-level numbered source docs under `KnowledgeBase/` are frozen to the approved allowlist.
+   - New numbered docs at `KnowledgeBase/<NN>-*.md` must be migrated into canonical `KnowledgeBase/kb-*/docs/...` paths instead of being added at top level.
+11. Canonical index/link cutover gate (Phase C)
+   - `KnowledgeBase/README.md` File Index must reference existing canonical paths.
+   - README numeric index rows must not reference top-level legacy numbered files.
+   - Wiki seed indexes (`Home`, `Domain-Index`, `Governance-Index`) must resolve to existing canonical repository markdown targets.
+12. Migration contract and drift gate (Phase D)
+   - Canonicalized entries in `kb-governance/migration/kb-legacy-map-v1.yaml` must pass `kb_migrate_legacy_docs.py --mode verify` for both `move` and `mirror_stub` modes.
+   - Periodic drift detection workflow must execute canonical/routing/proof/index/migration checks and emit a consolidated report.
 
 ## Path-scoped ownership signals
 - `KnowledgeBase/kb-customers/**` -> customer domain steward.
@@ -43,6 +58,8 @@ Run gates when a change touches any of:
 Single repository should include:
 - `.gitea/workflows/kb-canonical-validate.yml`
 - `.gitea/workflows/kb-governance-routing.yml`
+- `.gitea/workflows/kb-formal-proof-trl6.yml`
+- `.gitea/workflows/kb-drift-detection.yml`
 
 ## Failure policy
 - Any required check failure blocks merge to `main`.

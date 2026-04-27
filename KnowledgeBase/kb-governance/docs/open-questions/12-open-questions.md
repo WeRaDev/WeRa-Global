@@ -6,6 +6,12 @@
 - consolidation_status: `canonicalized`
 - temporal_scope: `mixed`
 - evidence_status: `gap-register`
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.open_questions_registry_traceability
+  proof_artifact: kb-governance/formal-proofs/open-questions-registry-traceability.lean
+  verification_status: verified
 
 > Items that remain unresolved or require additional documentation for full knowledge base integrity.
 >

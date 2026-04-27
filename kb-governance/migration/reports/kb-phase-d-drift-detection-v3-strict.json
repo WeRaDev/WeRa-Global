@@ -1,0 +1,102 @@
+{
+  "blocking_failed_checks": [],
+  "checks": [
+    {
+      "blocking": true,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/ci/scripts/kb_canonical_validate.py",
+        "--root",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase"
+      ],
+      "name": "kb_canonical_validate",
+      "returncode": 0,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "kb_canonical_validate: PASSED\n"
+    },
+    {
+      "blocking": true,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/ci/scripts/kb_governance_routing_check.py",
+        "--root",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase"
+      ],
+      "name": "kb_governance_routing_check",
+      "returncode": 0,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "kb_governance_routing_check: PASSED\n"
+    },
+    {
+      "blocking": true,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/ci/scripts/kb_formal_proof_gate.py",
+        "--root",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase"
+      ],
+      "name": "kb_formal_proof_gate",
+      "returncode": 0,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "kb_formal_proof_gate: PASSED\n"
+    },
+    {
+      "blocking": true,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/ci/scripts/kb_rewrite_links_and_index.py",
+        "--root",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase",
+        "--mode",
+        "verify"
+      ],
+      "name": "kb_rewrite_links_and_index_verify",
+      "returncode": 0,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "kb_rewrite_links_and_index: PASSED\n{\n  \"errors\": [],\n  \"files\": [],\n  \"mode\": \"verify\"\n}\n"
+    },
+    {
+      "blocking": true,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/ci/scripts/kb_migrate_legacy_docs.py",
+        "--root",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase",
+        "--mode",
+        "verify",
+        "--statuses",
+        "canonicalized",
+        "--migration-modes",
+        "move,mirror_stub"
+      ],
+      "name": "kb_migrate_legacy_docs_verify",
+      "returncode": 0,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "kb_migrate_legacy_docs: PASSED\n{\n  \"checks\": [\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/standards/00-glossary.md\",\n      \"legacy_path\": \"KnowledgeBase/00-Glossary.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-value-proposition/docs/company/01-company-overview.md\",\n      \"legacy_path\": \"KnowledgeBase/01-Company-Overview.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-value-proposition/docs/products/02-products.md\",\n      \"legacy_path\": \"KnowledgeBase/02-Products.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md\",\n      \"legacy_path\": \"KnowledgeBase/03-Business-Model.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-key-resources/docs/architecture/04-system-architecture.md\",\n      \"legacy_path\": \"KnowledgeBase/04-System-Architecture.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/tokenomics/05-tokenomics-and-governance.md\",\n      \"legacy_path\": \"KnowledgeBase/05-Tokenomics-and-Governance.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/legal/06-legal-structure.md\",\n      \"legacy_path\": \"KnowledgeBase/06-Legal-Structure.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-customers/docs/gtm/07-customers-and-gtm.md\",\n      \"legacy_path\": \"KnowledgeBase/07-Customers-and-GTM.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-key-partners/docs/partnerships/08-partnerships.md\",\n      \"legacy_path\": \"KnowledgeBase/08-Partnerships.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-solution/docs/strategy/09-strategy-and-investment.md\",\n      \"legacy_path\": \"KnowledgeBase/09-Strategy-and-Investment.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-problem/docs/market/10-market-context.md\",\n      \"legacy_path\": \"KnowledgeBase/10-Market-Context.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/references/11-academic-references.md\",\n      \"legacy_path\": \"KnowledgeBase/11-Academic-References.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md\",\n      \"legacy_path\": \"KnowledgeBase/12-Open-Questions.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-metrics/docs/financial/13-financial-model.md\",\n      \"legacy_path\": \"KnowledgeBase/13-Financial-Model.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/audit/14-kb-audit-v1.1.md\",\n      \"legacy_path\": \"KnowledgeBase/14-KB-Audit-v1.1.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-key-resources/docs/suppliers/15-sunified-quantum-resistance.md\",\n      \"legacy_path\": \"KnowledgeBase/15-Sunified-Quantum-Resistance.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-key-activities/docs/platform/16-filantropiasolar-platform.md\",\n      \"legacy_path\": \"KnowledgeBase/16-FilantropiaSolar-Platform.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-key-activities/docs/execution/17-execution-readiness-and-next-30-days.md\",\n      \"legacy_path\": \"KnowledgeBase/17-Execution-Readiness-and-Next-30-Days.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/reviews/18-mempalace-critical-review-action-plan.md\",\n      \"legacy_path\": \"KnowledgeBase/18-KB-MemPalace-Critical-Review-and-Action-Plan.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md\",\n      \"legacy_path\": \"KnowledgeBase/31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md\",\n      \"legacy_path\": \"KnowledgeBase/32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md\",\n      \"legacy_path\": \"KnowledgeBase/33-KB-AI-Native-Bridge-v3.2-2026-04-24.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    },\n    {\n      \"canonical_path\": \"KnowledgeBase/kb-governance/docs/reviews/kb-mempalace-upgrade.md\",\n      \"legacy_path\": \"KnowledgeBase/KB-memPalace-upgrade.md\",\n      \"source_is_stub\": \"yes\",\n      \"target_exists\": \"yes\",\n      \"target_has_provenance\": \"yes\"\n    }\n  ],\n  \"failures\": [],\n  \"mode\": \"verify\",\n  \"selected_entry_count\": 23\n}\n"
+    },
+    {
+      "blocking": true,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/ci/scripts/kb_inventory_baseline.py",
+        "--root",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase",
+        "--output-json",
+        "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase/kb-governance/migration/reports/kb-inventory-baseline-v6-phase-d-strict.json"
+      ],
+      "name": "kb_inventory_baseline",
+      "returncode": 0,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "kb_inventory_baseline: WROTE kb-governance/migration/reports/kb-inventory-baseline-v6-phase-d-strict.json\n"
+    }
+  ],
+  "failed_checks": [],
+  "overall_status": "passed",
+  "root": "/Users/mikhailananyin/Documents/WeRa Global/.oz_next_phase"
+}
