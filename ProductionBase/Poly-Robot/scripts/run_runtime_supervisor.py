@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from datetime import UTC, datetime
@@ -162,6 +163,10 @@ def _as_optional_positive_int(value: object) -> int | None:
     if parsed <= 0:
         return None
     return parsed
+
+
+def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
+    return max(1, math.ceil(secret_max_age_seconds / 86_400))
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -685,9 +690,8 @@ def main(argv: list[str] | None = None) -> int:
             args.secret_max_age_seconds
         )
         if parsed_secret_max_age_seconds is not None:
-            secret_max_age_days = max(
-                1,
-                int(parsed_secret_max_age_seconds / 86_400),
+            secret_max_age_days = _secret_max_age_days_from_seconds(
+                parsed_secret_max_age_seconds
             )
 
         required_market_metadata_from_order_rules: set[str] = set()

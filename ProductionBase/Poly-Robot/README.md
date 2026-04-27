@@ -207,7 +207,8 @@ python3 scripts/run_runtime_supervisor.py \
    - `Set Scenario`: changes scenario used by the next cycle
    - `Annotate Incident`: appends an audited operator note
 6. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
-7. If GUI is started with `--token-required-read-api`, dashboard GET endpoints (`/api/*`) also require `X-Operator-Token`.
+7. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
+8. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:
