@@ -1,6 +1,14 @@
-version: 1
+version: 2
 owner: wera-global
 umbrella_repo: WeRa-Global
+registry_policy:
+  tracked_scope: git-index
+  vcs_modes:
+    - submodule
+    - native
+  baseline_policies:
+    - delegated
+    - enforced
 repos:
   - id: SolarSeed-v3
     path: ProductionBase/SolarSeed-v3
@@ -8,39 +16,53 @@ repos:
     default_branch: main
     status: active
     role: sovereign edge-hosted TRL4 runtime stack
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: FilantropiaSolar
     path: ProductionBase/FilantropiaSolar
     gitea_url: http://127.0.0.1:3000/wera-global/FilantropiaSolar.git
     default_branch: main
     status: active
     role: energy management platform and Nextcloud integration
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: FreeDoo
     path: ProductionBase/FreeDoo
     gitea_url: http://127.0.0.1:3000/wera-global/FreeDoo.git
     default_branch: master
     status: active
     role: outreach automation and lead processing platform
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: wera-contracts
     path: ProductionBase/wera-contracts
     gitea_url: http://127.0.0.1:3000/wera-global/wera-contracts.git
     default_branch: develop
     status: active
     role: smart contracts and staking/token mechanics
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: SolarSim
     path: ProductionBase/SolarSim
     gitea_url: http://127.0.0.1:3000/wera-global/SolarSim.git
     default_branch: main
     status: active
     role: standalone energy simulation engine
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: Bild
     path: ProductionBase/Bild
     gitea_url: http://127.0.0.1:3000/wera-global/Bild.git
     default_branch: main
     status: incubation
     role: AI procurement agent for Leroy Merlin PRO pilot operations
+    vcs_mode: native
+    baseline_policy: enforced
   - id: Poly-Robot
     path: ProductionBase/Poly-Robot
     gitea_url: http://127.0.0.1:3000/wera-global/Poly-Robot.git
     default_branch: main
     status: incubation
     role: modular robotics and multi-agent orchestration platform
+    vcs_mode: native
+    baseline_policy: enforced
