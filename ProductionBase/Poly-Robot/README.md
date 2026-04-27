@@ -171,6 +171,25 @@ Live-mode behavior notes:
 - If all fetched markets are filtered out (for example by `--live-min-volume-24h`), the cycle still executes with zero events and marks ingestion as degraded (`no_markets_after_filters`) rather than failing the run.
 - Cycle artifacts (`runtime/live_cycles/cycle_*.json`) include live-source provenance in `run_context.ingestion_source` and ingestion quality details in `run_context.ingestion_status`, `run_context.ingestion_reasons`, and `run_context.ingestion_metadata`.
 
+Live credential lifecycle preflight (required for real-order startup):
+- Startup preflight is enforced when all of the following are true: `--execution-mode live_polymarket_clob`, selected rollout stage has `enabled=true` and `real_order_submission=true`, and `--allow-real-trading` is set.
+- For every env var listed in `config/integration/live_trade_rollout.v1.json` `secrets_policy.required_env_vars`, set all three values before startup:
+  - `<ENV_VAR>` (credential value)
+  - `<ENV_VAR>_SOURCE` (allowed source: `local_keychain`, `vault`, or `kms`)
+  - `<ENV_VAR>_LAST_ROTATED_AT` (UTC ISO8601 timestamp)
+- Rotation SLO is enforced by `secrets_policy.max_secret_age_days` (currently `30` days). Startup fails fast if any required credential exceeds this age.
+- Use non-interactive secret loading; do not paste plaintext secrets into shell history:
+```bash
+export POLYMARKET_API_KEY="$(secret_manager read --key polymarket/api_key)"
+export POLYMARKET_API_KEY_SOURCE="vault"
+export POLYMARKET_API_KEY_LAST_ROTATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+- Apply the same pattern for `POLYMARKET_PRIVATE_KEY`, `POLYMARKET_FUNDER_ADDRESS`, `POLYMARKET_API_SECRET`, and `POLYMARKET_API_PASSPHRASE`.
+- Alerting/operations:
+  - Treat non-zero supervisor startup with `Live credential preflight failed` as a blocking operational alert.
+  - Route alert context by reason code (`secret_source_metadata_missing`, `secret_rotation_metadata_missing`, `secret_rotation_stale`, `plaintext_secret_source_disallowed`, `secret_source_not_allowed`).
+  - Recovery path: rotate/reload credential, refresh metadata fields, and rerun supervisor startup preflight.
+
 Run runtime web GUI:
 ```bash
 python3 scripts/run_runtime_gui.py \

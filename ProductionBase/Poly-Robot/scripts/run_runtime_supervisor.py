@@ -164,6 +164,74 @@ def _as_optional_positive_int(value: object) -> int | None:
     return parsed
 
 
+def _run_live_credential_preflight(
+    *,
+    execution_adapter: PolymarketClobExecutionAdapter,
+    rollout_stage_name: str,
+    stage_enabled: bool,
+    real_order_submission: bool,
+    allow_real_trading: bool,
+) -> dict[str, object]:
+    preflight_required = (
+        stage_enabled
+        and real_order_submission
+        and allow_real_trading
+    )
+    preflight_summary: dict[str, object] = {
+        "required": preflight_required,
+        "rollout_stage": rollout_stage_name,
+        "stage_enabled": stage_enabled,
+        "real_order_submission": real_order_submission,
+        "allow_real_trading": allow_real_trading,
+        "required_env_vars": list(execution_adapter.required_env_vars),
+        "max_secret_age_days": execution_adapter.max_secret_age_days,
+        "preferred_secret_sources": list(execution_adapter.preferred_secret_sources),
+        "status": "skipped",
+    }
+    if not preflight_required:
+        preflight_summary["skip_reason"] = (
+            "live_trading_not_enabled_for_stage_or_flags"
+        )
+        return preflight_summary
+
+    missing_env_vars = execution_adapter._missing_required_env_vars()
+    if missing_env_vars:
+        raise ValueError(
+            "Live credential preflight failed: "
+            "missing_polymarket_credentials "
+            f"missing_env_vars={missing_env_vars}"
+        )
+
+    secret_reasons, secret_metadata = execution_adapter._validate_secret_controls()
+    if secret_reasons:
+        preflight_details = {
+            "secret_source_metadata_missing": secret_metadata.get(
+                "secret_source_metadata_missing", []
+            ),
+            "secret_rotation_metadata_missing": secret_metadata.get(
+                "secret_rotation_metadata_missing", []
+            ),
+            "stale_secrets": secret_metadata.get("stale_secrets", []),
+            "plaintext_secret_source_disallowed": secret_metadata.get(
+                "plaintext_secret_source_disallowed", []
+            ),
+            "invalid_secret_sources": secret_metadata.get(
+                "invalid_secret_sources", []
+            ),
+            "max_secret_age_days": secret_metadata.get("max_secret_age_days"),
+            "preferred_secret_sources": secret_metadata.get(
+                "preferred_secret_sources", []
+            ),
+        }
+        raise ValueError(
+            "Live credential preflight failed: "
+            f"reasons={secret_reasons} details={preflight_details}"
+        )
+
+    preflight_summary["status"] = "passed"
+    return preflight_summary
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -618,6 +686,11 @@ def main(argv: list[str] | None = None) -> int:
             "required_env_vars": [],
             "clob_base_url": None,
             "clob_config_path": None,
+            "credential_preflight": {
+                "required": False,
+                "status": "skipped",
+                "skip_reason": "paper_execution_mode",
+            },
         }
     else:
         clob_config_payload = _load_json(args.polymarket_clob_config)
@@ -820,6 +893,13 @@ def main(argv: list[str] | None = None) -> int:
             user_channel_max_staleness_seconds=user_channel_max_staleness_seconds,
             audit_log_path=execution_adapter_audit_path,
         )
+        credential_preflight = _run_live_credential_preflight(
+            execution_adapter=execution_adapter,
+            rollout_stage_name=rollout_stage_name,
+            stage_enabled=stage_enabled,
+            real_order_submission=real_order_submission,
+            allow_real_trading=bool(args.allow_real_trading),
+        )
         execution_context = {
             "mode": "live_polymarket_clob",
             "rollout_config_path": str(args.live_rollout_config),
@@ -846,6 +926,7 @@ def main(argv: list[str] | None = None) -> int:
                 if execution_adapter_audit_path is not None
                 else None
             ),
+            "credential_preflight": credential_preflight,
         }
     execution = HardenedExecutionAdapter(
         execution_adapter,

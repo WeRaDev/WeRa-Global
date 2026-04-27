@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -34,7 +35,90 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _write_json(path: Path, payload: dict) -> None:
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_live_rollout_preflight_config(
+    path: Path,
+    *,
+    max_secret_age_days: int,
+) -> None:
+    _write_json(
+        path,
+        {
+            "config_name": "poly_robot_live_trade_rollout_controls_test",
+            "config_version": "1.0.0",
+            "default_execution_mode": "paper",
+            "secrets_policy": {
+                "allow_plaintext_secrets": False,
+                "required_env_vars": ["POLYMARKET_API_KEY"],
+                "preferred_secret_sources": ["vault"],
+                "max_secret_age_days": max_secret_age_days,
+            },
+            "rollout_stages": [
+                {
+                    "stage": "canary_live",
+                    "enabled": True,
+                    "real_order_submission": True,
+                    "max_order_notional_usd": 50,
+                    "max_daily_notional_usd": 500,
+                    "max_open_orders": 3,
+                }
+            ],
+        },
+    )
+
+
 class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
+    @staticmethod
+    def _build_live_clob_preflight_command(
+        *,
+        state_path: Path,
+        journal_path: Path,
+        control_state_path: Path,
+        control_audit_path: Path,
+        cycle_output_dir: Path,
+        rollout_config_path: Path,
+    ) -> list[str]:
+        return [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--events",
+            str(ROOT_DIR / "tests" / "fixtures" / "replay_events.jsonl"),
+            "--execution-mode",
+            "live_polymarket_clob",
+            "--live-rollout-stage",
+            "canary_live",
+            "--live-rollout-config",
+            str(rollout_config_path),
+            "--allow-real-trading",
+            "--cycles",
+            "1",
+            "--max-retries",
+            "0",
+            "--retry-backoff-seconds",
+            "0",
+            "--ingestion-max-retries",
+            "0",
+            "--ingestion-retry-backoff-seconds",
+            "0",
+            "--execution-gateway-max-retries",
+            "0",
+            "--execution-gateway-retry-backoff-seconds",
+            "0",
+            "--state-path",
+            str(state_path),
+            "--journal-path",
+            str(journal_path),
+            "--control-state-path",
+            str(control_state_path),
+            "--control-audit-path",
+            str(control_audit_path),
+            "--cycle-output-dir",
+            str(cycle_output_dir),
+        ]
+
     def test_live_polymarket_mode_runs_without_replay_events_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -191,11 +275,139 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
                 execution_context = cycle_report["run_context"]["execution"]
                 self.assertEqual(execution_context["mode"], "live_polymarket_clob")
                 self.assertEqual(execution_context["rollout_stage"], "canary_live")
+                self.assertFalse(execution_context["credential_preflight"]["required"])
+                self.assertEqual(
+                    execution_context["credential_preflight"]["status"],
+                    "skipped",
+                )
                 self.assertEqual(cycle_report["filled_trade_count"], 0)
             finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=1.0)
+
+    def test_live_clob_preflight_fails_when_secret_metadata_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            env = dict(os.environ)
+            env["POLYMARKET_API_KEY"] = "test-key"
+            env.pop("POLYMARKET_API_KEY_SOURCE", None)
+            env.pop("POLYMARKET_API_KEY_LAST_ROTATED_AT", None)
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            output = f"{result.stdout}\n{result.stderr}"
+            self.assertIn("Live credential preflight failed", output)
+            self.assertIn("secret_source_metadata_missing", output)
+            self.assertIn("secret_rotation_metadata_missing", output)
+
+    def test_live_clob_preflight_fails_when_secret_rotation_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=1,
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            env = dict(os.environ)
+            env["POLYMARKET_API_KEY"] = "test-key"
+            env["POLYMARKET_API_KEY_SOURCE"] = "vault"
+            env["POLYMARKET_API_KEY_LAST_ROTATED_AT"] = "2000-01-01T00:00:00Z"
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            output = f"{result.stdout}\n{result.stderr}"
+            self.assertIn("Live credential preflight failed", output)
+            self.assertIn("secret_rotation_stale", output)
+            self.assertIn("stale_secrets", output)
+
+    def test_live_clob_preflight_passes_with_valid_secret_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            env = dict(os.environ)
+            env["POLYMARKET_API_KEY"] = "test-key"
+            env["POLYMARKET_API_KEY_SOURCE"] = "vault"
+            env["POLYMARKET_API_KEY_LAST_ROTATED_AT"] = "2099-01-01T00:00:00Z"
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            cycle_report = _read_json(cycle_output_dir / "cycle_001.json")
+            execution_context = cycle_report["run_context"]["execution"]
+            self.assertTrue(execution_context["credential_preflight"]["required"])
+            self.assertEqual(
+                execution_context["credential_preflight"]["status"],
+                "passed",
+            )
 
     def test_live_mode_uses_wallet_convergence_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
