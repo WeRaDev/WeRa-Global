@@ -318,6 +318,20 @@ D3 rehearsal artifact usage:
 - `rollback_recommendations` is derived from `config/integration/live_rollout_rehearsal.v1.json` `rollback_decision_matrix`; any populated entry is rollout-blocking until resolved.
 - Scenario runtime evidence is stored per drill under `runtime/rollout_rehearsal/<scenario_id>/` (`runtime_state.json`, `runtime_journal.jsonl`, `operator_control_state.json`, `operator_action_audit.jsonl`, `cycles/`).
 
+Run E3 canary readiness certification (weighted pass/fail criteria + approval boundary):
+```bash
+python3 scripts/run_canary_readiness_certification.py \
+  --rehearsal-report runtime/rollout_rehearsal_report.json \
+  --criteria-config config/integration/canary_promotion_criteria.v1.json \
+  --approval-status pending \
+  --output runtime/canary_rollout_certification_report.json
+```
+E3 certification artifact usage:
+- `runtime/canary_rollout_certification_report.json` includes criterion-level PASS/FAIL `reason_code`, weighted `readiness_score`, and fail-fast blocker entries.
+- Canary promotion is blocked whenever `overall_status=FAIL` (for example unresolved `blocker`/`critical`/`high` rollback recommendations or failed runtime control scenarios).
+- `promotion_decision.canary_enablement_allowed` remains `false` until manual approval is recorded as `approved`.
+- Manual approval boundary is defined in `config/integration/canary_promotion_criteria.v1.json` `manual_approval_policy`: promotion owner is `release_manager`, required approvers are `release_manager` + `runtime_operator_on_call`, and rollback authority is `runtime_operator_on_call` + `incident_commander`.
+
 Run stress campaign certification:
 ```bash
 python3 scripts/run_stress_certification.py \

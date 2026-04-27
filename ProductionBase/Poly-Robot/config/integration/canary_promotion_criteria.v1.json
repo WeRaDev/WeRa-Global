@@ -1,0 +1,49 @@
+{
+  "config_name": "poly_robot_canary_promotion_criteria",
+  "config_version": "1.0.0",
+  "updated_at": "2026-04-27T15:50:00Z",
+  "description": "Phase-E3 canary readiness certification policy keyed to rollout rehearsal outcomes and runtime control evidence.",
+  "minimum_readiness_score": 90.0,
+  "blocking_rollback_severities": [
+    "blocker",
+    "critical",
+    "high"
+  ],
+  "required_control_scenarios": [
+    "kill_switch_gate",
+    "cancel_all_gate",
+    "restart_acknowledgement_gate"
+  ],
+  "criteria_weights": {
+    "rehearsal_overall_success": 25.0,
+    "no_blocking_metadata_failures": 15.0,
+    "no_failed_command_bundles": 10.0,
+    "no_blocking_rollback_recommendations": 20.0,
+    "required_control_scenarios_passed": 30.0
+  },
+  "blocking_criteria_ids": [
+    "rehearsal_overall_success",
+    "no_blocking_metadata_failures",
+    "no_failed_command_bundles",
+    "no_blocking_rollback_recommendations",
+    "required_control_scenarios_passed",
+    "readiness_score_threshold_met"
+  ],
+  "manual_approval_policy": {
+    "manual_approval_required": true,
+    "promotion_owner": "release_manager",
+    "required_approvers": [
+      "release_manager",
+      "runtime_operator_on_call"
+    ],
+    "rollback_authority": [
+      "runtime_operator_on_call",
+      "incident_commander"
+    ],
+    "approval_sequence": [
+      "release_manager reviews canary certification artifact",
+      "runtime_operator_on_call verifies rollback controls and runbook readiness",
+      "promotion_owner records explicit approval before enabling canary_live stage"
+    ]
+  }
+}

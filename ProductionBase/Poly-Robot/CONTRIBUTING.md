@@ -37,6 +37,9 @@ A task is done only when:
 - D3 rollout rehearsal protocol:
   - `python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json`
   - Treat non-zero `summary.failed_command_bundles` or `summary.failed_bundle_commands` in `runtime/rollout_rehearsal_report.json` as rollout-blocking and resolve before promotion.
+- E3 canary readiness certification:
+  - `python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status pending --output runtime/canary_rollout_certification_report.json`
+  - Treat `overall_status=FAIL` in `runtime/canary_rollout_certification_report.json` as canary-promotion blocking.
 - Docker deployment sanity:
   - `docker compose config --quiet`
   - `docker compose build runtime-gui`
@@ -58,3 +61,8 @@ If a command is not yet available, add it in the same pull request that introduc
   - `export POLYMARKET_API_KEY_LAST_ROTATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"`
 - Treat startup failures containing `Live credential preflight failed` as blocking incidents and resolve by rotating/reloading credentials plus metadata refresh before retry.
 - Treat non-empty `rollback_recommendations` in `runtime/rollout_rehearsal_report.json` as rollout-blocking incidents; resolve trigger conditions and rerun D3 rehearsal before advancing rollout stage.
+- Canary enablement approval boundary:
+  - Promotion owner: `release_manager`.
+  - Required approvers: `release_manager` and `runtime_operator_on_call`.
+  - Rollback authority: `runtime_operator_on_call` and `incident_commander`.
+  - Keep `promotion_decision.approval_status=pending` until both required approvers sign off; do not enable `canary_live` stage before this boundary is satisfied.

@@ -13,5 +13,6 @@ RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION = "runtime_operator_control_state.
 RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION = "runtime_operator_action.v1"
 RUNTIME_SOAK_HEALTH_SNAPSHOT_SCHEMA_VERSION = "runtime_soak_health_snapshot.v1"
 ROLLOUT_REHEARSAL_REPORT_SCHEMA_VERSION = "rollout_rehearsal_report.v1"
+CANARY_ROLLOUT_CERTIFICATION_REPORT_SCHEMA_VERSION = "canary_rollout_certification_report.v1"
 STRESS_CERTIFICATION_REPORT_SCHEMA_VERSION = "stress_certification_report.v1"
 STRESS_CAMPAIGN_REPORT_SCHEMA_VERSION = "stress_campaign_report.v1"

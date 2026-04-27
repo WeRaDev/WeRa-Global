@@ -66,6 +66,7 @@
       ],
       "validation_commands": [
         "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status pending --output runtime/canary_rollout_certification_report.json",
         "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live",
         "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters"
       ]
