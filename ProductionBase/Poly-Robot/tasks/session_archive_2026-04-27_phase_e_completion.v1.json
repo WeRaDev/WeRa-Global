@@ -1,0 +1,71 @@
+{
+  "schema_version": "poly_robot_session_archive.v1",
+  "session": {
+    "id": "2026-04-27-phase-e-completion",
+    "archived_at_utc": "2026-04-27T16:10:00Z",
+    "status": "completed_and_handed_off",
+    "scope": [
+      "phase-e rollout-gate integration",
+      "rehearsal command-bundle automation",
+      "canary readiness certification implementation",
+      "pull-request update for phase-e stream"
+    ]
+  },
+  "delivery": {
+    "branch": "feat/poly-robot-phase-d-kickoff",
+    "head_commit": {
+      "sha": "b4f3143342df7a2ea6af3a90a719ff8173d69e5e",
+      "subject": "feat(poly-robot): add canary rollout readiness certification"
+    },
+    "phase_commits": [
+      {
+        "sha": "900e0eb6f9de4ac36706b250b31a1d8120c65f30",
+        "subject": "feat(poly-robot): enforce rollout rehearsal bundle gates"
+      },
+      {
+        "sha": "b4f3143342df7a2ea6af3a90a719ff8173d69e5e",
+        "subject": "feat(poly-robot): add canary rollout readiness certification"
+      }
+    ],
+    "pull_request": {
+      "url": "http://127.0.0.1:3000/wera-global/WeRa-Global/pulls/14",
+      "number": 14,
+      "base_branch": "main",
+      "head_branch": "feat/poly-robot-phase-d-kickoff"
+    }
+  },
+  "outcomes": [
+    "E1 complete: CI now enforces rollout rehearsal protocol status and uploads deterministic rehearsal artifacts.",
+    "E2 complete: rollout rehearsal runner executes precheck/postcheck command bundles with structured results and rollout-blocking metadata on failures.",
+    "E3 complete: canary readiness certification runner and policy artifact now emit weighted PASS/FAIL criteria, blockers, and explicit manual approval/rollback authority boundaries."
+  ],
+  "validation": {
+    "commands": [
+      "ruff check scripts/run_rollout_rehearsal.py tests/test_rollout_rehearsal.py",
+      "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_rollout_rehearsal.py\"",
+      "ruff check src/poly_robot/canary_readiness.py scripts/run_canary_readiness_certification.py tests/test_canary_readiness.py src/poly_robot/schemas.py",
+      "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_canary_readiness.py\"",
+      "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir /tmp/poly_robot_rollout_rehearsal_e3 --output-path /tmp/poly_robot_rollout_rehearsal_e3_report.json",
+      "python3 scripts/run_canary_readiness_certification.py --rehearsal-report /tmp/poly_robot_rollout_rehearsal_e3_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status pending --output /tmp/poly_robot_canary_certification_e3_report.json",
+      "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_runtime_supervisor_controls.py\"",
+      "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_runtime_supervisor_live.py\"",
+      "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_integration_adapters.py\""
+    ],
+    "result": "pass"
+  },
+  "session_learnings": [
+    {
+      "learning": "Rehearsal gating and readiness certification should remain separate artifacts: operational health gate first, then promotion-readiness gate.",
+      "action": "Keep `run_rollout_rehearsal.py` and `run_canary_readiness_certification.py` as explicit sequential pipeline steps."
+    },
+    {
+      "learning": "Promotion safety requires explicit distinction between technical readiness PASS and manual approval authorization.",
+      "action": "Preserve `promotion_decision` metadata with `manual_approval_required` and `canary_enablement_allowed` fields as non-optional outputs."
+    }
+  ],
+  "carry_over_workspace_state": {
+    "poly_robot_uncommitted_changes_present": false,
+    "paths": [],
+    "note": "Poly-Robot workspace is clean at phase handoff; next-phase kickoff can proceed directly from tracked artifacts."
+  }
+}

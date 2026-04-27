@@ -1,80 +1,83 @@
 {
   "schema_version": "poly_robot_next_phase_queue.v1",
   "phase": {
-    "name": "Phase E kickoff",
-    "prepared_at_utc": "2026-04-27T14:40:00Z",
-    "goal": "Transition from D-phase control rehearsals into promotion-gated canary rollout execution and automated rollback governance."
+    "name": "Phase F kickoff",
+    "prepared_at_utc": "2026-04-27T16:10:00Z",
+    "goal": "Transition from Phase-E readiness artifacts into controlled canary-live execution with auditable promotion approvals and automated rollback governance."
   },
   "entry_criteria": [
-    "Phase-D pull request includes D1, D2, and D3 implementation commits with passing targeted quality gates.",
-    "Rollout rehearsal protocol exists and executes deterministically with machine-readable evidence."
+    "Phase-E implementation commits are present in pull request #14 with passing targeted validation commands.",
+    "Canary readiness criteria config and certification runner produce machine-readable PASS/FAIL artifacts from rollout rehearsal evidence."
   ],
   "priority_work_items": [
     {
-      "id": "E1",
-      "title": "Promote rollout rehearsal to CI release gate",
-      "problem_statement": "D3 rehearsal artifacts are available, but CI does not yet block merges on failed drill outcomes or rollback recommendations.",
+      "id": "F1",
+      "title": "Promote canary readiness certification to CI policy gate",
+      "problem_statement": "Phase-E canary certification exists, but CI currently gates only on rehearsal outcomes and does not enforce canary-readiness blockers.",
       "scope": [
-        "Integrate scripts/run_rollout_rehearsal.py execution into .gitea/workflows/ci.yml.",
-        "Fail CI when rollout_rehearsal_report.json overall_status is FAILED.",
-        "Fail CI when rollback_recommendations is non-empty.",
-        "Persist rollout rehearsal report as CI artifact for operator review."
+        "Integrate scripts/run_canary_readiness_certification.py into .gitea/workflows/ci.yml after rehearsal report generation.",
+        "Fail CI when canary_rollout_certification_report.json overall_status is FAIL.",
+        "Persist canary readiness certification report as CI artifact alongside rehearsal evidence.",
+        "Expose blocker count and readiness score in CI logs for operator triage."
       ],
       "acceptance_criteria": [
-        "CI executes rollout rehearsal checks on each relevant pull request.",
-        "Merge is blocked when rehearsal drills fail or rollback recommendations are emitted.",
-        "CI output includes deterministic artifact path for rehearsal report inspection."
-      ],
-      "validation_commands": [
-        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
-        "PYTHONPATH=src python3 -m unittest tests.test_rollout_rehearsal",
-        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls"
-      ]
-    },
-    {
-      "id": "E2",
-      "title": "Automate rollout pre-check and post-check bundles",
-      "problem_statement": "Protocol command bundles are documented, but operator execution is still manual and not yet auditable as a single deterministic gate.",
-      "scope": [
-        "Add a command-bundle runner that executes protocol precheck_commands and postcheck_commands.",
-        "Emit structured command execution report with command, exit code, and failure reasons.",
-        "Integrate bundle report references into rollout rehearsal output."
-      ],
-      "acceptance_criteria": [
-        "Pre-check and post-check commands can be executed in one deterministic invocation.",
-        "Any failed command becomes a rollout-blocking signal in generated report metadata.",
-        "Bundle execution report is reproducible and suitable for operator handoff."
-      ],
-      "validation_commands": [
-        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
-        "PYTHONPATH=src python3 -m unittest tests.test_rollout_rehearsal"
-      ]
-    },
-    {
-      "id": "E3",
-      "title": "Canary rollout readiness certification and promotion criteria",
-      "problem_statement": "D3 rollback matrix exists, but phase promotion still lacks explicit readiness scoring and canary-stage certification artifact.",
-      "scope": [
-        "Define canary promotion criteria artifact keyed to rehearsal outcomes and runtime control evidence.",
-        "Add readiness scoring and fail-fast blockers for unresolved rollback signals.",
-        "Document phase-promotion ownership and manual approval boundary for canary enablement."
-      ],
-      "acceptance_criteria": [
-        "Certification artifact reports PASS/FAIL with criterion-level reason codes.",
-        "Promotion to canary stage is blocked when any critical/high rollback trigger remains unresolved.",
-        "Operator runbook specifies explicit approval and rollback authority path."
+        "CI executes canary readiness certification on every relevant pull request.",
+        "Merge is blocked when canary certification emits any blockers.",
+        "CI output exposes deterministic artifact paths for rehearsal plus certification reports."
       ],
       "validation_commands": [
         "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
         "python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status pending --output runtime/canary_rollout_certification_report.json",
-        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live",
-        "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters"
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_rollout_rehearsal.py\"",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_canary_readiness.py\""
+      ]
+    },
+    {
+      "id": "F2",
+      "title": "Canary stage enablement workflow with audited approval records",
+      "problem_statement": "Canary certification captures approval status input, but phase promotion is not yet tied to a persistent approval record and auditable stage-enable workflow.",
+      "scope": [
+        "Define approval record artifact for required approvers (`release_manager`, `runtime_operator_on_call`).",
+        "Implement promotion-decision runner that validates certification PASS plus approval record completeness before canary stage enablement.",
+        "Write append-only audit evidence for promotion decision and rollback authority assignment."
+      ],
+      "acceptance_criteria": [
+        "Promotion decision artifact reports ALLOW/DENY with criterion-level reason codes.",
+        "Canary stage enablement is denied when required approvers are missing or certification has blockers.",
+        "Approval and promotion actions are persisted as machine-readable audit evidence."
+      ],
+      "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status approved --approval-actor release_manager --output runtime/canary_rollout_certification_report.json",
+        "python3 scripts/run_canary_stage_enablement.py --certification-report runtime/canary_rollout_certification_report.json --approval-record config/integration/canary_approval_record_template.v1.json --rollout-config config/integration/live_trade_rollout.v1.json --requested-stage canary_live --decision-output runtime/canary_stage_enablement_decision.json --audit-output runtime/canary_stage_enablement_audit.jsonl --actor release_manager --reason \"phase-f2-validation\" || true",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_canary_readiness.py\"",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_canary_enablement.py\""
+      ]
+    },
+    {
+      "id": "F3",
+      "title": "Automated canary rollback enforcement and incident handoff",
+      "problem_statement": "Rollback policy is defined for canary operation, but enforcement remains manual and lacks a dedicated incident-handoff artifact.",
+      "scope": [
+        "Implement rollback guard runner that evaluates live-cycle telemetry and canary rollback triggers against configured thresholds.",
+        "Emit a rollback incident artifact with trigger evidence, required emergency actions, and responsible authority.",
+        "Wire rollback incident artifact into operator runbook documentation and release handoff."
+      ],
+      "acceptance_criteria": [
+        "Rollback guard emits PASS/FAIL with reason-coded trigger evidence.",
+        "Any triggered rollback condition yields a machine-readable incident artifact and explicit emergency-action list.",
+        "Operator documentation includes deterministic rollback handoff sequence and authority mapping."
+      ],
+      "validation_commands": [
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_runtime_supervisor_live.py\"",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_integration_adapters.py\"",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_runtime_supervisor_controls.py\""
       ]
     }
   ],
   "handoff_notes": [
-    "Preserve current pull request stream for phase integration visibility while Phase E tasks begin.",
-    "Use short-lived feature branches under feat/poly-robot-phase-e-* for isolated E-workstreams.",
-    "Treat non-empty rollback_recommendations as rollout blockers requiring explicit remediation before promotion."
+    "Preserve pull-request stream #14 for integrated phase progression visibility.",
+    "Use short-lived feature branches under feat/poly-robot-phase-f-* for isolated F-workstreams.",
+    "Treat canary readiness blockers and unresolved high-severity rollback triggers as non-negotiable promotion blockers."
   ]
 }
