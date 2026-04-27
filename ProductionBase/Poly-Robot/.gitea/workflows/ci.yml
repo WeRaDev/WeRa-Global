@@ -1,0 +1,46 @@
+name: poly-robot-ci
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  baseline-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install static tooling
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install mypy
+      - name: Baseline repository structure check
+        run: |
+          test -f README.md
+          test -f WARP.md
+          test -f CONTRIBUTING.md
+          test -d tasks
+          test -d skills
+      - name: Parameter governance validation
+        run: |
+          python3 scripts/validate_parameters.py \
+            --catalog config/parameters/catalog.v1.json \
+            --profile config/parameters/profiles/mvp_test_token.v1.json \
+            --baseline config/parameters/baselines/mvp_test_token.freeze.v1.json \
+            --calibration-policy config/calibration/llm_reliability.v1.json
+      - name: Governance unit tests
+        run: |
+          PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py"
+      - name: Static typing check
+        run: |
+          PYTHONPATH=src python3 -m mypy src/poly_robot
+      - name: Docker compose config check
+        run: |
+          docker compose config --quiet
+      - name: Docker runtime-gui build check
+        run: |
+          docker compose build runtime-gui

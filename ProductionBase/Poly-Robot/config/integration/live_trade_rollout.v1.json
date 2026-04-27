@@ -1,0 +1,115 @@
+{
+  "config_name": "poly_robot_live_trade_rollout_controls",
+  "config_version": "1.0.0",
+  "updated_at": "2026-04-27T10:40:00Z",
+  "default_execution_mode": "paper",
+  "global_guards": {
+    "require_server_side_request_signing": true,
+    "require_operator_token_for_controls": true,
+    "require_read_api_token_when_exposed_beyond_loopback": true,
+    "require_pretrade_balance_and_allowance_checks": true,
+    "require_user_channel_trade_ack": true,
+    "require_kill_switch": true,
+    "disable_live_trading_on_auth_failure": true
+  },
+  "secrets_policy": {
+    "allow_plaintext_secrets": false,
+    "required_env_vars": [
+      "POLYMARKET_PRIVATE_KEY",
+      "POLYMARKET_FUNDER_ADDRESS",
+      "POLYMARKET_API_KEY",
+      "POLYMARKET_API_SECRET",
+      "POLYMARKET_API_PASSPHRASE"
+    ],
+    "preferred_secret_sources": [
+      "local_keychain",
+      "vault",
+      "kms"
+    ]
+  },
+  "rollout_stages": [
+    {
+      "stage": "paper",
+      "enabled": true,
+      "real_order_submission": false,
+      "max_order_notional_usd": 0,
+      "max_daily_notional_usd": 0,
+      "max_open_orders": 0,
+      "allowed_order_types": [
+        "GTC",
+        "FOK",
+        "FAK"
+      ],
+      "exit_criteria": [
+        "Milestone C staged certification sequence PASS",
+        "No unresolved critical incidents in latest soak evidence"
+      ]
+    },
+    {
+      "stage": "canary_live",
+      "enabled": false,
+      "real_order_submission": true,
+      "max_order_notional_usd": 50,
+      "max_daily_notional_usd": 500,
+      "max_open_orders": 3,
+      "allowed_order_types": [
+        "GTC",
+        "FOK"
+      ],
+      "preconditions": [
+        "L1/L2 auth validated against production CLOB",
+        "User WebSocket channel healthy with heartbeat and event persistence",
+        "Pre-trade allowance checks and order-cancel recovery path verified"
+      ],
+      "rollback_conditions": [
+        "Any order lifecycle enters FAILED without deterministic replayable cause",
+        "Execution-cost-to-expected-net ratio > 1.0 for three consecutive cycles",
+        "Control-plane auth incident or unplanned restart during live session"
+      ]
+    },
+    {
+      "stage": "limited_live",
+      "enabled": false,
+      "real_order_submission": true,
+      "max_order_notional_usd": 200,
+      "max_daily_notional_usd": 2000,
+      "max_open_orders": 8,
+      "allowed_order_types": [
+        "GTC",
+        "GTD",
+        "FOK"
+      ],
+      "preconditions": [
+        "Canary live stage completed for at least 7 consecutive days without rollback",
+        "Trade/position reconciliation with Data API has zero unresolved mismatches",
+        "Incident response drill (kill switch + cancel-all) executed successfully"
+      ]
+    },
+    {
+      "stage": "full_live",
+      "enabled": false,
+      "real_order_submission": true,
+      "max_order_notional_usd": 500,
+      "max_daily_notional_usd": 10000,
+      "max_open_orders": 20,
+      "allowed_order_types": [
+        "GTC",
+        "GTD",
+        "FOK",
+        "FAK"
+      ],
+      "preconditions": [
+        "Limited live stage completed for at least 14 consecutive days without rollback",
+        "Security hardening checklist closed (RBAC, secret rotation, network controls)",
+        "On-call runbook and operator UX runbook approved"
+      ]
+    }
+  ],
+  "emergency_actions": [
+    "disable_new_orders",
+    "cancel_all_open_orders",
+    "rotate_api_credentials",
+    "switch_to_paper_mode",
+    "require_manual_operator_ack_for_resume"
+  ]
+}

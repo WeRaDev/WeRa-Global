@@ -38,3 +38,9 @@ repos:
     default_branch: main
     status: incubation
     role: AI procurement agent for Leroy Merlin PRO pilot operations
+  - id: Poly-Robot
+    path: ProductionBase/Poly-Robot
+    gitea_url: http://127.0.0.1:3000/wera-global/Poly-Robot.git
+    default_branch: main
+    status: incubation
+    role: modular robotics and multi-agent orchestration platform
