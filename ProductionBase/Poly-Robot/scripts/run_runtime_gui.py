@@ -136,6 +136,8 @@ def _html_page() -> str:
       <li>Use Dashboard Views filters to focus on incidents, action history, and cycle comparisons.</li>
       <li>Review the Financial Dashboard for equity, PnL, exposure, and execution-cost metrics.</li>
       <li>Use Pause before maintenance, Resume to continue runtime, and Graceful Restart for controlled restarts.</li>
+      <li>Use Kill Switch ON to halt submissions immediately (and request cancel-all); use Kill Switch OFF after manual verification.</li>
+      <li>Use Cancel All Orders to request deterministic cancellation of all currently open orders.</li>
       <li>Set Scenario to steer the next cycle input profile and use incident annotations for auditability.</li>
       <li>If no operator token was configured at startup, control POST actions are disabled (read-only mode).</li>
       <li>When read-api token mode is enabled, include a valid token to load dashboard API data.</li>
@@ -149,6 +151,9 @@ def _html_page() -> str:
     <button onclick="sendControl('/api/control/pause')">Pause</button>
     <button onclick="sendControl('/api/control/resume')">Resume</button>
     <button onclick="sendControl('/api/control/restart')">Graceful Restart</button>
+    <button onclick="sendControl('/api/control/kill-switch/on')">Kill Switch ON</button>
+    <button onclick="sendControl('/api/control/kill-switch/off')">Kill Switch OFF</button>
+    <button onclick="sendControl('/api/control/cancel-all')">Cancel All Orders</button>
     <br />
     <input id="scenario" placeholder="scenario name" value="baseline" />
     <button onclick="sendControl('/api/control/scenario')">Set Scenario</button>
@@ -689,6 +694,18 @@ def _build_handler(
                     )
                 elif parsed.path == "/api/control/restart":
                     state = control_manager.request_restart(actor=actor, reason=reason)
+                elif parsed.path == "/api/control/kill-switch/on":
+                    state = control_manager.set_kill_switch(
+                        active=True, actor=actor, reason=reason
+                    )
+                elif parsed.path == "/api/control/kill-switch/off":
+                    state = control_manager.set_kill_switch(
+                        active=False, actor=actor, reason=reason
+                    )
+                elif parsed.path == "/api/control/cancel-all":
+                    state = control_manager.request_cancel_all(
+                        actor=actor, reason=reason
+                    )
                 elif parsed.path == "/api/control/scenario":
                     scenario_name = str(payload.get("scenario_name", "")).strip()
                     state = control_manager.set_scenario(

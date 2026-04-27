@@ -878,6 +878,113 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(events[-1]["action_sequence"], 6)
             self.assertEqual(events[-1]["action"], "resume")
 
+    def test_kill_switch_and_cancel_all_actions_update_control_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manager = OperatorControlManager(
+                control_state_path=root / "operator_state.json",
+                audit_path=root / "operator_audit.jsonl",
+            )
+
+            state = manager.set_kill_switch(
+                active=True,
+                actor="alice",
+                reason="emergency stop",
+            )
+            self.assertTrue(state["kill_switch_active"])
+            self.assertTrue(state["cancel_all_requested"])
+            state = manager.acknowledge_cancel_all(
+                actor="runtime_supervisor",
+                note="cancel-all applied",
+            )
+            self.assertFalse(state["cancel_all_requested"])
+            state = manager.set_kill_switch(
+                active=False,
+                actor="alice",
+                reason="resume validated",
+            )
+            self.assertFalse(state["kill_switch_active"])
+            state = manager.request_cancel_all(actor="alice", reason="manual sweep")
+            self.assertTrue(state["cancel_all_requested"])
+
+            events = manager.list_audit_events(limit=10)
+            self.assertEqual(
+                [event["action"] for event in events[-4:]],
+                [
+                    "kill_switch_enabled",
+                    "cancel_all_acknowledged",
+                    "kill_switch_disabled",
+                    "cancel_all_requested",
+                ],
+            )
+
+    def test_runtime_gui_control_endpoints_include_kill_switch_and_cancel_all(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                for path in (
+                    "/api/control/kill-switch/on",
+                    "/api/control/kill-switch/off",
+                    "/api/control/cancel-all",
+                ):
+                    connection = http.client.HTTPConnection(host, port, timeout=5)
+                    connection.request(
+                        "POST",
+                        path,
+                        body=json.dumps({"actor": "alice", "reason": "test"}),
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Operator-Token": "secret-token",
+                        },
+                    )
+                    response = connection.getresponse()
+                    payload = json.loads(response.read().decode("utf-8"))
+                    connection.close()
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual(payload["status"], "ok")
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
     def test_invalid_control_arguments_raise_value_error(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -930,6 +1037,8 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('onclick="loadOlderIncidents()"', html)
         self.assertIn('id="financialPayload"', html)
         self.assertIn("How to Use and Control Poly-Robot", html)
+        self.assertIn("Kill Switch ON", html)
+        self.assertIn("Cancel All Orders", html)
 
 
 if __name__ == "__main__":

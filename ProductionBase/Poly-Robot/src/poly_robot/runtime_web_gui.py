@@ -77,6 +77,8 @@ def _default_control_state() -> dict[str, Any]:
         "control_version": 0,
         "paused": False,
         "restart_requested": False,
+        "kill_switch_active": False,
+        "cancel_all_requested": False,
         "selected_scenario": "baseline",
         "last_annotation": "",
     }
@@ -171,6 +173,49 @@ class OperatorControlManager:
             action="graceful_restart_requested",
             actor=actor,
             details={"reason": reason},
+            mutate_state=_apply,
+        )
+
+    def set_kill_switch(
+        self, *, active: bool, actor: str, reason: str = ""
+    ) -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["kill_switch_active"] = active
+            if active:
+                state["cancel_all_requested"] = True
+            if reason:
+                state["kill_switch_reason"] = reason
+
+        return self._mutate_state(
+            action="kill_switch_enabled" if active else "kill_switch_disabled",
+            actor=actor,
+            details={"kill_switch_active": active, "reason": reason},
+            mutate_state=_apply,
+        )
+
+    def request_cancel_all(self, *, actor: str, reason: str = "") -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["cancel_all_requested"] = True
+            if reason:
+                state["cancel_all_reason"] = reason
+
+        return self._mutate_state(
+            action="cancel_all_requested",
+            actor=actor,
+            details={"reason": reason},
+            mutate_state=_apply,
+        )
+
+    def acknowledge_cancel_all(self, *, actor: str, note: str = "") -> dict[str, Any]:
+        def _apply(state: dict[str, Any]) -> None:
+            state["cancel_all_requested"] = False
+            if note:
+                state["cancel_all_ack_note"] = note
+
+        return self._mutate_state(
+            action="cancel_all_acknowledged",
+            actor=actor,
+            details={"note": note},
             mutate_state=_apply,
         )
 

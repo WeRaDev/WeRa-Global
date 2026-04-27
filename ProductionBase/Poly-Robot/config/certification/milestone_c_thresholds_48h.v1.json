@@ -1,0 +1,11 @@
+{
+  "minimum_scenario_count": 4,
+  "minimum_total_allowed_trades": 2,
+  "maximum_zero_trade_scenarios": 2,
+  "maximum_open_notional": 300.0,
+  "require_soak_summary": true,
+  "require_soak_overall_success": true,
+  "maximum_failed_intervals": 0,
+  "maximum_drill_unexpected_success": 0,
+  "maximum_recovery_failures": 0
+}

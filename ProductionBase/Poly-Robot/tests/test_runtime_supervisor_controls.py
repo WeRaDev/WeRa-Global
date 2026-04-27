@@ -112,6 +112,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "control_version": 5,
                 "paused": True,
                 "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
                 "selected_scenario": "baseline",
                 "last_annotation": "",
             }
@@ -146,6 +148,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "control_version": 3,
                 "paused": False,
                 "restart_requested": True,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
                 "selected_scenario": "baseline",
                 "last_annotation": "",
             }
@@ -181,6 +185,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "control_version": 8,
                 "paused": False,
                 "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
                 "selected_scenario": "liquidity_crunch",
                 "last_annotation": "",
             }
@@ -211,6 +217,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "control_version": 1,
                 "paused": False,
                 "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
                 "selected_scenario": "baseline",
                 "last_annotation": "",
             }
@@ -226,6 +234,75 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
             state = _read_json(state_path)
             self.assertEqual(state["status"], "FAILED")
             self.assertTrue(state["failed_workers"])
+
+    def test_cancel_all_request_is_acknowledged_during_cycle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 2,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": True,
+                "selected_scenario": "baseline",
+                "last_annotation": "",
+            }
+            result, state_path, journal_path, control_state_path, audit_path = (
+                self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=1,
+                )
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertTrue(metadata["cancel_all_requested"])
+            self.assertTrue(metadata["cancel_all_acknowledged"])
+            updated_control_state = _read_json(control_state_path)
+            self.assertFalse(updated_control_state["cancel_all_requested"])
+            audit_events = _read_jsonl(audit_path)
+            self.assertEqual(audit_events[-1]["action"], "cancel_all_acknowledged")
+            heartbeat_stages = {
+                (row.get("payload") or {}).get("stage")
+                for row in _read_jsonl(journal_path)
+                if row.get("event_type") == "worker_heartbeat"
+            }
+            self.assertIn("control_cancel_all_applied", heartbeat_stages)
+
+    def test_kill_switch_active_emits_control_gate_heartbeat(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 4,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": True,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "last_annotation": "",
+            }
+            result, state_path, journal_path, _, _ = self._run_supervisor(
+                temp_root=root,
+                control_state_payload=control_state,
+                cycles=1,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertTrue(metadata["kill_switch_active"])
+            heartbeat_stages = {
+                (row.get("payload") or {}).get("stage")
+                for row in _read_jsonl(journal_path)
+                if row.get("event_type") == "worker_heartbeat"
+            }
+            self.assertIn("control_kill_switch_gate", heartbeat_stages)
 
 
 if __name__ == "__main__":

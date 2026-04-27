@@ -117,6 +117,86 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=1.0)
+
+    def test_live_polymarket_clob_execution_mode_is_wired_and_gated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+
+            _LiveFeedHandler.payload = [
+                {
+                    "id": "live-market-clob",
+                    "question": "Will CLOB mode stay gated before implementation?",
+                    "updatedAt": "2026-04-26T15:00:00Z",
+                    "endDate": "2026-05-01T00:00:00Z",
+                    "outcomePrices": "[\"0.61\", \"0.39\"]",
+                    "liquidity": "64000.0",
+                    "volume24hr": 2200.0,
+                    "oneWeekPriceChange": 0.08,
+                }
+            ]
+            server = ThreadingHTTPServer(("127.0.0.1", 0), _LiveFeedHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                live_source_url = f"http://127.0.0.1:{server.server_port}/markets"
+                command = [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--ingestion-mode",
+                    "live_polymarket",
+                    "--live-source-url",
+                    live_source_url,
+                    "--execution-mode",
+                    "live_polymarket_clob",
+                    "--live-rollout-stage",
+                    "canary_live",
+                    "--cycles",
+                    "1",
+                    "--max-retries",
+                    "0",
+                    "--retry-backoff-seconds",
+                    "0",
+                    "--ingestion-max-retries",
+                    "0",
+                    "--ingestion-retry-backoff-seconds",
+                    "0",
+                    "--execution-gateway-max-retries",
+                    "0",
+                    "--execution-gateway-retry-backoff-seconds",
+                    "0",
+                    "--state-path",
+                    str(state_path),
+                    "--journal-path",
+                    str(journal_path),
+                    "--control-state-path",
+                    str(control_state_path),
+                    "--control-audit-path",
+                    str(control_audit_path),
+                    "--cycle-output-dir",
+                    str(cycle_output_dir),
+                ]
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=False
+                )
+
+                self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+                self.assertIn("execution_mode=live_polymarket_clob", result.stdout)
+
+                cycle_report = _read_json(cycle_output_dir / "cycle_001.json")
+                execution_context = cycle_report["run_context"]["execution"]
+                self.assertEqual(execution_context["mode"], "live_polymarket_clob")
+                self.assertEqual(execution_context["rollout_stage"], "canary_live")
+                self.assertEqual(cycle_report["filled_trade_count"], 0)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=1.0)
+
     def test_live_mode_uses_wallet_convergence_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

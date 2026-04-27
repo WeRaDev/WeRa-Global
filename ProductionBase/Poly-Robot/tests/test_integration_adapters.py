@@ -15,11 +15,12 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from poly_robot.contracts import MarketEvent  # noqa: E402
+from poly_robot.contracts import MarketEvent, RiskDecision  # noqa: E402
 from poly_robot.integration_adapters import (  # noqa: E402
     ExecutionGatewayAdapter,
     HistoricalIngestionAdapter,
     LivePolymarketIngestionAdapter,
+    PolymarketClobExecutionAdapter,
 )
 from poly_robot.paper_execution import ExecutionIntent, ExecutionResult  # noqa: E402
 
@@ -50,10 +51,13 @@ def _write_jsonl(path: Path, rows: list[str]) -> None:
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
-def _build_event(event_id: str = "evt-1") -> MarketEvent:
-    return MarketEvent.from_dict(
-        _event_payload(event_id=event_id, timestamp="2026-01-01T00:00:00Z")
-    )
+def _build_event(
+    event_id: str = "evt-1", *, metadata: dict[str, object] | None = None
+) -> MarketEvent:
+    payload = _event_payload(event_id=event_id, timestamp="2026-01-01T00:00:00Z")
+    if metadata is not None:
+        payload["metadata"] = dict(metadata)
+    return MarketEvent.from_dict(payload)
 
 
 def _build_intent() -> ExecutionIntent:
@@ -403,6 +407,166 @@ class LivePolymarketIngestionAdapterTests(unittest.TestCase):
         self.assertEqual(batch.status, "DEGRADED")
         self.assertIn("wallet_signal_unavailable", batch.reasons)
         self.assertEqual(batch.metadata["wallet_signal_loader_error"], "OSError")
+
+class PolymarketClobExecutionAdapterTests(unittest.TestCase):
+    def _build_adapter(
+        self,
+        *,
+        stage_enabled: bool = True,
+        real_order_submission: bool = True,
+        allow_real_trading: bool = True,
+        required_env_vars: tuple[str, ...] = (),
+        require_pretrade_balance_checks: bool = False,
+        require_user_channel_trade_ack: bool = False,
+        require_kill_switch: bool = False,
+        allow_plaintext_secrets: bool = True,
+        environment: dict[str, str] | None = None,
+    ) -> PolymarketClobExecutionAdapter:
+        return PolymarketClobExecutionAdapter(
+            clob_base_url="https://clob.polymarket.com",
+            rollout_stage="canary_live",
+            stage_enabled=stage_enabled,
+            real_order_submission=real_order_submission,
+            allow_real_trading=allow_real_trading,
+            required_env_vars=required_env_vars,
+            require_pretrade_balance_checks=require_pretrade_balance_checks,
+            require_user_channel_trade_ack=require_user_channel_trade_ack,
+            require_kill_switch=require_kill_switch,
+            allow_plaintext_secrets=allow_plaintext_secrets,
+            environment=environment,
+        )
+
+    def test_rejects_when_stage_disabled(self) -> None:
+        adapter = self._build_adapter(
+            stage_enabled=False,
+            real_order_submission=True,
+            allow_real_trading=True,
+            required_env_vars=(),
+            environment={},
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "1234"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(
+            result.reasons,
+            ("live_trading_disabled_by_rollout_stage",),
+        )
+
+    def test_rejects_when_required_credentials_are_missing(self) -> None:
+        adapter = self._build_adapter(
+            required_env_vars=("POLYMARKET_API_KEY", "POLYMARKET_API_SECRET"),
+            environment={"POLYMARKET_API_KEY": "key-present"},
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "1234"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("missing_polymarket_credentials",))
+        self.assertEqual(
+            result.metadata["missing_env_vars"],
+            ["POLYMARKET_API_SECRET"],
+        )
+
+    def test_rejects_when_secret_source_metadata_missing(self) -> None:
+        adapter = self._build_adapter(
+            required_env_vars=("POLYMARKET_API_KEY",),
+            environment={"POLYMARKET_API_KEY": "key-present"},
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "1234"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("secret_source_metadata_missing",))
+
+    def test_rejects_when_token_id_is_missing(self) -> None:
+        adapter = self._build_adapter(required_env_vars=(), environment={})
+        result = adapter.execute(event=_build_event(metadata={}), intent=_build_intent())
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("token_id_missing_for_execution",))
+
+    def test_fills_order_when_gates_pass(self) -> None:
+        adapter = self._build_adapter(
+            required_env_vars=("POLYMARKET_API_KEY",),
+            environment={
+                "POLYMARKET_API_KEY": "key-present",
+                "POLYMARKET_API_KEY_SOURCE": "vault",
+                "POLYMARKET_API_KEY_LAST_ROTATED_AT": "2099-01-01T00:00:00Z",
+            },
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "9876"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "FILLED")
+        self.assertEqual(result.reasons, ("clob_order_filled",))
+        self.assertEqual(result.filled_notional, 100.0)
+        self.assertEqual(result.metadata["token_id"], "9876")
+
+    def test_rejects_when_kill_switch_is_active(self) -> None:
+        adapter = self._build_adapter(
+            require_kill_switch=True,
+            required_env_vars=("POLYMARKET_API_KEY",),
+            environment={
+                "POLYMARKET_API_KEY": "key-present",
+                "POLYMARKET_API_KEY_SOURCE": "vault",
+                "POLYMARKET_API_KEY_LAST_ROTATED_AT": "2026-01-01T00:00:00Z",
+            },
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "9876", "kill_switch_active": True}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("kill_switch_active",))
+
+    def test_rejects_when_cancel_all_requested(self) -> None:
+        adapter = self._build_adapter(
+            required_env_vars=("POLYMARKET_API_KEY",),
+            environment={
+                "POLYMARKET_API_KEY": "key-present",
+                "POLYMARKET_API_KEY_SOURCE": "vault",
+                "POLYMARKET_API_KEY_LAST_ROTATED_AT": "2026-01-01T00:00:00Z",
+            },
+        )
+        result = adapter.execute(
+            event=_build_event(
+                metadata={"token_id": "9876", "cancel_all_requested": True}
+            ),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("cancel_all_requested",))
+
+    def test_skip_maps_risk_reasons(self) -> None:
+        adapter = self._build_adapter(
+            stage_enabled=True,
+            real_order_submission=False,
+            allow_real_trading=False,
+            required_env_vars=(),
+            environment={},
+        )
+        risk_decision = RiskDecision(
+            allowed=False,
+            approved_notional=0.0,
+            approved_fraction=0.0,
+            kill_switch=False,
+            reasons=("daily_loss_limit_exceeded",),
+        )
+        result = adapter.skip(event=_build_event(), risk_decision=risk_decision)
+
+        self.assertEqual(result.status, "SKIPPED")
+        self.assertEqual(result.reasons, ("risk:daily_loss_limit_exceeded",))
 
 
 class ExecutionGatewayAdapterTests(unittest.TestCase):

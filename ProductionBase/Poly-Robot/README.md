@@ -14,6 +14,8 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `config/parameters/`: Phase-1 parameter governance catalog, profiles, and freeze baselines.
 - `config/calibration/`: LLM calibration status and reliability threshold policy.
 - `config/replay/`: replay scenario-pack definitions for deterministic stress transforms.
+- `config/certification/`: Milestone C staged soak/certification sequence and threshold profiles (`12h`, `24h`, `48h`).
+- `config/integration/`: Polymarket live-integration endpoints/authentication model/rate limits and staged real-asset rollout controls.
 - `docs/requirements/`: formal MVP requirements and strategy-variable definitions.
 - `scripts/validate_parameters.py`: governance validation entrypoint.
 - `scripts/run_replay_harness.py`: deterministic replay runner for strategy+risk contract validation.
@@ -22,6 +24,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_runtime_supervisor.py`: C1 runtime supervision runner (heartbeat/retries/snapshot journal).
 - `scripts/run_runtime_soak.py`: deterministic soak orchestration runner with drill injection and interval health snapshots.
 - `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
+- `scripts/run_milestone_c_sequence.py`: staged Milestone C runner that chains soak + certification phases (`12h -> 24h -> 48h`) with per-phase artifacts.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
@@ -62,6 +65,7 @@ Parameter governance structure is now in place for MVP planning and test-token o
 - Execution path now runs through a bounded execution gateway with idempotency-key caching, timeout enforcement, retry caps, and degraded reject behavior on persistent failures.
 - Test-token loop and runtime supervisor runners are wired to these adapters with configuration surfaced via CLI flags.
 - Runtime supervisor now supports live ingestion mode (`live_polymarket`) for per-cycle market refresh without replay fixture dependency.
+- Polymarket integration baseline config now captures official CLOB/Gamma/Data/WS endpoints, L1/L2 auth requirements, wallet signature types, and staged live-trading rollout controls.
 
 ## Milestone C3 exit and soak orchestration status
 - Exit decisions are now first-class runtime outputs with multi-trigger confirmation across target capture, abnormal volume spikes, and stale-thesis detection.
@@ -72,6 +76,7 @@ Parameter governance structure is now in place for MVP planning and test-token o
 ## Milestone C4 stress certification status
 - Stress campaign execution now supports a certification builder that evaluates scenario-matrix and soak artifacts against explicit pass/fail thresholds.
 - Certification outputs include criterion-level decisions, incident summaries for failed gates, and reproducibility-linked evidence hashes.
+- Milestone C campaign cadence is now staged through `12h`, `24h`, and `48h` soak/certification phases using `scripts/run_milestone_c_sequence.py` and `config/certification/milestone_c_sequence.v1.json`.
 
 ## Milestone C5 operator console hardening status
 - Dashboard now supports operator-facing action-history filtering by actor and action for rapid control-intent audit review.
@@ -286,4 +291,15 @@ python3 scripts/run_stress_certification.py \
   --soak-summary runtime/soak_summary.json \
   --matrix-output runtime/stress_matrix_report.json \
   --output runtime/stress_campaign_certification.json
+```
+
+Run staged Milestone C soak/certification sequence (`12h -> 24h -> 48h`):
+```bash
+python3 scripts/run_milestone_c_sequence.py \
+  --events tests/fixtures/replay_events.jsonl \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --scenario-pack config/replay/scenario_pack.v1.json \
+  --phase-config config/certification/milestone_c_sequence.v1.json \
+  --output-root runtime/milestone_c_sequence
 ```

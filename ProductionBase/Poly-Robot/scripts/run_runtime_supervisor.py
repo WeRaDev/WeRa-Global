@@ -20,6 +20,7 @@ from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
     LivePolymarketIngestionAdapter,
+    PolymarketClobExecutionAdapter,
 )
 from poly_robot.llm_policy import load_calibration_policy  # noqa: E402
 from poly_robot.paper_execution import PaperExecutionAdapter  # noqa: E402
@@ -47,6 +48,41 @@ def _load_profile_payload(profile_path: Path) -> tuple[dict, dict]:
         raise ValueError(f"Profile values must be an object in {profile_path}")
     return payload, values
 
+
+def _resolve_rollout_stage(
+    rollout_payload: dict,
+    *,
+    requested_stage: str | None,
+) -> tuple[str, dict]:
+    rollout_stages = rollout_payload.get("rollout_stages")
+    if not isinstance(rollout_stages, list):
+        raise ValueError("Rollout config must include rollout_stages list")
+    stage_by_name: dict[str, dict] = {}
+    for row in rollout_stages:
+        if not isinstance(row, dict):
+            continue
+        stage_name = str(row.get("stage", "")).strip()
+        if stage_name:
+            stage_by_name[stage_name] = row
+    if not stage_by_name:
+        raise ValueError("Rollout config has no valid rollout stages")
+    if requested_stage is not None:
+        normalized_requested = requested_stage.strip()
+        selected = stage_by_name.get(normalized_requested)
+        if selected is None:
+            available = ", ".join(sorted(stage_by_name))
+            raise ValueError(
+                "Unknown rollout stage "
+                f"{normalized_requested!r}. Available: {available}"
+            )
+        return normalized_requested, selected
+    for stage_name, stage_config in stage_by_name.items():
+        if bool(stage_config.get("enabled", False)):
+            return stage_name, stage_config
+    fallback_stage_name = next(iter(stage_by_name))
+    return fallback_stage_name, stage_by_name[fallback_stage_name]
+
+
 def _extract_wallet_convergence_count(value: object) -> float | None:
     if isinstance(value, dict):
         for key in (
@@ -65,6 +101,7 @@ def _extract_wallet_convergence_count(value: object) -> float | None:
     if count < 0:
         return None
     return count
+
 
 def _load_wallet_convergence_payload(path: Path) -> dict[str, float]:
     if not path.exists():
@@ -105,6 +142,26 @@ def _load_wallet_convergence_payload(path: Path) -> dict[str, float]:
         return normalized
 
     return {}
+
+
+def _as_optional_positive_float(value: object) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _as_optional_positive_int(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -314,6 +371,135 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Maximum tolerated invalid event rows before ingestion fails.",
     )
     parser.add_argument(
+        "--execution-mode",
+        type=str,
+        choices=["paper", "live_polymarket_clob"],
+        required=False,
+        help=(
+            "Execution adapter mode; defaults to rollout config "
+            "default_execution_mode when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--live-rollout-config",
+        type=Path,
+        default=ROOT_DIR / "config" / "integration" / "live_trade_rollout.v1.json",
+        help="Path to live-trading rollout controls JSON.",
+    )
+    parser.add_argument(
+        "--polymarket-clob-config",
+        type=Path,
+        default=ROOT_DIR / "config" / "integration" / "polymarket_clob_live.v1.json",
+        help="Path to Polymarket CLOB integration JSON.",
+    )
+    parser.add_argument(
+        "--live-rollout-stage",
+        type=str,
+        required=False,
+        help=(
+            "Optional rollout stage override for live_polymarket_clob "
+            "execution mode."
+        ),
+    )
+    parser.add_argument(
+        "--execution-adapter-audit-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional JSONL path where execution adapter order lifecycle "
+            "events are appended."
+        ),
+    )
+    parser.add_argument(
+        "--pre-trade-balance-check-enabled",
+        action="store_true",
+        help="Require per-intent balance checks before live order submission.",
+    )
+    parser.add_argument(
+        "--pre-trade-allowance-check-enabled",
+        action="store_true",
+        help="Require per-intent allowance checks before live order submission.",
+    )
+    parser.add_argument(
+        "--require-market-token-id",
+        action="store_true",
+        help="Require token_id metadata on each execution intent.",
+    )
+    parser.add_argument(
+        "--require-market-tick-size",
+        action="store_true",
+        help="Require tick_size metadata on each execution intent.",
+    )
+    parser.add_argument(
+        "--require-market-neg-risk",
+        action="store_true",
+        help="Require neg_risk metadata on each execution intent.",
+    )
+    parser.add_argument(
+        "--max-order-notional-usd",
+        type=float,
+        required=False,
+        help=(
+            "Optional per-order notional cap in USD for live execution."
+        ),
+    )
+    parser.add_argument(
+        "--max-daily-notional-usd",
+        type=float,
+        required=False,
+        help=(
+            "Optional cumulative daily notional cap in USD for live execution."
+        ),
+    )
+    parser.add_argument(
+        "--max-open-orders",
+        type=int,
+        required=False,
+        help="Optional cap on concurrently open live orders.",
+    )
+    parser.add_argument(
+        "--reconciliation-heartbeat-timeout-seconds",
+        type=float,
+        required=False,
+        help=(
+            "Optional timeout in seconds for user-channel heartbeat "
+            "freshness checks."
+        ),
+    )
+    parser.add_argument(
+        "--enforce-user-channel-heartbeat",
+        action="store_true",
+        help="Require fresh user-channel heartbeat before submitting orders.",
+    )
+    parser.add_argument(
+        "--enforce-user-channel-ack",
+        action="store_true",
+        help="Require user-channel acknowledgement after order submission.",
+    )
+    parser.add_argument(
+        "--allowed-secret-sources",
+        nargs="+",
+        required=False,
+        help=(
+            "Optional list of allowed secret source identifiers "
+            "(e.g. vault, keychain)."
+        ),
+    )
+    parser.add_argument(
+        "--secret-max-age-seconds",
+        type=float,
+        required=False,
+        help="Optional maximum allowed age in seconds for loaded credentials.",
+    )
+    parser.add_argument(
+        "--allow-real-trading",
+        action="store_true",
+        help=(
+            "Explicitly allow live-trading execution mode after rollout and "
+            "credential gates are satisfied."
+        ),
+    )
+    parser.add_argument(
         "--execution-gateway-max-retries",
         type=int,
         default=1,
@@ -406,8 +592,263 @@ def main(argv: list[str] | None = None) -> int:
 
     strategy = BaselineStrategy(parameters, calibration_policy)
     risk = RiskEngine(parameters)
+    rollout_payload = _load_json(args.live_rollout_config)
+    rollout_default_execution_mode = str(
+        rollout_payload.get("default_execution_mode", "paper")
+    ).strip() or "paper"
+    resolved_execution_mode = str(
+        args.execution_mode or rollout_default_execution_mode
+    ).strip()
+    if resolved_execution_mode not in {"paper", "live_polymarket_clob"}:
+        raise ValueError(
+            "--execution-mode must be one of paper, live_polymarket_clob "
+            f"(resolved={resolved_execution_mode!r})"
+        )
+
+    execution_context: dict[str, object]
+    if resolved_execution_mode == "paper":
+        execution_adapter = PaperExecutionAdapter(parameters)
+        execution_context = {
+            "mode": "paper",
+            "rollout_config_path": str(args.live_rollout_config),
+            "rollout_stage": "paper",
+            "rollout_stage_enabled": True,
+            "real_order_submission": False,
+            "allow_real_trading": False,
+            "required_env_vars": [],
+            "clob_base_url": None,
+            "clob_config_path": None,
+        }
+    else:
+        clob_config_payload = _load_json(args.polymarket_clob_config)
+        endpoints = clob_config_payload.get("endpoints")
+        if not isinstance(endpoints, dict):
+            raise ValueError(
+                "Polymarket CLOB config must include endpoints object "
+                f"({args.polymarket_clob_config})"
+            )
+        clob_base_url = str(endpoints.get("clob_rest_base_url", "")).strip()
+        if not clob_base_url:
+            raise ValueError(
+                "Polymarket CLOB config must include endpoints.clob_rest_base_url"
+            )
+        rollout_stage_name, rollout_stage_payload = _resolve_rollout_stage(
+            rollout_payload,
+            requested_stage=args.live_rollout_stage,
+        )
+        global_guards = rollout_payload.get("global_guards")
+        secrets_policy = rollout_payload.get("secrets_policy")
+        order_rules = clob_config_payload.get("order_rules")
+        required_env_vars: tuple[str, ...] = ()
+        allow_plaintext_secrets = False
+        preferred_secret_sources: tuple[str, ...] = ()
+        secret_max_age_days = 90
+        if isinstance(secrets_policy, dict):
+            raw_required_env_vars = secrets_policy.get("required_env_vars")
+            if isinstance(raw_required_env_vars, list):
+                required_env_vars = tuple(
+                    env_var
+                    for env_var in (
+                        str(raw_name).strip() for raw_name in raw_required_env_vars
+                    )
+                    if env_var
+                )
+            allow_plaintext_secrets = bool(
+                secrets_policy.get("allow_plaintext_secrets", False)
+            )
+            raw_preferred_sources = secrets_policy.get("preferred_secret_sources")
+            if isinstance(raw_preferred_sources, list):
+                preferred_secret_sources = tuple(
+                    source
+                    for source in (
+                        str(raw_source).strip().lower()
+                        for raw_source in raw_preferred_sources
+                    )
+                    if source
+                )
+            raw_secret_max_age_days = secrets_policy.get("max_secret_age_days")
+            parsed_secret_max_age_days = _as_optional_positive_int(
+                raw_secret_max_age_days
+            )
+            if parsed_secret_max_age_days is not None:
+                secret_max_age_days = parsed_secret_max_age_days
+        if args.allowed_secret_sources:
+            preferred_secret_sources = tuple(
+                source
+                for source in (
+                    str(raw_source).strip().lower()
+                    for raw_source in args.allowed_secret_sources
+                )
+                if source
+            )
+        parsed_secret_max_age_seconds = _as_optional_positive_float(
+            args.secret_max_age_seconds
+        )
+        if parsed_secret_max_age_seconds is not None:
+            secret_max_age_days = max(
+                1,
+                int(parsed_secret_max_age_seconds / 86_400),
+            )
+
+        required_market_metadata_from_order_rules: set[str] = set()
+        default_user_channel_staleness_seconds: float | None = None
+        if isinstance(order_rules, dict):
+            raw_required_market_metadata = order_rules.get("required_market_metadata")
+            if isinstance(raw_required_market_metadata, list):
+                required_market_metadata_from_order_rules = {
+                    metadata_key
+                    for metadata_key in (
+                        str(raw_key).strip().lower()
+                        for raw_key in raw_required_market_metadata
+                    )
+                    if metadata_key
+                }
+            user_channel_heartbeat = order_rules.get("user_channel_heartbeat")
+            if isinstance(user_channel_heartbeat, dict):
+                ping_interval_seconds = _as_optional_positive_float(
+                    user_channel_heartbeat.get("ping_interval_seconds")
+                )
+                if ping_interval_seconds is not None:
+                    default_user_channel_staleness_seconds = (
+                        ping_interval_seconds * 3.0
+                    )
+
+        stage_enabled = bool(rollout_stage_payload.get("enabled", False))
+        real_order_submission = bool(
+            rollout_stage_payload.get("real_order_submission", False)
+        )
+        require_pretrade_balance_checks = bool(
+            rollout_stage_payload.get("require_pretrade_balance_checks", False)
+        )
+        require_user_channel_trade_ack = bool(
+            rollout_stage_payload.get("require_user_channel_trade_ack", False)
+        )
+        require_kill_switch = bool(
+            rollout_stage_payload.get("require_kill_switch", False)
+        )
+        if isinstance(global_guards, dict):
+            if bool(
+                global_guards.get("require_pretrade_balance_and_allowance_checks", False)
+            ):
+                require_pretrade_balance_checks = True
+            if bool(global_guards.get("require_user_channel_trade_ack", False)):
+                require_user_channel_trade_ack = True
+            if bool(global_guards.get("require_kill_switch", False)):
+                require_kill_switch = True
+        if args.pre_trade_balance_check_enabled or args.pre_trade_allowance_check_enabled:
+            require_pretrade_balance_checks = True
+        if args.enforce_user_channel_ack:
+            require_user_channel_trade_ack = True
+        if args.enforce_user_channel_heartbeat:
+            require_user_channel_trade_ack = True
+
+        required_market_metadata = set(required_market_metadata_from_order_rules)
+        if bool(rollout_stage_payload.get("require_market_token_id", False)):
+            required_market_metadata.add("token_id")
+        if bool(rollout_stage_payload.get("require_market_tick_size", False)):
+            required_market_metadata.add("tick_size")
+        if bool(rollout_stage_payload.get("require_market_neg_risk", False)):
+            required_market_metadata.add("neg_risk")
+        if args.require_market_token_id:
+            required_market_metadata.add("token_id")
+        if args.require_market_tick_size:
+            required_market_metadata.add("tick_size")
+        if args.require_market_neg_risk:
+            required_market_metadata.add("neg_risk")
+        ordered_required_market_metadata = tuple(
+            metadata_key
+            for metadata_key in ("token_id", "tick_size", "neg_risk")
+            if metadata_key in required_market_metadata
+        )
+
+        max_order_notional_usd = _as_optional_positive_float(args.max_order_notional_usd)
+        if max_order_notional_usd is None:
+            max_order_notional_usd = _as_optional_positive_float(
+                rollout_stage_payload.get("max_order_notional_usd")
+            )
+        max_daily_notional_usd = _as_optional_positive_float(args.max_daily_notional_usd)
+        if max_daily_notional_usd is None:
+            max_daily_notional_usd = _as_optional_positive_float(
+                rollout_stage_payload.get("max_daily_notional_usd")
+            )
+        max_open_orders = _as_optional_positive_int(args.max_open_orders)
+        if max_open_orders is None:
+            max_open_orders = _as_optional_positive_int(
+                rollout_stage_payload.get("max_open_orders")
+            )
+
+        user_channel_max_staleness_seconds = _as_optional_positive_float(
+            args.reconciliation_heartbeat_timeout_seconds
+        )
+        if user_channel_max_staleness_seconds is None:
+            user_channel_max_staleness_seconds = _as_optional_positive_float(
+                rollout_stage_payload.get("user_channel_max_staleness_seconds")
+            )
+        if user_channel_max_staleness_seconds is None:
+            user_channel_max_staleness_seconds = (
+                default_user_channel_staleness_seconds or 30.0
+            )
+
+        execution_adapter_audit_path = args.execution_adapter_audit_path
+        if execution_adapter_audit_path is None:
+            raw_stage_audit_path = rollout_stage_payload.get("execution_audit_path")
+            raw_global_audit_path = rollout_payload.get("execution_audit_path")
+            raw_audit_path = (
+                raw_stage_audit_path
+                if isinstance(raw_stage_audit_path, str)
+                else raw_global_audit_path
+            )
+            if isinstance(raw_audit_path, str) and raw_audit_path.strip():
+                execution_adapter_audit_path = Path(raw_audit_path.strip())
+        execution_adapter = PolymarketClobExecutionAdapter(
+            clob_base_url=clob_base_url,
+            rollout_stage=rollout_stage_name,
+            stage_enabled=stage_enabled,
+            real_order_submission=real_order_submission,
+            allow_real_trading=bool(args.allow_real_trading),
+            required_env_vars=required_env_vars,
+            max_order_notional_usd=max_order_notional_usd,
+            max_daily_notional_usd=max_daily_notional_usd,
+            max_open_orders=max_open_orders,
+            required_market_metadata=ordered_required_market_metadata,
+            require_pretrade_balance_checks=require_pretrade_balance_checks,
+            require_user_channel_trade_ack=require_user_channel_trade_ack,
+            require_kill_switch=require_kill_switch,
+            allow_plaintext_secrets=allow_plaintext_secrets,
+            preferred_secret_sources=preferred_secret_sources,
+            max_secret_age_days=secret_max_age_days,
+            user_channel_max_staleness_seconds=user_channel_max_staleness_seconds,
+            audit_log_path=execution_adapter_audit_path,
+        )
+        execution_context = {
+            "mode": "live_polymarket_clob",
+            "rollout_config_path": str(args.live_rollout_config),
+            "rollout_stage": rollout_stage_name,
+            "rollout_stage_enabled": stage_enabled,
+            "real_order_submission": real_order_submission,
+            "allow_real_trading": bool(args.allow_real_trading),
+            "required_env_vars": list(required_env_vars),
+            "clob_base_url": clob_base_url,
+            "clob_config_path": str(args.polymarket_clob_config),
+            "max_order_notional_usd": max_order_notional_usd,
+            "max_daily_notional_usd": max_daily_notional_usd,
+            "max_open_orders": max_open_orders,
+            "required_market_metadata": list(ordered_required_market_metadata),
+            "require_pretrade_balance_checks": require_pretrade_balance_checks,
+            "require_user_channel_trade_ack": require_user_channel_trade_ack,
+            "require_kill_switch": require_kill_switch,
+            "allow_plaintext_secrets": allow_plaintext_secrets,
+            "preferred_secret_sources": list(preferred_secret_sources),
+            "max_secret_age_days": secret_max_age_days,
+            "user_channel_max_staleness_seconds": user_channel_max_staleness_seconds,
+            "execution_adapter_audit_path": (
+                str(execution_adapter_audit_path)
+                if execution_adapter_audit_path is not None
+                else None
+            ),
+        }
     execution = HardenedExecutionAdapter(
-        PaperExecutionAdapter(parameters),
+        execution_adapter,
         gateway_max_retry_attempts=args.execution_gateway_max_retries,
         gateway_retry_backoff_seconds=args.execution_gateway_retry_backoff_seconds,
         gateway_timeout_seconds=args.execution_gateway_timeout_seconds,
@@ -449,6 +890,8 @@ def main(argv: list[str] | None = None) -> int:
             return {
                 "paused": False,
                 "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
                 "selected_scenario": control_default_scenario_name,
                 "control_version": 0,
             }
@@ -457,6 +900,10 @@ def main(argv: list[str] | None = None) -> int:
         selected_scenario = str(control_state.get("selected_scenario", "")).strip()
         if not selected_scenario:
             control_state["selected_scenario"] = control_default_scenario_name
+        if "kill_switch_active" not in control_state:
+            control_state["kill_switch_active"] = False
+        if "cancel_all_requested" not in control_state:
+            control_state["cancel_all_requested"] = False
         return control_state
 
     if args.cycle_output_dir:
@@ -474,6 +921,8 @@ def main(argv: list[str] | None = None) -> int:
         control_version = int(control_state.get("control_version", 0))
         paused = bool(control_state.get("paused", False))
         restart_requested = bool(control_state.get("restart_requested", False))
+        kill_switch_active = bool(control_state.get("kill_switch_active", False))
+        cancel_all_requested = bool(control_state.get("cancel_all_requested", False))
         heartbeat(
             "cycle_started",
             {
@@ -482,6 +931,8 @@ def main(argv: list[str] | None = None) -> int:
                 "control_version": control_version,
                 "paused": paused,
                 "restart_requested": restart_requested,
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
             },
         )
 
@@ -505,6 +956,8 @@ def main(argv: list[str] | None = None) -> int:
                 "cycle_status": "RESTART_REQUESTED",
                 "selected_scenario": selected_scenario_name,
                 "control_version": control_version,
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
                 "events": 0,
                 "risk_allowed_count": 0,
                 "filled_trade_count": 0,
@@ -555,6 +1008,8 @@ def main(argv: list[str] | None = None) -> int:
                 "cycle_status": "PAUSED",
                 "selected_scenario": selected_scenario_name,
                 "control_version": control_version,
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
                 "events": 0,
                 "risk_allowed_count": 0,
                 "filled_trade_count": 0,
@@ -591,6 +1046,57 @@ def main(argv: list[str] | None = None) -> int:
                 "result_hash": None,
             }
 
+        cancel_all_summary: dict[str, object] | None = None
+        cancel_all_acknowledged = False
+        if kill_switch_active:
+            cancel_all_summary = execution.cancel_all_open_orders(
+                reason="kill_switch_active"
+            )
+            heartbeat(
+                "control_kill_switch_gate",
+                {
+                    "cycle_index": cycle_index,
+                    "control_version": control_version,
+                    "cancelled_order_count": int(
+                        cancel_all_summary.get("cancelled_order_count", 0)
+                    ),
+                    "cancelled_notional": float(
+                        cancel_all_summary.get("cancelled_notional", 0.0)
+                    ),
+                },
+            )
+        if cancel_all_requested:
+            if cancel_all_summary is None:
+                cancel_all_summary = execution.cancel_all_open_orders(
+                    reason="operator_cancel_all_requested"
+                )
+            acknowledge_cancel_all = getattr(
+                control_manager, "acknowledge_cancel_all", None
+            )
+            if (
+                not args.ignore_operator_controls
+                and args.control_state_path.exists()
+                and callable(acknowledge_cancel_all)
+            ):
+                acknowledge_cancel_all(
+                    actor=args.operator_control_actor,
+                    note=f"acknowledged_before_cycle_{cycle_index}",
+                )
+                cancel_all_acknowledged = True
+            heartbeat(
+                "control_cancel_all_applied",
+                {
+                    "cycle_index": cycle_index,
+                    "control_version": control_version,
+                    "cancel_all_acknowledged": cancel_all_acknowledged,
+                    "cancelled_order_count": int(
+                        cancel_all_summary.get("cancelled_order_count", 0)
+                    ),
+                    "cancelled_notional": float(
+                        cancel_all_summary.get("cancelled_notional", 0.0)
+                    ),
+                },
+            )
         freshness_filter_enabled = (
             args.ingestion_mode == "live_polymarket"
             and not args.disable_live_freshness_filter
@@ -719,6 +1225,10 @@ def main(argv: list[str] | None = None) -> int:
             event_metadata = dict(event_payload.get("metadata", {}))
             event_metadata["execution_scope"] = execution_scope
             event_metadata["cycle_index"] = cycle_index
+            event_metadata["kill_switch_active"] = kill_switch_active
+            event_metadata["cancel_all_requested"] = cancel_all_requested
+            if cancel_all_summary is not None:
+                event_metadata["cancel_all_summary"] = cancel_all_summary
             event_payload["metadata"] = event_metadata
             scoped_events.append(MarketEvent.from_dict(event_payload))
         events_for_run = scoped_events
@@ -795,6 +1305,13 @@ def main(argv: list[str] | None = None) -> int:
                     "retry_backoff_seconds": args.execution_gateway_retry_backoff_seconds,
                     "timeout_seconds": args.execution_gateway_timeout_seconds,
                 },
+                "operator_controls": {
+                    "kill_switch_active": kill_switch_active,
+                    "cancel_all_requested": cancel_all_requested,
+                    "cancel_all_acknowledged": cancel_all_acknowledged,
+                    "cancel_all_summary": cancel_all_summary,
+                },
+                "execution": dict(execution_context),
                 "stateful_cycle": {
                     "execution_scope": execution_scope,
                     "starting_open_notional": cycle_start_open_notional,
@@ -867,6 +1384,12 @@ def main(argv: list[str] | None = None) -> int:
                 "cycle_index": cycle_index,
                 "selected_scenario": scenario_name_in_use,
                 "control_version": control_version,
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
+                "cancel_all_acknowledged": cancel_all_acknowledged,
+                "cancelled_order_count": int(
+                    (cancel_all_summary or {}).get("cancelled_order_count", 0)
+                ),
                 "events": len(run.records),
                 "risk_allowed_count": run.risk_allowed_count,
                 "filled_trade_count": run.filled_trade_count,
@@ -910,6 +1433,12 @@ def main(argv: list[str] | None = None) -> int:
             "cycle_status": "EXECUTED",
             "selected_scenario": scenario_name_in_use,
             "control_version": control_version,
+            "kill_switch_active": kill_switch_active,
+            "cancel_all_requested": cancel_all_requested,
+            "cancel_all_acknowledged": cancel_all_acknowledged,
+            "cancelled_order_count": int(
+                (cancel_all_summary or {}).get("cancelled_order_count", 0)
+            ),
             "events": len(run.records),
             "risk_allowed_count": run.risk_allowed_count,
             "filled_trade_count": run.filled_trade_count,
@@ -990,6 +1519,7 @@ def main(argv: list[str] | None = None) -> int:
         f"stopped_by_control_restart={summary['stopped_by_control_restart']} "
         f"failed_workers={len(failed_workers)} "
         f"ingestion_mode={args.ingestion_mode} "
+        f"execution_mode={execution_context['mode']} "
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path}"
     )

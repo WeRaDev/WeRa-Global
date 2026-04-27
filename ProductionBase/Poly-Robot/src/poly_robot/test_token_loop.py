@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Iterable, Protocol
+from typing import Any, Iterable, Protocol
 
 from .contracts import (
     MarketEvent,
@@ -37,7 +37,7 @@ class TestTokenLoopRun:
     final_open_positions: dict[str, PositionSnapshot] = field(default_factory=dict)
 
     @staticmethod
-    def _as_non_negative_float(value: object) -> float:
+    def _as_non_negative_float(value: Any) -> float:
         try:
             parsed = float(value)
         except (TypeError, ValueError):
@@ -45,7 +45,7 @@ class TestTokenLoopRun:
         return max(0.0, parsed)
 
     @staticmethod
-    def _as_float_or_none(value: object) -> float | None:
+    def _as_float_or_none(value: Any) -> float | None:
         try:
             return float(value)
         except (TypeError, ValueError):
