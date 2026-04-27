@@ -1,79 +1,79 @@
 {
   "schema_version": "poly_robot_next_phase_queue.v1",
   "phase": {
-    "name": "Phase D kickoff",
-    "prepared_at_utc": "2026-04-27T12:33:55Z",
-    "goal": "Advance from milestone-C hardening into production-readiness controls, validation depth, and operational rollout discipline."
+    "name": "Phase E kickoff",
+    "prepared_at_utc": "2026-04-27T14:40:00Z",
+    "goal": "Transition from D-phase control rehearsals into promotion-gated canary rollout execution and automated rollback governance."
   },
   "entry_criteria": [
-    "Milestone-C live-trading gap closure branch is pushed and has an open PR.",
-    "Full baseline quality checks pass on current implementation."
+    "Phase-D pull request includes D1, D2, and D3 implementation commits with passing targeted quality gates.",
+    "Rollout rehearsal protocol exists and executes deterministically with machine-readable evidence."
   ],
   "priority_work_items": [
     {
-      "id": "D1",
-      "title": "Finalize and merge QA policy updates",
-      "problem_statement": "Carry-over QA/CI hardening edits are present locally and need formal review/merge flow.",
+      "id": "E1",
+      "title": "Promote rollout rehearsal to CI release gate",
+      "problem_statement": "D3 rehearsal artifacts are available, but CI does not yet block merges on failed drill outcomes or rollback recommendations.",
       "scope": [
-        "Review and stage CI, README, CONTRIBUTING, WARP, and skills QA updates.",
-        "Run CI-equivalent local checks for lint, security, UX, and typing.",
-        "Open dedicated PR if not bundled with current stream."
+        "Integrate scripts/run_rollout_rehearsal.py execution into .gitea/workflows/ci.yml.",
+        "Fail CI when rollout_rehearsal_report.json overall_status is FAILED.",
+        "Fail CI when rollback_recommendations is non-empty.",
+        "Persist rollout rehearsal report as CI artifact for operator review."
       ],
       "acceptance_criteria": [
-        "CI pipeline definition reflects agreed QA gates.",
-        "Contributor and project docs are aligned with executable commands.",
-        "QA skill artifact is versioned and discoverable in skills index."
+        "CI executes rollout rehearsal checks on each relevant pull request.",
+        "Merge is blocked when rehearsal drills fail or rollback recommendations are emitted.",
+        "CI output includes deterministic artifact path for rehearsal report inspection."
       ],
       "validation_commands": [
-        "ruff check src/poly_robot tests scripts",
-        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_*.py\"",
-        "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters tests.test_llm_policy tests.test_parameter_governance",
-        "PYTHONPATH=src python3 -m unittest tests.test_runtime_web_gui tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live",
-        "bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105",
-        "PYTHONPATH=src python3 -m mypy src/poly_robot"
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "PYTHONPATH=src python3 -m unittest tests.test_rollout_rehearsal",
+        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls"
       ]
     },
     {
-      "id": "D2",
-      "title": "Operationalize live credential lifecycle",
-      "problem_statement": "Secret provenance checks exist in code but operational credential sourcing/rotation workflow needs enforced runbook integration.",
+      "id": "E2",
+      "title": "Automate rollout pre-check and post-check bundles",
+      "problem_statement": "Protocol command bundles are documented, but operator execution is still manual and not yet auditable as a single deterministic gate.",
       "scope": [
-        "Define non-interactive credential sourcing procedure for runtime and supervisor runs.",
-        "Add explicit preflight checks for required secret source and rotation metadata.",
-        "Document rotation SLO and alerting hook strategy."
+        "Add a command-bundle runner that executes protocol precheck_commands and postcheck_commands.",
+        "Emit structured command execution report with command, exit code, and failure reasons.",
+        "Integrate bundle report references into rollout rehearsal output."
       ],
       "acceptance_criteria": [
-        "Runtime startup fails fast on credential provenance or stale rotation state.",
-        "Operator runbook includes secure sourcing and rotation verification steps.",
-        "Regression tests cover stale/missing provenance edge cases."
+        "Pre-check and post-check commands can be executed in one deterministic invocation.",
+        "Any failed command becomes a rollout-blocking signal in generated report metadata.",
+        "Bundle execution report is reproducible and suitable for operator handoff."
       ],
       "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "PYTHONPATH=src python3 -m unittest tests.test_rollout_rehearsal"
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "Canary rollout readiness certification and promotion criteria",
+      "problem_statement": "D3 rollback matrix exists, but phase promotion still lacks explicit readiness scoring and canary-stage certification artifact.",
+      "scope": [
+        "Define canary promotion criteria artifact keyed to rehearsal outcomes and runtime control evidence.",
+        "Add readiness scoring and fail-fast blockers for unresolved rollback signals.",
+        "Document phase-promotion ownership and manual approval boundary for canary enablement."
+      ],
+      "acceptance_criteria": [
+        "Certification artifact reports PASS/FAIL with criterion-level reason codes.",
+        "Promotion to canary stage is blocked when any critical/high rollback trigger remains unresolved.",
+        "Operator runbook specifies explicit approval and rollback authority path."
+      ],
+      "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live",
         "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters"
-      ]
-    },
-    {
-      "id": "D3",
-      "title": "Expand live-mode rehearsal and rollback protocol",
-      "problem_statement": "Live ingestion and control actions are wired, but phase-to-phase rollout and rollback discipline require explicit rehearsal artifacts.",
-      "scope": [
-        "Add phased rehearsal scenarios for kill-switch and cancel-all recovery drills.",
-        "Add pre-check/post-check command bundle for rollout windows.",
-        "Define rollback decision matrix for operator actions and reconciliation anomalies."
-      ],
-      "acceptance_criteria": [
-        "Rehearsal outputs include deterministic evidence for control actions.",
-        "Rollback trigger conditions are explicit and testable.",
-        "Runbook and scripts remain reproducible from clean environment."
-      ],
-      "validation_commands": [
-        "python3 scripts/run_runtime_supervisor.py --help",
-        "python3 scripts/run_runtime_gui.py --help",
-        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls tests.test_runtime_web_gui"
       ]
     }
   ],
   "handoff_notes": [
-    "Preserve current carry-over edits while starting next phase; do not reset them automatically.",
-    "Use short-lived feature branches under feat/poly-robot-* naming for each D-phase workstream."
+    "Preserve current pull request stream for phase integration visibility while Phase E tasks begin.",
+    "Use short-lived feature branches under feat/poly-robot-phase-e-* for isolated E-workstreams.",
+    "Treat non-empty rollback_recommendations as rollout blockers requiring explicit remediation before promotion."
   ]
 }

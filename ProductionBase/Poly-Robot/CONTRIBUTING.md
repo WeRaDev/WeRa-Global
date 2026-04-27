@@ -36,6 +36,7 @@ A task is done only when:
   - `PYTHONPATH=src python3 -m unittest tests.test_runtime_web_gui tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live`
 - D3 rollout rehearsal protocol:
   - `python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json`
+  - Treat non-zero `summary.failed_command_bundles` or `summary.failed_bundle_commands` in `runtime/rollout_rehearsal_report.json` as rollout-blocking and resolve before promotion.
 - Docker deployment sanity:
   - `docker compose config --quiet`
   - `docker compose build runtime-gui`

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shlex
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -54,6 +56,100 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _is_env_assignment_token(token: str) -> bool:
+    if "=" not in token:
+        return False
+    key, _value = token.split("=", 1)
+    if not key:
+        return False
+    if not (key[0].isalpha() or key[0] == "_"):
+        return False
+    return all(char.isalnum() or char == "_" for char in key)
+
+
+def _parse_command_with_env(command: str) -> tuple[list[str], dict[str, str], str | None]:
+    try:
+        tokens = shlex.split(command)
+    except ValueError as error:
+        return [], {}, f"parse_error:{error}"
+    if not tokens:
+        return [], {}, "empty_command"
+    env_overrides: dict[str, str] = {}
+    start_index = 0
+    for token in tokens:
+        if _is_env_assignment_token(token):
+            key, value = token.split("=", 1)
+            env_overrides[key] = value
+            start_index += 1
+            continue
+        break
+    command_tokens = tokens[start_index:]
+    if not command_tokens:
+        return [], env_overrides, "missing_executable"
+    return command_tokens, env_overrides, None
+
+
+def _run_command_bundle(*, bundle_name: str, commands: list[Any]) -> dict[str, Any]:
+    command_results: list[dict[str, Any]] = []
+    for index, command_value in enumerate(commands):
+        command_text = str(command_value).strip()
+        command_tokens, env_overrides, parse_error = _parse_command_with_env(command_text)
+        if parse_error is not None:
+            command_results.append(
+                {
+                    "index": index,
+                    "command": command_text,
+                    "argv": command_tokens,
+                    "env_override_keys": sorted(env_overrides.keys()),
+                    "status": "FAIL",
+                    "exit_code": None,
+                    "failure_reason": parse_error,
+                    "stdout_tail": "",
+                    "stderr_tail": "",
+                }
+            )
+            continue
+        command_env = os.environ.copy()
+        command_env.update(env_overrides)
+        result = subprocess.run(
+            command_tokens,
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=ROOT_DIR,
+            env=command_env,
+        )
+        status = "PASS" if result.returncode == 0 else "FAIL"
+        command_results.append(
+            {
+                "index": index,
+                "command": command_text,
+                "argv": command_tokens,
+                "env_override_keys": sorted(env_overrides.keys()),
+                "status": status,
+                "exit_code": result.returncode,
+                "failure_reason": "" if status == "PASS" else "non_zero_exit_code",
+                "stdout_tail": _tail(result.stdout),
+                "stderr_tail": _tail(result.stderr),
+            }
+        )
+    failed_commands = [
+        row
+        for row in command_results
+        if isinstance(row, dict) and row.get("status") != "PASS"
+    ]
+    return {
+        "bundle_name": bundle_name,
+        "status": "PASS" if not failed_commands else "FAIL",
+        "commands": command_results,
+        "summary": {
+            "command_count": len(command_results),
+            "passed_commands": len(command_results) - len(failed_commands),
+            "failed_commands": len(failed_commands),
+        },
+    }
 
 
 def _extract_worker_loop_metadata(state_snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -430,10 +526,36 @@ def _scenario_result_by_id(
             return scenario_result
     return None
 
+def _collect_failed_bundle_commands(
+    bundle_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    failed_commands: list[dict[str, Any]] = []
+    for bundle_result in bundle_results:
+        bundle_name = str(bundle_result.get("bundle_name", ""))
+        commands = bundle_result.get("commands")
+        if not isinstance(commands, list):
+            continue
+        for command_result in commands:
+            if not isinstance(command_result, dict):
+                continue
+            if command_result.get("status") == "PASS":
+                continue
+            failed_commands.append(
+                {
+                    "bundle_name": bundle_name,
+                    "command_index": command_result.get("index"),
+                    "command": str(command_result.get("command", "")),
+                    "exit_code": command_result.get("exit_code"),
+                    "failure_reason": str(command_result.get("failure_reason", "")),
+                }
+            )
+    return failed_commands
+
 
 def _build_rollback_recommendations(
     *,
     scenario_results: list[dict[str, Any]],
+    bundle_results: list[dict[str, Any]],
     rollback_matrix: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     recommendations: list[dict[str, Any]] = []
@@ -466,6 +588,11 @@ def _build_rollback_recommendations(
             )
             if result and result.get("status") != "PASS":
                 triggered_by.append("restart_acknowledgement_gate")
+        elif trigger == "command_bundle_failed":
+            for failed_command in _collect_failed_bundle_commands(bundle_results):
+                bundle_name = str(failed_command.get("bundle_name", ""))
+                command_index = failed_command.get("command_index")
+                triggered_by.append(f"{bundle_name}[{command_index}]")
         if not triggered_by:
             continue
         recommendations.append(
@@ -489,10 +616,20 @@ def main(argv: list[str] | None = None) -> int:
     rollback_matrix = protocol_config.get("rollback_decision_matrix")
     if not isinstance(rollback_matrix, list):
         raise ValueError("Protocol config must define rollback_decision_matrix list")
+    precheck_commands = protocol_config.get("precheck_commands", [])
+    if not isinstance(precheck_commands, list):
+        raise ValueError("Protocol config precheck_commands must be a list")
+    postcheck_commands = protocol_config.get("postcheck_commands", [])
+    if not isinstance(postcheck_commands, list):
+        raise ValueError("Protocol config postcheck_commands must be a list")
 
     args.work_dir.mkdir(parents=True, exist_ok=True)
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    precheck_bundle_result = _run_command_bundle(
+        bundle_name="precheck_commands",
+        commands=precheck_commands,
+    )
     scenario_results: list[dict[str, Any]] = []
     for index, scenario_config in enumerate(drill_scenarios, start=1):
         if not isinstance(scenario_config, dict):
@@ -503,13 +640,34 @@ def main(argv: list[str] | None = None) -> int:
             control_version=index,
         )
         scenario_results.append(scenario_result)
+    postcheck_bundle_result = _run_command_bundle(
+        bundle_name="postcheck_commands",
+        commands=postcheck_commands,
+    )
+    bundle_results = [precheck_bundle_result, postcheck_bundle_result]
+    failed_bundle_results = [row for row in bundle_results if row.get("status") != "PASS"]
+    failed_bundle_commands = _collect_failed_bundle_commands(bundle_results)
 
     rollback_recommendations = _build_rollback_recommendations(
         scenario_results=scenario_results,
+        bundle_results=bundle_results,
         rollback_matrix=rollback_matrix,
     )
     failed_scenarios = [row for row in scenario_results if row.get("status") != "PASS"]
-    overall_status = "SUCCESS" if not failed_scenarios else "FAILED"
+    overall_status = (
+        "SUCCESS"
+        if not failed_scenarios and not failed_bundle_commands
+        else "FAILED"
+    )
+    blocking_reasons: list[str] = []
+    if failed_scenarios:
+        blocking_reasons.append("scenario_failures")
+    if failed_bundle_results:
+        blocking_reasons.extend(
+            [f"{row.get('bundle_name', 'command_bundle')}_failed" for row in failed_bundle_results]
+        )
+    if rollback_recommendations:
+        blocking_reasons.append("rollback_recommendations_present")
 
     report = {
         "schema_version": ROLLOUT_REHEARSAL_REPORT_SCHEMA_VERSION,
@@ -517,15 +675,31 @@ def main(argv: list[str] | None = None) -> int:
         "protocol_config_path": str(args.protocol_config),
         "protocol_config_version": protocol_config.get("config_version"),
         "scenario_name": args.scenario,
-        "precheck_commands": list(protocol_config.get("precheck_commands", [])),
-        "postcheck_commands": list(protocol_config.get("postcheck_commands", [])),
+        "precheck_commands": list(precheck_commands),
+        "postcheck_commands": list(postcheck_commands),
+        "command_bundle_results": {
+            "precheck_commands": precheck_bundle_result,
+            "postcheck_commands": postcheck_bundle_result,
+        },
         "scenario_results": scenario_results,
         "summary": {
             "overall_status": overall_status,
             "scenario_count": len(scenario_results),
             "passed_scenarios": len(scenario_results) - len(failed_scenarios),
             "failed_scenarios": len(failed_scenarios),
+            "command_bundle_count": len(bundle_results),
+            "failed_command_bundles": len(failed_bundle_results),
+            "failed_bundle_commands": len(failed_bundle_commands),
             "rollback_recommendation_count": len(rollback_recommendations),
+        },
+        "blocking_metadata": {
+            "has_blocking_failures": bool(blocking_reasons),
+            "blocking_reasons": blocking_reasons,
+            "failed_scenario_ids": [str(row.get("id", "")) for row in failed_scenarios],
+            "failed_command_bundles": [
+                str(row.get("bundle_name", "")) for row in failed_bundle_results
+            ],
+            "failed_command_details": failed_bundle_commands,
         },
         "rollback_recommendations": rollback_recommendations,
     }
@@ -536,6 +710,8 @@ def main(argv: list[str] | None = None) -> int:
         f"overall_status={overall_status} "
         f"scenario_count={len(scenario_results)} "
         f"failed_scenarios={len(failed_scenarios)} "
+        f"failed_command_bundles={len(failed_bundle_results)} "
+        f"failed_bundle_commands={len(failed_bundle_commands)} "
         f"rollback_recommendations={len(rollback_recommendations)} "
         f"output_path={args.output_path}"
     )

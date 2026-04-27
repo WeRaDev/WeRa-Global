@@ -313,6 +313,8 @@ python3 scripts/run_rollout_rehearsal.py \
 ```
 D3 rehearsal artifact usage:
 - `runtime/rollout_rehearsal_report.json` includes per-scenario checks, control-heartbeat evidence, and overall pass/fail summary.
+- `command_bundle_results` captures deterministic execution outcomes for every `precheck_commands` and `postcheck_commands` entry (command text, exit code, stdout/stderr tail, failure reason).
+- `blocking_metadata` marks rollout blockers (`scenario_failures`, `precheck_commands_failed`, `postcheck_commands_failed`, and rollback trigger presence) so promotion gates can fail with machine-readable reasons.
 - `rollback_recommendations` is derived from `config/integration/live_rollout_rehearsal.v1.json` `rollback_decision_matrix`; any populated entry is rollout-blocking until resolved.
 - Scenario runtime evidence is stored per drill under `runtime/rollout_rehearsal/<scenario_id>/` (`runtime_state.json`, `runtime_journal.jsonl`, `operator_control_state.json`, `operator_action_audit.jsonl`, `cycles/`).
 

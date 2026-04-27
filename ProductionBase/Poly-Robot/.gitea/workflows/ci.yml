@@ -56,6 +56,51 @@ jobs:
             tests.test_runtime_web_gui \
             tests.test_runtime_supervisor_controls \
             tests.test_runtime_supervisor_live
+      - name: Rollout rehearsal protocol gate
+        run: |
+          python3 scripts/run_rollout_rehearsal.py \
+            --protocol-config config/integration/live_rollout_rehearsal.v1.json \
+            --work-dir runtime/rollout_rehearsal \
+            --output-path runtime/rollout_rehearsal_report.json
+      - name: Enforce rollout rehearsal report policy
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path("runtime/rollout_rehearsal_report.json")
+          if not report_path.exists():
+              raise SystemExit("Missing rollout rehearsal report artifact")
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          summary = report.get("summary", {})
+          overall_status = str(summary.get("overall_status", "UNKNOWN"))
+          if overall_status != "SUCCESS":
+              raise SystemExit(
+                  "Rollout rehearsal failed: "
+                  f"summary.overall_status={overall_status}"
+              )
+          rollback_recommendations = report.get("rollback_recommendations", [])
+          if rollback_recommendations:
+              raise SystemExit(
+                  "Rollout rehearsal reported blocking rollback recommendations: "
+                  f"count={len(rollback_recommendations)}"
+              )
+          print(
+              "Rollout rehearsal policy gate passed: "
+              f"overall_status={overall_status} "
+              f"rollback_recommendations={len(rollback_recommendations)}"
+          )
+          PY
+      - name: Upload rollout rehearsal artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollout-rehearsal-report
+          path: |
+            runtime/rollout_rehearsal_report.json
+            runtime/rollout_rehearsal/**
+          if-no-files-found: warn
+          retention-days: 14
       - name: Static typing check
         run: |
           PYTHONPATH=src python3 -m mypy src/poly_robot

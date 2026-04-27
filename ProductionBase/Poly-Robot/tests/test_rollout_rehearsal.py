@@ -48,7 +48,16 @@ class RolloutRehearsalIntegrationTests(unittest.TestCase):
             self.assertEqual(report["schema_version"], "rollout_rehearsal_report.v1")
             self.assertEqual(report["summary"]["overall_status"], "SUCCESS")
             self.assertEqual(report["summary"]["failed_scenarios"], 0)
+            self.assertEqual(report["summary"]["failed_command_bundles"], 0)
+            self.assertEqual(report["summary"]["failed_bundle_commands"], 0)
             self.assertEqual(report["rollback_recommendations"], [])
+            self.assertFalse(report["blocking_metadata"]["has_blocking_failures"])
+            self.assertEqual(
+                report["command_bundle_results"]["precheck_commands"]["status"], "PASS"
+            )
+            self.assertEqual(
+                report["command_bundle_results"]["postcheck_commands"]["status"], "PASS"
+            )
             scenario_ids = {row["id"] for row in report["scenario_results"]}
             self.assertEqual(
                 scenario_ids,
@@ -68,6 +77,8 @@ class RolloutRehearsalIntegrationTests(unittest.TestCase):
             root = Path(temp_dir)
             protocol_path = root / "protocol.json"
             protocol = _read_json(DEFAULT_PROTOCOL_PATH)
+            protocol["precheck_commands"] = []
+            protocol["postcheck_commands"] = []
             for scenario in protocol["drill_scenarios"]:
                 if scenario["id"] == "kill_switch_gate":
                     scenario["expected"]["heartbeat_stage"] = "nonexistent_stage"
@@ -99,8 +110,59 @@ class RolloutRehearsalIntegrationTests(unittest.TestCase):
             report = _read_json(output_path)
             self.assertEqual(report["summary"]["overall_status"], "FAILED")
             self.assertGreater(report["summary"]["failed_scenarios"], 0)
+            self.assertEqual(report["summary"]["failed_command_bundles"], 0)
             triggers = {row["trigger"] for row in report["rollback_recommendations"]}
             self.assertIn("kill_switch_gate_missing", triggers)
+    def test_rehearsal_runner_marks_command_bundle_failures_as_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            protocol_path = root / "protocol.json"
+            protocol = _read_json(DEFAULT_PROTOCOL_PATH)
+            protocol["drill_scenarios"] = [protocol["drill_scenarios"][0]]
+            protocol["precheck_commands"] = [f"{sys.executable} -c \"import sys; sys.exit(7)\""]
+            protocol["postcheck_commands"] = [f"{sys.executable} -c \"print('postcheck_ok')\""]
+            protocol_path.write_text(
+                json.dumps(protocol, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            output_path = root / "rollout_rehearsal_report.json"
+            work_dir = root / "work"
+            command = [
+                sys.executable,
+                str(SCRIPT_PATH),
+                "--protocol-config",
+                str(protocol_path),
+                "--work-dir",
+                str(work_dir),
+                "--output-path",
+                str(output_path),
+            ]
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            report = _read_json(output_path)
+            self.assertEqual(report["summary"]["overall_status"], "FAILED")
+            self.assertEqual(report["summary"]["failed_command_bundles"], 1)
+            self.assertEqual(report["summary"]["failed_bundle_commands"], 1)
+            self.assertTrue(report["blocking_metadata"]["has_blocking_failures"])
+            self.assertIn(
+                "precheck_commands_failed",
+                report["blocking_metadata"]["blocking_reasons"],
+            )
+            failed_command_details = report["blocking_metadata"]["failed_command_details"]
+            self.assertEqual(len(failed_command_details), 1)
+            self.assertEqual(failed_command_details[0]["bundle_name"], "precheck_commands")
+            self.assertEqual(
+                report["command_bundle_results"]["precheck_commands"]["status"], "FAIL"
+            )
+            triggers = {row["trigger"] for row in report["rollback_recommendations"]}
+            self.assertIn("command_bundle_failed", triggers)
 
 
 if __name__ == "__main__":

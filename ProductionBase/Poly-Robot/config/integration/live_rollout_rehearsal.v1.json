@@ -1,7 +1,7 @@
 {
   "config_name": "poly_robot_live_rollout_rehearsal_protocol",
-  "config_version": "1.0.0",
-  "updated_at": "2026-04-27T14:24:00Z",
+  "config_version": "1.1.0",
+  "updated_at": "2026-04-27T14:51:00Z",
   "description": "Phase-D3 rehearsal protocol for deterministic control drills and explicit rollback decisions before live rollout expansion.",
   "precheck_commands": [
     "python3 scripts/run_runtime_supervisor.py --help",
@@ -116,6 +116,16 @@
         "switch_to_paper_mode",
         "require_manual_operator_ack_for_resume",
         "block rollout progression until drill passes"
+      ]
+    },
+    {
+      "trigger": "command_bundle_failed",
+      "condition": "any precheck_commands or postcheck_commands entry exits non-zero or fails command parsing",
+      "severity": "blocker",
+      "required_actions": [
+        "stop_rollout_progression",
+        "inspect_failed_bundle_command_output",
+        "fix_environment_or_regression_and_rerun_rehearsal"
       ]
     }
   ]
