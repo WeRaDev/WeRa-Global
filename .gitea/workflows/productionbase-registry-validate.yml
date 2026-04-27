@@ -1,0 +1,45 @@
+name: productionbase-registry-validate
+
+on:
+  pull_request:
+    paths:
+      - "ProductionBase/repos.yaml"
+      - "ProductionBase/BOOTSTRAP.md"
+      - "ProductionBase/**/README.md"
+      - "ProductionBase/**/WARP.md"
+      - "ProductionBase/**/CONTRIBUTING.md"
+      - "ProductionBase/**/docs/adr/**"
+      - "ProductionBase/**/tasks/**"
+      - "ProductionBase/**/skills/**"
+      - ".gitmodules"
+      - "kb-governance/ci/scripts/productionbase_registry_validate.py"
+      - ".gitea/workflows/productionbase-registry-validate.yml"
+  push:
+    branches:
+      - "main"
+      - "feat/**"
+    paths:
+      - "ProductionBase/repos.yaml"
+      - "ProductionBase/BOOTSTRAP.md"
+      - "ProductionBase/**/README.md"
+      - "ProductionBase/**/WARP.md"
+      - "ProductionBase/**/CONTRIBUTING.md"
+      - "ProductionBase/**/docs/adr/**"
+      - "ProductionBase/**/tasks/**"
+      - "ProductionBase/**/skills/**"
+      - ".gitmodules"
+      - "kb-governance/ci/scripts/productionbase_registry_validate.py"
+      - ".gitea/workflows/productionbase-registry-validate.yml"
+
+jobs:
+  productionbase-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          github-server-url: http://host.docker.internal:3000
+      - name: Verify pre-installed Python
+        run: python3 --version
+      - name: Validate ProductionBase registry and structure contract
+        run: python3 kb-governance/ci/scripts/productionbase_registry_validate.py

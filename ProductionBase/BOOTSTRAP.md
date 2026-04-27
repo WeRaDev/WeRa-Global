@@ -10,6 +10,13 @@ Use this guide to initialize each `ProductionBase/*` repository to the umbrella 
 - `tasks/`
 - `skills/`
 
+## Registry and VCS alignment
+- Every tracked production project must be registered in `ProductionBase/repos.yaml`.
+- Set `vcs_mode` to `submodule` when the project is tracked via `.gitmodules`, and to `native` when code is versioned directly in this umbrella repository.
+- Set `baseline_policy`:
+  - `enforced` for native projects (validated in umbrella CI),
+  - `delegated` for submodule projects (validated in the project repository CI).
+
 ## Bootstrap sequence
 1. Open the target project repository directly.
 2. Create missing folders:

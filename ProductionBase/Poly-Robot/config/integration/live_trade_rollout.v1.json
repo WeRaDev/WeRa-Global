@@ -25,7 +25,8 @@
       "local_keychain",
       "vault",
       "kms"
-    ]
+    ],
+    "max_secret_age_days": 30
   },
   "rollout_stages": [
     {

@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
 jobs:
   baseline-check:
     runs-on: ubuntu-latest
@@ -17,7 +20,7 @@ jobs:
       - name: Install static tooling
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install mypy
+          python3 -m pip install mypy ruff bandit
       - name: Baseline repository structure check
         run: |
           test -f README.md
@@ -25,6 +28,9 @@ jobs:
           test -f CONTRIBUTING.md
           test -d tasks
           test -d skills
+      - name: Lint check
+        run: |
+          ruff check src/poly_robot tests scripts
       - name: Parameter governance validation
         run: |
           python3 scripts/validate_parameters.py \
@@ -35,6 +41,66 @@ jobs:
       - name: Governance unit tests
         run: |
           PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py"
+      - name: Security regression checks
+        run: |
+          PYTHONPATH=src python3 -m unittest \
+            tests.test_integration_adapters \
+            tests.test_llm_policy \
+            tests.test_parameter_governance
+      - name: Security static analysis
+        run: |
+          bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105
+      - name: UX regression checks
+        run: |
+          PYTHONPATH=src python3 -m unittest \
+            tests.test_runtime_web_gui \
+            tests.test_runtime_supervisor_controls \
+            tests.test_runtime_supervisor_live
+      - name: Rollout rehearsal protocol gate
+        run: |
+          python3 scripts/run_rollout_rehearsal.py \
+            --protocol-config config/integration/live_rollout_rehearsal.v1.json \
+            --work-dir runtime/rollout_rehearsal \
+            --output-path runtime/rollout_rehearsal_report.json
+      - name: Enforce rollout rehearsal report policy
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path("runtime/rollout_rehearsal_report.json")
+          if not report_path.exists():
+              raise SystemExit("Missing rollout rehearsal report artifact")
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          summary = report.get("summary", {})
+          overall_status = str(summary.get("overall_status", "UNKNOWN"))
+          if overall_status != "SUCCESS":
+              raise SystemExit(
+                  "Rollout rehearsal failed: "
+                  f"summary.overall_status={overall_status}"
+              )
+          rollback_recommendations = report.get("rollback_recommendations", [])
+          if rollback_recommendations:
+              raise SystemExit(
+                  "Rollout rehearsal reported blocking rollback recommendations: "
+                  f"count={len(rollback_recommendations)}"
+              )
+          print(
+              "Rollout rehearsal policy gate passed: "
+              f"overall_status={overall_status} "
+              f"rollback_recommendations={len(rollback_recommendations)}"
+          )
+          PY
+      - name: Upload rollout rehearsal artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollout-rehearsal-report
+          path: |
+            runtime/rollout_rehearsal_report.json
+            runtime/rollout_rehearsal/**
+          if-no-files-found: warn
+          retention-days: 14
       - name: Static typing check
         run: |
           PYTHONPATH=src python3 -m mypy src/poly_robot

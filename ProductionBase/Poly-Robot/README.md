@@ -88,8 +88,12 @@ Parameter governance structure is now in place for MVP planning and test-token o
 ## CI quality gates
 The default CI workflow now enforces:
 - Baseline repository structure check.
+- Lint check for core modules, scripts, and tests (`ruff`).
 - Parameter governance validation.
 - Governance unit tests (`python3 -m unittest` discovery under `tests/`).
+- Security regression checks for integration boundaries and policy enforcement.
+- Security static analysis (`bandit`) for source modules and runtime scripts.
+- UX regression checks for runtime web GUI and operator controls.
 - Static type check for `src/poly_robot` (`mypy`).
 - Docker deployment sanity gates (`docker compose config --quiet` + `docker compose build runtime-gui`).
 
@@ -166,6 +170,25 @@ Live-mode behavior notes:
 - Live ingestion runs at the start of each cycle, so decisions use fresh fetched market snapshots instead of replay fixtures.
 - If all fetched markets are filtered out (for example by `--live-min-volume-24h`), the cycle still executes with zero events and marks ingestion as degraded (`no_markets_after_filters`) rather than failing the run.
 - Cycle artifacts (`runtime/live_cycles/cycle_*.json`) include live-source provenance in `run_context.ingestion_source` and ingestion quality details in `run_context.ingestion_status`, `run_context.ingestion_reasons`, and `run_context.ingestion_metadata`.
+
+Live credential lifecycle preflight (required for real-order startup):
+- Startup preflight is enforced when all of the following are true: `--execution-mode live_polymarket_clob`, selected rollout stage has `enabled=true` and `real_order_submission=true`, and `--allow-real-trading` is set.
+- For every env var listed in `config/integration/live_trade_rollout.v1.json` `secrets_policy.required_env_vars`, set all three values before startup:
+  - `<ENV_VAR>` (credential value)
+  - `<ENV_VAR>_SOURCE` (allowed source: `local_keychain`, `vault`, or `kms`)
+  - `<ENV_VAR>_LAST_ROTATED_AT` (UTC ISO8601 timestamp)
+- Rotation SLO is enforced by `secrets_policy.max_secret_age_days` (currently `30` days). Startup fails fast if any required credential exceeds this age.
+- Use non-interactive secret loading; do not paste plaintext secrets into shell history:
+```bash
+export POLYMARKET_API_KEY="$(secret_manager read --key polymarket/api_key)"
+export POLYMARKET_API_KEY_SOURCE="vault"
+export POLYMARKET_API_KEY_LAST_ROTATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+- Apply the same pattern for `POLYMARKET_PRIVATE_KEY`, `POLYMARKET_FUNDER_ADDRESS`, `POLYMARKET_API_SECRET`, and `POLYMARKET_API_PASSPHRASE`.
+- Alerting/operations:
+  - Treat non-zero supervisor startup with `Live credential preflight failed` as a blocking operational alert.
+  - Route alert context by reason code (`secret_source_metadata_missing`, `secret_rotation_metadata_missing`, `secret_rotation_stale`, `plaintext_secret_source_disallowed`, `secret_source_not_allowed`).
+  - Recovery path: rotate/reload credential, refresh metadata fields, and rerun supervisor startup preflight.
 
 Run runtime web GUI:
 ```bash
@@ -281,6 +304,34 @@ python3 scripts/run_runtime_soak.py \
   --health-snapshot-path runtime/soak_health_snapshots.jsonl \
   --summary-path runtime/soak_summary.json
 ```
+
+Run D3 rollout rehearsal protocol (kill-switch, cancel-all, restart drills + rollback recommendations):
+```bash
+python3 scripts/run_rollout_rehearsal.py \
+  --protocol-config config/integration/live_rollout_rehearsal.v1.json \
+  --work-dir runtime/rollout_rehearsal \
+  --output-path runtime/rollout_rehearsal_report.json
+```
+D3 rehearsal artifact usage:
+- `runtime/rollout_rehearsal_report.json` includes per-scenario checks, control-heartbeat evidence, and overall pass/fail summary.
+- `command_bundle_results` captures deterministic execution outcomes for every `precheck_commands` and `postcheck_commands` entry (command text, exit code, stdout/stderr tail, failure reason).
+- `blocking_metadata` marks rollout blockers (`scenario_failures`, `precheck_commands_failed`, `postcheck_commands_failed`, and rollback trigger presence) so promotion gates can fail with machine-readable reasons.
+- `rollback_recommendations` is derived from `config/integration/live_rollout_rehearsal.v1.json` `rollback_decision_matrix`; any populated entry is rollout-blocking until resolved.
+- Scenario runtime evidence is stored per drill under `runtime/rollout_rehearsal/<scenario_id>/` (`runtime_state.json`, `runtime_journal.jsonl`, `operator_control_state.json`, `operator_action_audit.jsonl`, `cycles/`).
+
+Run E3 canary readiness certification (weighted pass/fail criteria + approval boundary):
+```bash
+python3 scripts/run_canary_readiness_certification.py \
+  --rehearsal-report runtime/rollout_rehearsal_report.json \
+  --criteria-config config/integration/canary_promotion_criteria.v1.json \
+  --approval-status pending \
+  --output runtime/canary_rollout_certification_report.json
+```
+E3 certification artifact usage:
+- `runtime/canary_rollout_certification_report.json` includes criterion-level PASS/FAIL `reason_code`, weighted `readiness_score`, and fail-fast blocker entries.
+- Canary promotion is blocked whenever `overall_status=FAIL` (for example unresolved `blocker`/`critical`/`high` rollback recommendations or failed runtime control scenarios).
+- `promotion_decision.canary_enablement_allowed` remains `false` until manual approval is recorded as `approved`.
+- Manual approval boundary is defined in `config/integration/canary_promotion_criteria.v1.json` `manual_approval_policy`: promotion owner is `release_manager`, required approvers are `release_manager` + `runtime_operator_on_call`, and rollback authority is `runtime_operator_on_call` + `incident_commander`.
 
 Run stress campaign certification:
 ```bash

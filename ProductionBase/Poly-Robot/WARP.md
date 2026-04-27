@@ -18,6 +18,7 @@ Poly-Robot develops modular robotics capabilities with a simulation-first and sa
 
 ## Quality baseline
 - Establish lint, typecheck, and test commands before feature growth.
+- Enforce dedicated security and operator-UX regression checks for runtime control surfaces in CI.
 - Require at least one reproducible validation path for each critical control workflow.
 
 ## Mandatory Gitea commitment identity (WARP-only)

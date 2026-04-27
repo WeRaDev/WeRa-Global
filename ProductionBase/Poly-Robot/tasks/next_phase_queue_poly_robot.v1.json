@@ -1,0 +1,80 @@
+{
+  "schema_version": "poly_robot_next_phase_queue.v1",
+  "phase": {
+    "name": "Phase E kickoff",
+    "prepared_at_utc": "2026-04-27T14:40:00Z",
+    "goal": "Transition from D-phase control rehearsals into promotion-gated canary rollout execution and automated rollback governance."
+  },
+  "entry_criteria": [
+    "Phase-D pull request includes D1, D2, and D3 implementation commits with passing targeted quality gates.",
+    "Rollout rehearsal protocol exists and executes deterministically with machine-readable evidence."
+  ],
+  "priority_work_items": [
+    {
+      "id": "E1",
+      "title": "Promote rollout rehearsal to CI release gate",
+      "problem_statement": "D3 rehearsal artifacts are available, but CI does not yet block merges on failed drill outcomes or rollback recommendations.",
+      "scope": [
+        "Integrate scripts/run_rollout_rehearsal.py execution into .gitea/workflows/ci.yml.",
+        "Fail CI when rollout_rehearsal_report.json overall_status is FAILED.",
+        "Fail CI when rollback_recommendations is non-empty.",
+        "Persist rollout rehearsal report as CI artifact for operator review."
+      ],
+      "acceptance_criteria": [
+        "CI executes rollout rehearsal checks on each relevant pull request.",
+        "Merge is blocked when rehearsal drills fail or rollback recommendations are emitted.",
+        "CI output includes deterministic artifact path for rehearsal report inspection."
+      ],
+      "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "PYTHONPATH=src python3 -m unittest tests.test_rollout_rehearsal",
+        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls"
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "Automate rollout pre-check and post-check bundles",
+      "problem_statement": "Protocol command bundles are documented, but operator execution is still manual and not yet auditable as a single deterministic gate.",
+      "scope": [
+        "Add a command-bundle runner that executes protocol precheck_commands and postcheck_commands.",
+        "Emit structured command execution report with command, exit code, and failure reasons.",
+        "Integrate bundle report references into rollout rehearsal output."
+      ],
+      "acceptance_criteria": [
+        "Pre-check and post-check commands can be executed in one deterministic invocation.",
+        "Any failed command becomes a rollout-blocking signal in generated report metadata.",
+        "Bundle execution report is reproducible and suitable for operator handoff."
+      ],
+      "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "PYTHONPATH=src python3 -m unittest tests.test_rollout_rehearsal"
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "Canary rollout readiness certification and promotion criteria",
+      "problem_statement": "D3 rollback matrix exists, but phase promotion still lacks explicit readiness scoring and canary-stage certification artifact.",
+      "scope": [
+        "Define canary promotion criteria artifact keyed to rehearsal outcomes and runtime control evidence.",
+        "Add readiness scoring and fail-fast blockers for unresolved rollback signals.",
+        "Document phase-promotion ownership and manual approval boundary for canary enablement."
+      ],
+      "acceptance_criteria": [
+        "Certification artifact reports PASS/FAIL with criterion-level reason codes.",
+        "Promotion to canary stage is blocked when any critical/high rollback trigger remains unresolved.",
+        "Operator runbook specifies explicit approval and rollback authority path."
+      ],
+      "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status pending --output runtime/canary_rollout_certification_report.json",
+        "PYTHONPATH=src python3 -m unittest tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live",
+        "PYTHONPATH=src python3 -m unittest tests.test_integration_adapters"
+      ]
+    }
+  ],
+  "handoff_notes": [
+    "Preserve current pull request stream for phase integration visibility while Phase E tasks begin.",
+    "Use short-lived feature branches under feat/poly-robot-phase-e-* for isolated E-workstreams.",
+    "Treat non-empty rollback_recommendations as rollout blockers requiring explicit remediation before promotion."
+  ]
+}
