@@ -62,6 +62,11 @@ def _append_cycle_completed_event(
     expected_value_after_execution_cost: float = 0.0,
     expected_edge_capture_ratio: float = 0.0,
     execution_cost_to_expected_net_ratio: float = 0.0,
+    open_positions: int = 0,
+    state_refresh_applied: bool = False,
+    state_refresh_event_count: int = 0,
+    state_refresh_max_streak: int = 0,
+    stale_open_position_market_ids: list[str] | None = None,
     selected_scenario: str = "baseline",
     control_version: int = 1,
     result_hash_prefix: str = "hash",
@@ -97,6 +102,13 @@ def _append_cycle_completed_event(
                     "expected_edge_capture_ratio": expected_edge_capture_ratio,
                     "execution_cost_to_expected_net_ratio": (
                         execution_cost_to_expected_net_ratio
+                    ),
+                    "open_positions": open_positions,
+                    "state_refresh_applied": state_refresh_applied,
+                    "state_refresh_event_count": state_refresh_event_count,
+                    "state_refresh_max_streak": state_refresh_max_streak,
+                    "stale_open_position_market_ids": (
+                        list(stale_open_position_market_ids or [])
                     ),
                     "result_hash_prefix": result_hash_prefix,
                 },
@@ -172,6 +184,152 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 self.assertEqual(response.status, 403)
                 self.assertEqual(
                     response_payload["error"], "operator_controls_disabled"
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
+    def test_runtime_gui_dashboard_endpoint_applies_kpi_query_parameters(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 2,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [
+                        {
+                            "worker_name": "test_token_loop",
+                            "status": "SUCCESS",
+                            "attempts": [],
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "final_failure_reason": None,
+                            "last_metadata": {
+                                "events": 12,
+                                "risk_allowed_count": 10,
+                                "filled_trade_count": 3,
+                                "partial_fill_count": 0,
+                                "total_fees_paid": 0.05,
+                                "total_slippage_cost": 0.08,
+                                "total_execution_cost": 0.21,
+                                "attributed_trade_count": 3,
+                                "expected_gross_edge_value": 1.1,
+                                "expected_net_edge_value": 0.7,
+                                "expected_net_edge_value_on_fills": 0.6,
+                                "expected_value_after_execution_cost": 0.05,
+                                "average_expected_gross_edge_bps": 120.0,
+                                "average_expected_net_edge_bps": 70.0,
+                                "expected_edge_capture_ratio": 0.55,
+                                "execution_cost_to_expected_net_ratio": 0.3,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 999.7,
+                                "net_pnl": -0.3,
+                                "open_notional": 40.0,
+                                "open_positions": 1,
+                                "total_exposure_fraction": 0.04,
+                                "daily_drawdown_fraction": 0.003,
+                                "result_hash": "kpi123",
+                            },
+                        }
+                    ],
+                },
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:00Z",
+                cycle_index=1,
+                events=10,
+                risk_allowed_count=9,
+                filled_trade_count=3,
+                exit_candidate_count=4,
+                confirmed_exit_count=2,
+                total_execution_cost=0.2,
+                net_pnl=-0.1,
+                attributed_trade_count=3,
+                expected_gross_edge_value=1.0,
+                expected_net_edge_value=0.8,
+                expected_net_edge_value_on_fills=0.7,
+                expected_value_after_execution_cost=0.1,
+                expected_edge_capture_ratio=0.75,
+                execution_cost_to_expected_net_ratio=0.25,
+                result_hash_prefix="kpi-a",
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:01Z",
+                cycle_index=2,
+                events=11,
+                risk_allowed_count=10,
+                filled_trade_count=3,
+                exit_candidate_count=5,
+                confirmed_exit_count=2,
+                total_execution_cost=0.21,
+                net_pnl=-0.3,
+                attributed_trade_count=3,
+                expected_gross_edge_value=1.1,
+                expected_net_edge_value=0.7,
+                expected_net_edge_value_on_fills=0.6,
+                expected_value_after_execution_cost=0.05,
+                expected_edge_capture_ratio=0.55,
+                execution_cost_to_expected_net_ratio=0.3,
+                result_hash_prefix="kpi-b",
+            )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token=None,
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "GET",
+                    (
+                        "/api/dashboard?"
+                        "kpi_window=2&kpi_domain=risk_and_capital&kpi_status=warning"
+                    ),
+                )
+                response = connection.getresponse()
+                payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(payload["kpi_shadow"]["filters"]["window"], 2)
+                self.assertEqual(
+                    payload["kpi_shadow"]["filters"]["domain"], "risk_and_capital"
+                )
+                self.assertEqual(payload["kpi_shadow"]["filters"]["status"], "warning")
+                self.assertEqual(
+                    [item["kpi_id"] for item in payload["kpi_shadow"]["items"]],
+                    ["net_pnl"],
                 )
             finally:
                 server.shutdown()
@@ -754,6 +912,199 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 "Execution cost exceeded expected net edge",
                 feed["items"][1]["summary"],
             )
+    def test_incident_feed_escalates_stale_state_refresh_streak(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal_path = root / "runtime_journal.jsonl"
+            service = RuntimeDashboardService(
+                state_path=root / "runtime_state.json",
+                journal_path=journal_path,
+                control_manager=OperatorControlManager(
+                    control_state_path=root / "operator_state.json",
+                    audit_path=root / "operator_audit.jsonl",
+                ),
+            )
+
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:00Z",
+                cycle_index=3,
+                events=1,
+                risk_allowed_count=0,
+                filled_trade_count=0,
+                exit_candidate_count=0,
+                confirmed_exit_count=0,
+                expected_value_after_execution_cost=0.0,
+                execution_cost_to_expected_net_ratio=0.0,
+                open_positions=2,
+                state_refresh_applied=True,
+                state_refresh_event_count=1,
+                state_refresh_max_streak=4,
+                stale_open_position_market_ids=["market-a", "market-b"],
+            )
+
+            feed = service.build_incident_feed(limit=10)
+
+            self.assertEqual(feed["paging"]["total_incidents"], 1)
+            self.assertEqual(len(feed["items"]), 1)
+            self.assertEqual(feed["items"][0]["event_type"], "worker_heartbeat")
+            self.assertEqual(feed["items"][0]["severity"], "error")
+            self.assertIn(
+                "State refresh replay has persisted across consecutive cycles",
+                feed["items"][0]["summary"],
+            )
+            self.assertIn("max_streak=4", feed["items"][0]["summary"])
+
+    def test_dashboard_payload_supports_kpi_shadow_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 2,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [
+                        {
+                            "worker_name": "test_token_loop",
+                            "status": "SUCCESS",
+                            "attempts": [],
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "final_failure_reason": None,
+                            "last_metadata": {
+                                "events": 12,
+                                "risk_allowed_count": 10,
+                                "filled_trade_count": 3,
+                                "partial_fill_count": 0,
+                                "total_fees_paid": 0.05,
+                                "total_slippage_cost": 0.08,
+                                "total_execution_cost": 0.21,
+                                "attributed_trade_count": 3,
+                                "expected_gross_edge_value": 1.1,
+                                "expected_net_edge_value": 0.7,
+                                "expected_net_edge_value_on_fills": 0.6,
+                                "expected_value_after_execution_cost": 0.05,
+                                "average_expected_gross_edge_bps": 120.0,
+                                "average_expected_net_edge_bps": 70.0,
+                                "expected_edge_capture_ratio": 0.55,
+                                "execution_cost_to_expected_net_ratio": 0.3,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 999.7,
+                                "net_pnl": -0.3,
+                                "open_notional": 40.0,
+                                "open_positions": 1,
+                                "total_exposure_fraction": 0.04,
+                                "daily_drawdown_fraction": 0.003,
+                                "result_hash": "kpi123",
+                            },
+                        }
+                    ],
+                },
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:00Z",
+                cycle_index=1,
+                events=10,
+                risk_allowed_count=9,
+                filled_trade_count=3,
+                exit_candidate_count=4,
+                confirmed_exit_count=2,
+                total_execution_cost=0.2,
+                net_pnl=-0.1,
+                attributed_trade_count=3,
+                expected_gross_edge_value=1.0,
+                expected_net_edge_value=0.8,
+                expected_net_edge_value_on_fills=0.7,
+                expected_value_after_execution_cost=0.1,
+                expected_edge_capture_ratio=0.75,
+                execution_cost_to_expected_net_ratio=0.25,
+                result_hash_prefix="kpi-a",
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:01Z",
+                cycle_index=2,
+                events=11,
+                risk_allowed_count=10,
+                filled_trade_count=3,
+                exit_candidate_count=5,
+                confirmed_exit_count=2,
+                total_execution_cost=0.21,
+                net_pnl=-0.3,
+                attributed_trade_count=3,
+                expected_gross_edge_value=1.1,
+                expected_net_edge_value=0.7,
+                expected_net_edge_value_on_fills=0.6,
+                expected_value_after_execution_cost=0.05,
+                expected_edge_capture_ratio=0.55,
+                execution_cost_to_expected_net_ratio=0.3,
+                result_hash_prefix="kpi-b",
+            )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+
+            payload = service.build_dashboard_payload(
+                kpi_window=2,
+                kpi_domain="risk_and_capital",
+                kpi_status="warning",
+            )
+
+            kpi_shadow = payload["kpi_shadow"]
+            self.assertEqual(kpi_shadow["mode"], "shadow")
+            self.assertEqual(
+                kpi_shadow["policy"]["schema_version"],
+                "kpi_shadow_policy.v1",
+            )
+            self.assertEqual(kpi_shadow["filters"]["window"], 2)
+            self.assertEqual(kpi_shadow["filters"]["domain"], "risk_and_capital")
+            self.assertEqual(kpi_shadow["filters"]["status"], "warning")
+            self.assertIn("risk_and_capital", kpi_shadow["filters"]["available_domains"])
+            self.assertEqual(
+                [item["kpi_id"] for item in kpi_shadow["items"]],
+                ["net_pnl"],
+            )
+            self.assertTrue(
+                all(item["status"] == "warning" for item in kpi_shadow["items"])
+            )
+            self.assertEqual(kpi_shadow["summary"]["total_kpis"], 1)
+            self.assertEqual(kpi_shadow["summary"]["status_counts"]["warning"], 1)
+            self.assertEqual(
+                kpi_shadow["items"][0]["status_reason"],
+                "warning_below_threshold",
+            )
+
+    def test_dashboard_payload_rejects_invalid_kpi_status_filter(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = RuntimeDashboardService(
+                state_path=root / "runtime_state.json",
+                journal_path=root / "runtime_journal.jsonl",
+                control_manager=OperatorControlManager(
+                    control_state_path=root / "operator_state.json",
+                    audit_path=root / "operator_audit.jsonl",
+                ),
+            )
+            with self.assertRaises(ValueError):
+                service.build_dashboard_payload(kpi_status="bad-status")
 
     def test_incident_feed_pagination_accepts_string_and_integer_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1033,12 +1384,61 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('id="auditActorFilter"', html)
         self.assertIn('id="incidentLimit"', html)
         self.assertIn('id="comparisonWindow"', html)
+        self.assertIn('id="kpiWindow"', html)
+        self.assertIn('id="kpiDomainFilter"', html)
+        self.assertIn('id="kpiStatusFilter"', html)
         self.assertIn('onclick="loadNewerIncidents()"', html)
         self.assertIn('onclick="loadOlderIncidents()"', html)
+        self.assertIn('onclick="clearKpiFilters()"', html)
         self.assertIn('id="financialPayload"', html)
+        self.assertIn('id="kpiPayload"', html)
+        self.assertIn('id="kpiSummary"', html)
         self.assertIn("How to Use and Control Poly-Robot", html)
         self.assertIn("Kill Switch ON", html)
         self.assertIn("Cancel All Orders", html)
+        self.assertIn("KPI Shadow Mode", html)
+        self.assertIn("KPI Workflow Help (default: collapsed)", html)
+        for snippet in (
+            'id="actor"',
+            'id="token"',
+            'id="reason"',
+            'id="scenario"',
+            'id="annotation"',
+            'title="Audit identity recorded with every operator action."',
+            'title="X-Operator-Token used for protected POST actions and optional read API mode."',
+            'title="Operator reason persisted into control audit details."',
+            'title="Scenario selected for subsequent test-token loop cycle context."',
+            'title="Incident annotation text written to append-only operator action log."',
+            'title="Pause new runtime progression while preserving state for safe maintenance."',
+            'title="Resume runtime progression after pause conditions are cleared."',
+            'title="Request a graceful restart acknowledged by the supervisor before next cycle execution."',
+            'title="Immediately activate kill switch and force cancel-all intent for open orders."',
+            'title="Disable kill switch after manual validation and formal resume decision."',
+            'title="Request cancellation of all open orders through audited control channel."',
+            'title="Persist selected scenario into control state for next cycle execution."',
+            'title="Append incident annotation to operator audit history with actor and timestamp."',
+            'title="Maximum number of recent journal events fetched in each dashboard request."',
+            'title="Maximum number of recent operator actions included in dashboard payload."',
+            'title="Optional exact action filter applied to operator audit events."',
+            'title="Optional exact actor filter applied to operator audit events."',
+            'title="Number of incident entries to include per feed page."',
+            'title="Number of most recent completed cycles included in run-to-run comparison."',
+            'title="Apply current filter and limit fields, then refresh dashboard data from newest incidents."',
+            'title="Restore default limits, clear filters, and refresh dashboard from newest incidents."',
+            'title="Navigate incident feed toward newer entries using cursor history."',
+            'title="Navigate incident feed toward older entries when more pages are available."',
+            'title="Expand for step-by-step KPI rollout instructions from shadow review through governance handoff."',
+            'title="Number of most recent cycle samples used for KPI shadow series and trend deltas."',
+            'title="Optional exact domain filter applied to KPI shadow items."',
+            'title="Optional exact status filter for KPI shadow results."',
+            'title="Apply dashboard and KPI filters together, then refresh from latest incidents and KPI payload."',
+            'title="Clear KPI domain/status filters and reset KPI window to default shadow policy window."',
+            "Use a stable operator name so incident timelines and approvals remain attributable.",
+            "Filter changes affect dashboard payloads, incident feed pagination, and run-to-run comparison windows.",
+            "KPI shadow mode evaluates benchmark policy bands without enforcing hard runtime gates.",
+            "Returns KPI view to baseline all-domain mode for broad health checks.",
+        ):
+            self.assertIn(snippet, html)
 
 
 if __name__ == "__main__":

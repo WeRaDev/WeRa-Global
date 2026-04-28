@@ -10,6 +10,13 @@ from .contracts import (
     StrategyDecision,
 )
 
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
 
 def kelly_fraction(*, p_win: float, market_price: float) -> float:
     if market_price <= 0 or market_price >= 1:
@@ -49,6 +56,19 @@ class RiskEngine(RiskModule):
                 approved_fraction=0.0,
                 kill_switch=False,
                 reasons=("strategy_not_buy",),
+            )
+        if _coerce_bool(event.metadata.get("suppress_new_entries")):
+            return RiskDecision(
+                allowed=False,
+                approved_notional=0.0,
+                approved_fraction=0.0,
+                kill_switch=False,
+                reasons=("entry_suppressed_for_state_refresh",),
+                metadata={
+                    "state_refresh_event": _coerce_bool(
+                        event.metadata.get("state_refresh_event")
+                    ),
+                },
             )
 
         max_daily_drawdown = float(self.parameters["risk.max_daily_drawdown_fraction"])

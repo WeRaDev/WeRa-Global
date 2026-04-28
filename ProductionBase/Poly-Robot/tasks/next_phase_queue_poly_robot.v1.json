@@ -69,6 +69,11 @@
         "Operator documentation includes deterministic rollback handoff sequence and authority mapping."
       ],
       "validation_commands": [
+        "python3 scripts/run_rollout_rehearsal.py --protocol-config config/integration/live_rollout_rehearsal.v1.json --work-dir runtime/rollout_rehearsal --output-path runtime/rollout_rehearsal_report.json",
+        "python3 scripts/run_canary_readiness_certification.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-status approved --approval-actor release_manager --output runtime/canary_rollout_certification_report.json",
+        "python3 scripts/run_canary_stage_enablement.py --certification-report runtime/canary_rollout_certification_report.json --approval-record config/integration/canary_approval_record_template.v1.json --rollout-config config/integration/live_trade_rollout.v1.json --requested-stage canary_live --decision-output runtime/canary_stage_enablement_decision.json --audit-output runtime/canary_stage_enablement_audit.jsonl --actor release_manager --reason \"phase-f3-validation\" || true",
+        "python3 scripts/run_canary_rollback_guard.py --enablement-decision runtime/canary_stage_enablement_decision.json --certification-report runtime/canary_rollout_certification_report.json --rehearsal-report runtime/rollout_rehearsal_report.json --cycle-report-dir runtime/rollout_rehearsal --cycle-report-pattern \"**/cycle_*.json\" --policy-config config/integration/canary_rollback_policy.v1.json --guard-output runtime/canary_rollback_guard_report.json --incident-output runtime/canary_rollback_incident_report.json --audit-output runtime/canary_rollback_guard_audit.jsonl --actor runtime_operator_on_call --reason \"phase-f3-validation\" || true",
+        "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_canary_rollback_guard.py\"",
         "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_runtime_supervisor_live.py\"",
         "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_integration_adapters.py\"",
         "PYTHONPATH=src python3 -m unittest discover -s tests -p \"test_runtime_supervisor_controls.py\""

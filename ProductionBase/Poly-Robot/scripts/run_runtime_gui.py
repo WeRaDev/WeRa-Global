@@ -54,6 +54,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Path to operator action audit JSONL log.",
     )
     parser.add_argument(
+        "--kpi-shadow-policy-path",
+        type=Path,
+        default=ROOT_DIR / "config" / "integration" / "kpi_shadow_policy.v1.json",
+        help="Path to KPI shadow policy JSON consumed by dashboard shadow-mode payloads.",
+    )
+    parser.add_argument(
         "--host",
         type=str,
         default="127.0.0.1",
@@ -119,11 +125,25 @@ def _html_page() -> str:
     .card { border: 1px solid #d0d7de; border-radius: 8px; padding: 12px; background: #fff; }
     h1, h2 { margin: 0 0 10px 0; }
     pre { margin: 0; max-height: 260px; overflow: auto; background: #f6f8fa; padding: 8px; border-radius: 6px; }
-    button { margin-right: 8px; margin-bottom: 8px; }
-    input { margin-right: 8px; margin-bottom: 8px; }
+    button { margin: 0; }
+    input { margin: 0; }
     .status-success { color: #1a7f37; font-weight: 600; }
     .status-failed { color: #cf222e; font-weight: 600; }
     .guide-list { margin: 0; padding-left: 20px; line-height: 1.45; }
+    .section-help { margin: 0 0 10px 0; color: #57606a; line-height: 1.45; }
+    .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 12px; margin-bottom: 10px; }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-label { font-weight: 600; font-size: 13px; }
+    .field-hint { margin: 0; font-size: 12px; color: #57606a; line-height: 1.4; }
+    .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 10px; margin-bottom: 10px; }
+    .button-group { display: flex; flex-direction: column; gap: 4px; }
+    .help-panel { border: 1px solid #d8dee4; border-radius: 6px; padding: 8px 10px; background: #f6f8fa; margin-bottom: 10px; }
+    .help-panel summary { font-weight: 600; cursor: pointer; }
+    .status-pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+    .status-pill.ok { background: #dafbe1; color: #1a7f37; }
+    .status-pill.warning { background: #fff8c5; color: #9a6700; }
+    .status-pill.critical { background: #ffebe9; color: #cf222e; }
+    .status-pill.insufficient_data { background: #ddf4ff; color: #0969da; }
   </style>
 </head>
 <body>
@@ -145,37 +165,174 @@ def _html_page() -> str:
   </div>
   <div class="card">
     <h2>Operator Controls</h2>
-    <input id="actor" placeholder="actor" value="operator" />
-    <input id="token" placeholder="operator token (if required)" />
-    <input id="reason" placeholder="reason (optional)" />
-    <button onclick="sendControl('/api/control/pause')">Pause</button>
-    <button onclick="sendControl('/api/control/resume')">Resume</button>
-    <button onclick="sendControl('/api/control/restart')">Graceful Restart</button>
-    <button onclick="sendControl('/api/control/kill-switch/on')">Kill Switch ON</button>
-    <button onclick="sendControl('/api/control/kill-switch/off')">Kill Switch OFF</button>
-    <button onclick="sendControl('/api/control/cancel-all')">Cancel All Orders</button>
-    <br />
-    <input id="scenario" placeholder="scenario name" value="baseline" />
-    <button onclick="sendControl('/api/control/scenario')">Set Scenario</button>
-    <br />
-    <input id="annotation" placeholder="incident note" size="48" />
-    <button onclick="sendControl('/api/control/annotate')">Annotate Incident</button>
+    <p class="section-help">
+      Fill identity fields first, then use action buttons in order of safety impact. Every submitted action is written to append-only operator audit logs.
+    </p>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="actor">Actor</label>
+        <input id="actor" placeholder="operator" value="operator" title="Audit identity recorded with every operator action." />
+        <p class="field-hint">Use a stable operator name so incident timelines and approvals remain attributable.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="token">Operator Token</label>
+        <input id="token" placeholder="operator token (if required)" title="X-Operator-Token used for protected POST actions and optional read API mode." />
+        <p class="field-hint">Required when token protection is active; leave blank only in explicitly configured read-only mode.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="reason">Reason</label>
+        <input id="reason" placeholder="maintenance window, drill, rollback, etc." title="Operator reason persisted into control audit details." />
+        <p class="field-hint">Provide a concise operational reason to improve post-incident and post-release traceability.</p>
+      </div>
+    </div>
+    <div class="button-grid">
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/pause')" title="Pause new runtime progression while preserving state for safe maintenance.">Pause</button>
+        <p class="field-hint">Use before maintenance or investigation to stop new cycle actions safely.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/resume')" title="Resume runtime progression after pause conditions are cleared.">Resume</button>
+        <p class="field-hint">Use after confirming controls, data inputs, and incident status are healthy.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/restart')" title="Request a graceful restart acknowledged by the supervisor before next cycle execution.">Graceful Restart</button>
+        <p class="field-hint">Triggers deterministic restart intent instead of abrupt process interruption.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/kill-switch/on')" title="Immediately activate kill switch and force cancel-all intent for open orders.">Kill Switch ON</button>
+        <p class="field-hint">Emergency path: stop submissions now and move to incident response workflow.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/kill-switch/off')" title="Disable kill switch after manual validation and formal resume decision.">Kill Switch OFF</button>
+        <p class="field-hint">Only use after incident commander and runtime operator confirm safe recovery.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/cancel-all')" title="Request cancellation of all open orders through audited control channel.">Cancel All Orders</button>
+        <p class="field-hint">Use for manual risk reduction or reconciliation cleanup during abnormal behavior.</p>
+      </div>
+    </div>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="scenario">Scenario Name</label>
+        <input id="scenario" placeholder="baseline" value="baseline" title="Scenario selected for subsequent test-token loop cycle context." />
+        <p class="field-hint">Set to a known scenario profile name to steer next-cycle stress behavior.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/scenario')" title="Persist selected scenario into control state for next cycle execution.">Set Scenario</button>
+        <p class="field-hint">Applies scenario choice and bumps control version for deterministic replayability.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="annotation">Incident Note</label>
+        <input id="annotation" placeholder="incident detail, remediation step, or handoff note" size="48" title="Incident annotation text written to append-only operator action log." />
+        <p class="field-hint">Capture findings, hypotheses, and handoff checkpoints as structured operational evidence.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/annotate')" title="Append incident annotation to operator audit history with actor and timestamp.">Annotate Incident</button>
+        <p class="field-hint">Use after every key decision so responders can reconstruct timeline quickly.</p>
+      </div>
+    </div>
     <div id="controlResult"></div>
   </div>
   <div class="card">
     <h2>Dashboard Views</h2>
-    <input id="recentEventsLimit" placeholder="recent events limit" value="200" />
-    <input id="recentAuditLimit" placeholder="recent audit limit" value="100" />
-    <input id="auditActionFilter" placeholder="audit action filter" />
-    <input id="auditActorFilter" placeholder="audit actor filter" />
-    <br />
-    <input id="incidentLimit" placeholder="incident page size" value="50" />
-    <input id="comparisonWindow" placeholder="comparison window" value="10" />
-    <button onclick="applyFilters()">Apply Filters</button>
-    <button onclick="resetFilters()">Reset Filters</button>
-    <button onclick="loadNewerIncidents()">Newer Incidents</button>
-    <button onclick="loadOlderIncidents()">Older Incidents</button>
+    <p class="section-help">
+      Tune view limits and filters to reduce noise during investigations. Filter changes affect dashboard payloads, incident feed pagination, and run-to-run comparison windows.
+    </p>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="recentEventsLimit">Recent Events Limit</label>
+        <input id="recentEventsLimit" placeholder="200" value="200" title="Maximum number of recent journal events fetched in each dashboard request." />
+        <p class="field-hint">Lower values improve focus and response speed; higher values broaden event context.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="recentAuditLimit">Recent Audit Limit</label>
+        <input id="recentAuditLimit" placeholder="100" value="100" title="Maximum number of recent operator actions included in dashboard payload." />
+        <p class="field-hint">Increase when reviewing long operator sessions; decrease for fast incident triage.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="auditActionFilter">Audit Action Filter</label>
+        <input id="auditActionFilter" placeholder="incident_annotation, pause, resume..." title="Optional exact action filter applied to operator audit events." />
+        <p class="field-hint">Use to isolate a single action class such as pause/resume or incident annotations.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="auditActorFilter">Audit Actor Filter</label>
+        <input id="auditActorFilter" placeholder="release_manager, runtime_operator_on_call..." title="Optional exact actor filter applied to operator audit events." />
+        <p class="field-hint">Use to isolate who initiated actions during a deployment or incident window.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="incidentLimit">Incident Page Size</label>
+        <input id="incidentLimit" placeholder="50" value="50" title="Number of incident entries to include per feed page." />
+        <p class="field-hint">Smaller pages are easier to scan; larger pages support broad retrospective review.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="comparisonWindow">Comparison Window</label>
+        <input id="comparisonWindow" placeholder="10" value="10" title="Number of most recent completed cycles included in run-to-run comparison." />
+        <p class="field-hint">Increase window for trend detection; reduce window to focus on immediate regressions.</p>
+      </div>
+    </div>
+    <div class="button-grid">
+      <div class="button-group">
+        <button onclick="applyFilters()" title="Apply current filter and limit fields, then refresh dashboard data from newest incidents.">Apply Filters</button>
+        <p class="field-hint">Commits field values and resets incident cursor so you start from the latest page.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="resetFilters()" title="Restore default limits, clear filters, and refresh dashboard from newest incidents.">Reset Filters</button>
+        <p class="field-hint">Use when troubleshooting to return to canonical default dashboard scope.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="loadNewerIncidents()" title="Navigate incident feed toward newer entries using cursor history.">Newer Incidents</button>
+        <p class="field-hint">Moves one page toward present time; shows latest incidents when cursor reaches newest.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="loadOlderIncidents()" title="Navigate incident feed toward older entries when more pages are available.">Older Incidents</button>
+        <p class="field-hint">Moves one page deeper into incident history for forensic timeline reconstruction.</p>
+      </div>
+    </div>
     <div id="filterResult"></div>
+  </div>
+  <div class="card">
+    <h2>KPI Shadow Mode</h2>
+    <p class="section-help">
+      KPI shadow mode evaluates benchmark policy bands without enforcing hard runtime gates. Use these controls to inspect KPI status by domain, severity, and cycle window before promoting thresholds into canary enforcement.
+    </p>
+    <details class="help-panel" id="kpiWorkflowHelp">
+      <summary title="Expand for step-by-step KPI rollout instructions from shadow review through governance handoff.">KPI Workflow Help (default: collapsed)</summary>
+      <ol class="guide-list">
+        <li>Start in broad scope (empty domain/status) and confirm all KPI items render with valid latest values.</li>
+        <li>Set KPI Window to inspect short-term drift versus medium-horizon behavior before threshold changes.</li>
+        <li>Filter by Domain to isolate execution quality, forecast quality, risk/capital, or operational reliability concerns.</li>
+        <li>Filter by Status to focus on warning/critical candidates requiring investigation and policy tuning.</li>
+        <li>Review each KPI series, status reason, and threshold band prior to any rollback-policy promotion.</li>
+      </ol>
+    </details>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="kpiWindow">KPI Window</label>
+        <input id="kpiWindow" placeholder="10" value="10" title="Number of most recent cycle samples used for KPI shadow series and trend deltas." />
+        <p class="field-hint">Use smaller windows for rapid incident triage and larger windows for policy calibration analysis.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="kpiDomainFilter">KPI Domain Filter</label>
+        <input id="kpiDomainFilter" placeholder="execution_quality, risk_and_capital..." title="Optional exact domain filter applied to KPI shadow items." />
+        <p class="field-hint">Leave blank for all domains, or enter a domain key to inspect a focused KPI slice.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="kpiStatusFilter">KPI Status Filter</label>
+        <input id="kpiStatusFilter" placeholder="ok, warning, critical, insufficient_data" title="Optional exact status filter for KPI shadow results." />
+        <p class="field-hint">Use warning/critical during incident response, or insufficient_data during instrumentation validation.</p>
+      </div>
+    </div>
+    <div class="button-grid">
+      <div class="button-group">
+        <button onclick="applyFilters()" title="Apply dashboard and KPI filters together, then refresh from latest incidents and KPI payload.">Apply KPI Filters</button>
+        <p class="field-hint">Uses current KPI window/domain/status values with the same refresh path as dashboard filters.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="clearKpiFilters()" title="Clear KPI domain/status filters and reset KPI window to default shadow policy window.">Clear KPI Filters</button>
+        <p class="field-hint">Returns KPI view to baseline all-domain mode for broad health checks.</p>
+      </div>
+    </div>
+    <div id="kpiSummary"></div>
   </div>
   <div class="grid">
     <div class="card">
@@ -206,6 +363,10 @@ def _html_page() -> str:
       <h2>Run-to-Run Comparison</h2>
       <pre id="comparisonPayload"></pre>
     </div>
+    <div class="card">
+      <h2>KPI Shadow Payload</h2>
+      <pre id="kpiPayload"></pre>
+    </div>
   </div>
   <script>
     const defaultDashboardQuery = {
@@ -215,7 +376,10 @@ def _html_page() -> str:
       audit_actor: '',
       incident_limit: 50,
       incident_cursor: null,
-      comparison_window: 10
+      comparison_window: 10,
+      kpi_window: 10,
+      kpi_domain: '',
+      kpi_status: ''
     };
     let dashboardQuery = { ...defaultDashboardQuery };
     let incidentCursorHistory = [];
@@ -257,6 +421,9 @@ def _html_page() -> str:
       document.getElementById('auditActorFilter').value = dashboardQuery.audit_actor;
       document.getElementById('incidentLimit').value = String(dashboardQuery.incident_limit);
       document.getElementById('comparisonWindow').value = String(dashboardQuery.comparison_window);
+      document.getElementById('kpiWindow').value = String(dashboardQuery.kpi_window);
+      document.getElementById('kpiDomainFilter').value = dashboardQuery.kpi_domain;
+      document.getElementById('kpiStatusFilter').value = dashboardQuery.kpi_status;
     }
 
     function applyQueryInputValues(resetIncidentCursor) {
@@ -278,6 +445,12 @@ def _html_page() -> str:
         'comparisonWindow',
         defaultDashboardQuery.comparison_window
       );
+      dashboardQuery.kpi_window = readPositiveInteger(
+        'kpiWindow',
+        defaultDashboardQuery.kpi_window
+      );
+      dashboardQuery.kpi_domain = (document.getElementById('kpiDomainFilter').value || '').trim();
+      dashboardQuery.kpi_status = (document.getElementById('kpiStatusFilter').value || '').trim();
       if (resetIncidentCursor) {
         dashboardQuery.incident_cursor = null;
         incidentCursorHistory = [];
@@ -291,11 +464,18 @@ def _html_page() -> str:
       params.set('recent_audit_limit', String(dashboardQuery.recent_audit_limit));
       params.set('incident_limit', String(dashboardQuery.incident_limit));
       params.set('comparison_window', String(dashboardQuery.comparison_window));
+      params.set('kpi_window', String(dashboardQuery.kpi_window));
       if (dashboardQuery.audit_action) {
         params.set('audit_action', dashboardQuery.audit_action);
       }
       if (dashboardQuery.audit_actor) {
         params.set('audit_actor', dashboardQuery.audit_actor);
+      }
+      if (dashboardQuery.kpi_domain) {
+        params.set('kpi_domain', dashboardQuery.kpi_domain);
+      }
+      if (dashboardQuery.kpi_status) {
+        params.set('kpi_status', dashboardQuery.kpi_status);
       }
       if (dashboardQuery.incident_cursor !== null && dashboardQuery.incident_cursor !== undefined) {
         params.set('incident_cursor', String(dashboardQuery.incident_cursor));
@@ -352,6 +532,23 @@ def _html_page() -> str:
         JSON.stringify(payload.incident_feed, null, 2);
       document.getElementById('comparisonPayload').textContent =
         JSON.stringify(payload.cycle_comparison, null, 2);
+      const kpiShadow = payload.kpi_shadow || {};
+      const kpiSummary = kpiShadow.summary || {};
+      const kpiStatusCounts = kpiSummary.status_counts || {};
+      const kpiFilters = kpiShadow.filters || {};
+      const statusOrder = ['ok', 'warning', 'critical', 'insufficient_data'];
+      const statusPills = statusOrder.map((statusName) => {
+        const count = kpiStatusCounts[statusName] ?? 0;
+        return '<span class="status-pill ' + statusName + '">' + statusName + ': ' + count + '</span>';
+      }).join(' ');
+      document.getElementById('kpiPayload').textContent =
+        JSON.stringify(kpiShadow, null, 2);
+      document.getElementById('kpiSummary').innerHTML =
+        'KPI items=' + (kpiSummary.total_kpis ?? 0) +
+        ' | window=' + (kpiFilters.window ?? '-') +
+        ' | domain=' + (kpiFilters.domain ?? 'all') +
+        ' | status=' + (kpiFilters.status ?? 'all') +
+        ' | ' + statusPills;
 
       const incidentPaging = (payload.incident_feed || {}).paging || {};
       const cursorLabel = incidentPaging.cursor ?? 'latest';
@@ -385,6 +582,15 @@ def _html_page() -> str:
     }
     async function applyFilters() {
       applyQueryInputValues(true);
+      await fetchDashboard();
+    }
+    async function clearKpiFilters() {
+      dashboardQuery.kpi_window = defaultDashboardQuery.kpi_window;
+      dashboardQuery.kpi_domain = '';
+      dashboardQuery.kpi_status = '';
+      dashboardQuery.incident_cursor = null;
+      incidentCursorHistory = [];
+      syncQueryInputsFromState();
       await fetchDashboard();
     }
 
@@ -600,6 +806,10 @@ def _build_handler(
                         )
                         or 10
                     )
+                    kpi_window = _coerce_positive_int(
+                        _query_value(query, "kpi_window"),
+                        field_name="kpi_window",
+                    )
                     payload = dashboard_service.build_dashboard_payload(
                         recent_events_limit=events_limit,
                         recent_audit_limit=audit_limit,
@@ -608,6 +818,9 @@ def _build_handler(
                         incident_limit=incident_limit,
                         incident_cursor=incident_cursor,
                         comparison_window=comparison_window,
+                        kpi_window=kpi_window,
+                        kpi_domain=_query_value(query, "kpi_domain"),
+                        kpi_status=_query_value(query, "kpi_status"),
                     )
                     _send_json(self, status=200, payload=payload)
                     return
@@ -763,6 +976,7 @@ def main(argv: list[str] | None = None) -> int:
         state_path=args.state_path,
         journal_path=args.journal_path,
         control_manager=control_manager,
+        kpi_shadow_policy_path=args.kpi_shadow_policy_path,
     )
     handler_cls = _build_handler(
         dashboard_service=dashboard_service,
@@ -783,7 +997,8 @@ def main(argv: list[str] | None = None) -> int:
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path} "
         f"control_state_path={args.control_state_path} "
-        f"audit_path={args.audit_path}"
+        f"audit_path={args.audit_path} "
+        f"kpi_shadow_policy_path={args.kpi_shadow_policy_path}"
     )
     server.serve_forever()
     return 0

@@ -27,12 +27,15 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_milestone_c_sequence.py`: staged Milestone C runner that chains soak + certification phases (`12h -> 24h -> 48h`) with per-phase artifacts.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `scripts/run_canary_stage_enablement.py`: canary stage promotion gate runner that emits ALLOW/DENY decisions from certification + approval records and appends enablement audit evidence.
+- `scripts/run_canary_rollback_guard.py`: rollback enforcement runner that evaluates canary artifacts + cycle telemetry and emits machine-readable incident handoff evidence.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
 - `src/poly_robot/stress_certification.py`: certification evaluator that scores scenario-matrix and soak evidence against explicit gates.
 - `src/poly_robot/canary_enablement.py`: canary stage enablement decision evaluator and append-only audit event writer.
+- `src/poly_robot/canary_rollback_guard.py`: rollback trigger evaluator with incident handoff authority mapping and append-only guard audit events.
 - `tests/`: governance + replay + strategy/risk + execution + loop integration unit tests.
+- `requirements-dev.txt`: shared development tooling manifest for Dockerized virtual environment and CI parity.
 - `tasks/`: task backlogs and sprint-ready items.
 - `skills/`: project-specific Warp agent skills.
 
@@ -97,6 +100,10 @@ The default CI workflow now enforces:
 - Security static analysis (`bandit`) for source modules and runtime scripts.
 - UX regression checks for runtime web GUI and operator controls.
 - Static type check for `src/poly_robot` (`mypy`).
+- Canary stage enablement approval-boundary check (`DENY` is required while approvals remain pending).
+- Canary rollback guard incident-handoff check (`FAIL` + `incident_status=OPEN` is required when stage enablement is denied).
+- Canary stage enablement happy-path check (`ALLOW` + zero `failed_reason_codes` is required when required approvers are approved).
+- Canary rollback guard happy-path check (`PASS` + `incident_status=NONE` is required when stage enablement is allowed).
 - Docker deployment sanity gates (`docker compose config --quiet` + `docker compose build runtime-gui`).
 
 Run validation:
@@ -280,6 +287,22 @@ docker compose up -d runtime-gui
 curl http://127.0.0.1:8765/healthz
 ```
 
+Dockerized Python virtual environment (development/test workflow):
+- The Docker image creates an isolated virtual environment at `/opt/poly-robot-venv` and installs tooling from `requirements-dev.txt`.
+- Container `python`, `ruff`, `mypy`, and `bandit` commands run from that virtual environment by default.
+```bash
+docker compose --profile dev build
+docker compose --profile dev run --rm test-runner
+docker compose --profile dev run --rm quality-gate
+docker compose --profile dev run --rm dev-shell
+```
+Inside the dev shell, run project commands with the preconfigured environment:
+```bash
+python -m unittest tests.test_runtime_web_gui
+ruff check src/poly_robot tests scripts
+PYTHONPATH=src python -m mypy src/poly_robot
+```
+
 Run the supervisor in Docker (optional):
 ```bash
 docker compose --profile runner run --rm runtime-supervisor
@@ -351,6 +374,28 @@ F2 enablement artifact usage:
 - Enablement is denied whenever certification is not `PASS`, certification blockers are present, or required approvers are missing/not approved.
 - `runtime/canary_stage_enablement_audit.jsonl` is append-only and records actor, reason, decision status, and evidence hashes per evaluation.
 - `config/integration/canary_approval_record_template.v1.json` is the canonical approval-record format for required approvers (`release_manager`, `runtime_operator_on_call`) and rollback authority mapping.
+
+Run F3 canary rollback guard (automated rollback enforcement + incident handoff):
+```bash
+python3 scripts/run_canary_rollback_guard.py \
+  --enablement-decision runtime/canary_stage_enablement_decision.json \
+  --certification-report runtime/canary_rollout_certification_report.json \
+  --rehearsal-report runtime/rollout_rehearsal_report.json \
+  --cycle-report-dir runtime/rollout_rehearsal \
+  --cycle-report-pattern "**/cycle_*.json" \
+  --policy-config config/integration/canary_rollback_policy.v1.json \
+  --guard-output runtime/canary_rollback_guard_report.json \
+  --incident-output runtime/canary_rollback_incident_report.json \
+  --audit-output runtime/canary_rollback_guard_audit.jsonl \
+  --actor runtime_operator_on_call \
+  --reason "phase-f3-guard-evaluation"
+```
+F3 rollback artifact usage:
+- `runtime/canary_rollback_guard_report.json` emits trigger-level PASS/FAIL evidence and `guard_status` (`PASS` or `FAIL`) from canary artifacts plus cycle telemetry thresholds.
+- Any trigger activation sets `incident_required=true` and generates `incident_handoff` with reason-coded trigger evidence.
+- `runtime/canary_rollback_incident_report.json` captures required emergency actions, rollback authority, responsible authority, and deterministic handoff sequence.
+- `runtime/canary_rollback_guard_audit.jsonl` is append-only and records each guard evaluation with actor/reason plus guard/incident hashes.
+- `config/integration/canary_rollback_policy.v1.json` is the canonical source for rollback trigger thresholds, emergency actions, and authority mapping.
 
 Run stress campaign certification:
 ```bash

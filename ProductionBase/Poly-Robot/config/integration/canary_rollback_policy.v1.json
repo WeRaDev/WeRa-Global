@@ -1,0 +1,111 @@
+{
+  "config_name": "poly_robot_canary_rollback_policy",
+  "config_version": "1.0.0",
+  "updated_at": "2026-04-27T16:39:00Z",
+  "schema_version": "canary_rollback_policy.v1",
+  "description": "Phase-F3 automated rollback enforcement policy for canary live operation with incident handoff authority mapping.",
+  "thresholds": {
+    "max_execution_cost_to_expected_net_ratio": 1.0,
+    "execution_cost_ratio_consecutive_cycles": 3,
+    "minimum_expected_value_after_execution_cost": 0.0,
+    "negative_expected_value_consecutive_cycles": 3
+  },
+  "default_rollback_authority": [
+    "runtime_operator_on_call",
+    "incident_commander"
+  ],
+  "rollback_triggers": [
+    {
+      "trigger": "enablement_decision_denied",
+      "condition": "Canary stage enablement decision is DENY, so canary promotion must be blocked.",
+      "severity": "blocker",
+      "required_actions": [
+        "stop_canary_rollout_progression",
+        "retain_canary_stage_disabled",
+        "resolve_enablement_failed_reason_codes"
+      ]
+    },
+    {
+      "trigger": "certification_not_pass",
+      "condition": "Canary readiness certification overall_status is not PASS.",
+      "severity": "blocker",
+      "required_actions": [
+        "block_canary_live_orders",
+        "rerun_canary_readiness_certification",
+        "route_findings_to_release_manager"
+      ]
+    },
+    {
+      "trigger": "certification_blockers_present",
+      "condition": "Canary readiness certification blockers list is non-empty.",
+      "severity": "critical",
+      "required_actions": [
+        "open_incident_bridge",
+        "resolve_certification_blockers",
+        "rerun_canary_readiness_certification"
+      ]
+    },
+    {
+      "trigger": "rehearsal_rollback_recommendations_present",
+      "condition": "Rollout rehearsal report contains unresolved rollback recommendations.",
+      "severity": "critical",
+      "required_actions": [
+        "switch_to_paper_mode",
+        "execute_rollback_rehearsal",
+        "clear_rehearsal_recommendations"
+      ]
+    },
+    {
+      "trigger": "order_lifecycle_failed_present",
+      "condition": "Live cycle telemetry includes execution_result status=FAILED.",
+      "severity": "critical",
+      "required_actions": [
+        "disable_new_orders",
+        "cancel_all_open_orders",
+        "collect_failed_order_lifecycle_artifacts"
+      ]
+    },
+    {
+      "trigger": "execution_cost_ratio_breach_consecutive",
+      "condition": "execution_cost_to_expected_net_ratio exceeds threshold for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "reduce_order_notional_limits",
+        "switch_to_paper_mode",
+        "investigate_execution_cost_regression"
+      ]
+    },
+    {
+      "trigger": "negative_expected_value_after_cost_consecutive",
+      "condition": "expected_value_after_execution_cost remains below threshold for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "disable_new_orders",
+        "switch_to_paper_mode",
+        "review_strategy_signal_quality"
+      ]
+    },
+    {
+      "trigger": "no_cycle_telemetry_available",
+      "condition": "No cycle telemetry artifacts are available for rollback enforcement evaluation.",
+      "severity": "high",
+      "required_actions": [
+        "block_rollout_progression",
+        "restore_cycle_artifact_pipeline",
+        "rerun_canary_rollback_guard"
+      ]
+    }
+  ],
+  "incident_handoff": {
+    "responsible_authority": "runtime_operator_on_call",
+    "secondary_authorities": [
+      "incident_commander",
+      "release_manager"
+    ],
+    "handoff_sequence": [
+      "runtime_operator_on_call acknowledges rollback trigger evidence",
+      "incident_commander confirms emergency action execution",
+      "release_manager records release hold and remediation checkpoint"
+    ]
+  }
+}

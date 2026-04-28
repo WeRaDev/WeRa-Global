@@ -420,6 +420,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--state-refresh-stale-threshold-cycles",
+        type=int,
+        default=6,
+        help=(
+            "Number of consecutive state-refresh cycles with open positions "
+            "before markets are flagged as stale."
+        ),
+    )
+    parser.add_argument(
         "--ingestion-max-retries",
         type=int,
         default=1,
@@ -599,6 +608,8 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--cycle-interval-seconds must be >= 0")
     if args.live_wallet_convergence_threshold <= 0:
         raise ValueError("--live-wallet-convergence-threshold must be > 0")
+    if args.state_refresh_stale_threshold_cycles <= 0:
+        raise ValueError("--state-refresh-stale-threshold-cycles must be > 0")
     if args.ingestion_mode == "historical_jsonl" and args.events is None:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
@@ -951,6 +962,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     open_positions_state: dict[str, object] = {}
     seen_live_event_ids: set[str] = set()
+    state_refresh_streak_by_market: dict[str, int] = {}
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
@@ -995,7 +1007,7 @@ def main(argv: list[str] | None = None) -> int:
         args.cycle_output_dir.mkdir(parents=True, exist_ok=True)
 
     def _run_test_token_cycle(heartbeat) -> dict:
-        nonlocal portfolio_state, open_positions_state, seen_live_event_ids
+        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
@@ -1188,6 +1200,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         freshness_skipped_event_ids = 0
         freshness_committed_event_ids: list[str] = []
+        state_refresh_applied = False
+        state_refresh_event_count = 0
+        state_refresh_market_ids: list[str] = []
+        state_refresh_streak_snapshot: dict[str, int] = {}
+        state_refresh_max_streak = 0
+        stale_open_position_market_ids: list[str] = []
+        no_new_events_since_last_cycle = False
 
         if args.ingestion_mode == "historical_jsonl":
             scenario_name_in_use = selected_scenario_name
@@ -1255,6 +1274,53 @@ def main(argv: list[str] | None = None) -> int:
                             "seen_event_ids_before_cycle": len(seen_live_event_ids),
                         },
                     )
+            no_new_events_since_last_cycle = (
+                freshness_filter_enabled
+                and not events_for_run
+                and bool(cycle_ingestion.events)
+            )
+            if (
+                no_new_events_since_last_cycle
+                and open_positions_state
+            ):
+                open_position_market_ids = set(open_positions_state.keys())
+                state_refresh_events: list[MarketEvent] = []
+                for event in cycle_ingestion.events:
+                    if event.market_id not in open_position_market_ids:
+                        continue
+                    event_payload = event.to_dict()
+                    event_metadata = dict(event_payload.get("metadata", {}))
+                    event_metadata["state_refresh_event"] = True
+                    event_metadata["state_refresh_reason"] = (
+                        "no_new_events_since_last_cycle"
+                    )
+                    event_metadata["suppress_new_entries"] = True
+                    event_payload["metadata"] = event_metadata
+                    state_refresh_events.append(MarketEvent.from_dict(event_payload))
+                if state_refresh_events:
+                    events_for_run = state_refresh_events
+                    state_refresh_applied = True
+                    state_refresh_event_count = len(state_refresh_events)
+                    state_refresh_market_ids = sorted(
+                        {
+                            event.market_id
+                            for event in state_refresh_events
+                        }
+                    )
+                    heartbeat(
+                        "live_state_refresh_applied",
+                        {
+                            "cycle_index": cycle_index,
+                            "state_refresh_event_count": state_refresh_event_count,
+                            "open_position_market_count": len(
+                                open_position_market_ids
+                            ),
+                            "state_refresh_market_ids": state_refresh_market_ids,
+                            "seen_event_ids_before_cycle": len(
+                                seen_live_event_ids
+                            ),
+                        },
+                    )
             events_hash = hash_events(events_for_run)
             scenario_hash = stable_hash(
                 {
@@ -1272,6 +1338,36 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 }
             )
+            if args.ingestion_mode == "live_polymarket":
+                open_position_market_ids_sorted = sorted(open_positions_state.keys())
+                if state_refresh_applied and state_refresh_market_ids:
+                    refreshed_market_ids = set(state_refresh_market_ids)
+                    for market_id in open_position_market_ids_sorted:
+                        if market_id in refreshed_market_ids:
+                            state_refresh_streak_by_market[market_id] = (
+                                state_refresh_streak_by_market.get(market_id, 0) + 1
+                            )
+                        else:
+                            state_refresh_streak_by_market.pop(market_id, None)
+                else:
+                    for market_id in open_position_market_ids_sorted:
+                        state_refresh_streak_by_market.pop(market_id, None)
+                current_open_market_ids = set(open_position_market_ids_sorted)
+                for market_id in list(state_refresh_streak_by_market):
+                    if market_id not in current_open_market_ids:
+                        state_refresh_streak_by_market.pop(market_id, None)
+                state_refresh_streak_snapshot = {
+                    market_id: int(state_refresh_streak_by_market[market_id])
+                    for market_id in open_position_market_ids_sorted
+                    if state_refresh_streak_by_market.get(market_id, 0) > 0
+                }
+                if state_refresh_streak_snapshot:
+                    state_refresh_max_streak = max(state_refresh_streak_snapshot.values())
+                stale_open_position_market_ids = sorted(
+                    market_id
+                    for market_id, streak in state_refresh_streak_snapshot.items()
+                    if streak >= args.state_refresh_stale_threshold_cycles
+                )
         effective_ingestion_status = cycle_ingestion.status
         effective_ingestion_reasons = list(cycle_ingestion.reasons)
         effective_ingestion_metadata = dict(cycle_ingestion.metadata)
@@ -1288,17 +1384,39 @@ def main(argv: list[str] | None = None) -> int:
         effective_ingestion_metadata["seen_event_ids_after_cycle"] = (
             len(seen_live_event_ids) + len(freshness_committed_event_ids)
         )
+        effective_ingestion_metadata["state_refresh_applied"] = state_refresh_applied
+        effective_ingestion_metadata["state_refresh_event_count"] = (
+            state_refresh_event_count
+        )
+        effective_ingestion_metadata["state_refresh_market_ids"] = (
+            state_refresh_market_ids
+        )
+        effective_ingestion_metadata["state_refresh_streak_by_market"] = (
+            state_refresh_streak_snapshot
+        )
+        effective_ingestion_metadata["state_refresh_max_streak"] = (
+            state_refresh_max_streak
+        )
+        effective_ingestion_metadata["state_refresh_stale_threshold_cycles"] = (
+            args.state_refresh_stale_threshold_cycles
+        )
+        effective_ingestion_metadata["stale_open_position_market_ids"] = (
+            stale_open_position_market_ids
+        )
         if freshness_filter_enabled and freshness_skipped_event_ids > 0:
             effective_ingestion_reasons.append("seen_event_ids_skipped")
             if effective_ingestion_status == "OK":
                 effective_ingestion_status = "DEGRADED"
-        if (
-            freshness_filter_enabled
-            and args.ingestion_mode == "live_polymarket"
-            and not events_for_run
-            and cycle_ingestion.events
-        ):
+        if state_refresh_applied:
+            effective_ingestion_reasons.append("state_refresh_from_seen_events")
+            if effective_ingestion_status == "OK":
+                effective_ingestion_status = "DEGRADED"
+        if no_new_events_since_last_cycle:
             effective_ingestion_reasons.append("no_new_events_since_last_cycle")
+            if effective_ingestion_status == "OK":
+                effective_ingestion_status = "DEGRADED"
+        if stale_open_position_market_ids:
+            effective_ingestion_reasons.append("stale_open_positions_under_state_refresh")
             if effective_ingestion_status == "OK":
                 effective_ingestion_status = "DEGRADED"
         effective_ingestion_reasons = list(dict.fromkeys(effective_ingestion_reasons))
@@ -1507,10 +1625,22 @@ def main(argv: list[str] | None = None) -> int:
                 "total_exposure_fraction": total_exposure_fraction,
                 "daily_drawdown_fraction": daily_drawdown_fraction,
                 "result_hash_prefix": result_hash[:12],
+                "ingestion_status": effective_ingestion_status,
+                "ingestion_reasons": effective_ingestion_reasons,
+                "state_refresh_applied": state_refresh_applied,
+                "state_refresh_event_count": state_refresh_event_count,
+                "state_refresh_market_ids": state_refresh_market_ids,
+                "state_refresh_max_streak": state_refresh_max_streak,
+                "stale_open_position_market_ids": stale_open_position_market_ids,
             },
         )
         portfolio_state = run.final_portfolio.clone()
         open_positions_state = dict(run.final_open_positions)
+        if args.ingestion_mode == "live_polymarket":
+            final_open_market_ids = set(open_positions_state.keys())
+            for market_id in list(state_refresh_streak_by_market):
+                if market_id not in final_open_market_ids:
+                    state_refresh_streak_by_market.pop(market_id, None)
         if freshness_filter_enabled and freshness_committed_event_ids:
             seen_live_event_ids.update(freshness_committed_event_ids)
         return {
@@ -1555,6 +1685,13 @@ def main(argv: list[str] | None = None) -> int:
             "total_exposure_fraction": total_exposure_fraction,
             "daily_drawdown_fraction": daily_drawdown_fraction,
             "result_hash": result_hash,
+            "ingestion_status": effective_ingestion_status,
+            "ingestion_reasons": effective_ingestion_reasons,
+            "state_refresh_applied": state_refresh_applied,
+            "state_refresh_event_count": state_refresh_event_count,
+            "state_refresh_market_ids": state_refresh_market_ids,
+            "state_refresh_max_streak": state_refresh_max_streak,
+            "stale_open_position_market_ids": stale_open_position_market_ids,
         }
 
     worker = WorkerSpec(
