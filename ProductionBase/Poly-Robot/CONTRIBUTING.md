@@ -50,6 +50,10 @@ A task is done only when:
   - Treat `guard_status=FAIL` in `runtime/canary_rollback_guard_report.json` as mandatory rollback/hold signal.
   - Treat `incident_handoff.incident_status=OPEN` in `runtime/canary_rollback_incident_report.json` as required handoff event with emergency action ownership.
   - Treat missing append-only guard evidence in `runtime/canary_rollback_guard_audit.jsonl` as policy non-compliance for rollback enforcement.
+- F4 canary lifecycle gate:
+  - `python3 scripts/run_canary_lifecycle_gate.py --rehearsal-report runtime/rollout_rehearsal_report.json --criteria-config config/integration/canary_promotion_criteria.v1.json --approval-record config/integration/canary_approval_record_template.v1.json --rollout-config config/integration/live_trade_rollout.v1.json --policy-config config/integration/canary_rollback_policy.v1.json --cycle-report-dir runtime/rollout_rehearsal --cycle-report-pattern "**/cycle_*.json" --requested-stage canary_live --approval-status pending --certification-output runtime/canary_rollout_certification_report.json --decision-output runtime/canary_stage_enablement_decision.json --enablement-audit-output runtime/canary_stage_enablement_audit.jsonl --guard-output runtime/canary_rollback_guard_report.json --incident-output runtime/canary_rollback_incident_report.json --guard-audit-output runtime/canary_rollback_guard_audit.jsonl --summary-output runtime/canary_lifecycle_gate_report.json --decision-actor release_manager --guard-actor runtime_operator_on_call --reason "phase-f4-lifecycle-gate-evaluation" || true`
+  - Treat `overall_status=FAIL` in `runtime/canary_lifecycle_gate_report.json` as rollout-blocking for promotion attempts.
+  - Promotion-ready lifecycle validation should run with `--approval-status approved --auto-approve-required-approvers` and must return `overall_status=PASS`.
 - Docker deployment sanity:
   - `docker compose config --quiet`
   - `docker compose build runtime-gui`

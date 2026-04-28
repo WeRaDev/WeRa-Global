@@ -28,6 +28,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `scripts/run_canary_stage_enablement.py`: canary stage promotion gate runner that emits ALLOW/DENY decisions from certification + approval records and appends enablement audit evidence.
 - `scripts/run_canary_rollback_guard.py`: rollback enforcement runner that evaluates canary artifacts + cycle telemetry and emits machine-readable incident handoff evidence.
+- `scripts/run_canary_lifecycle_gate.py`: lifecycle orchestration runner that executes readiness certification, stage enablement decisioning, and rollback guard evaluation in one deterministic gate sequence.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
@@ -104,6 +105,7 @@ The default CI workflow now enforces:
 - Canary rollback guard incident-handoff check (`FAIL` + `incident_status=OPEN` is required when stage enablement is denied).
 - Canary stage enablement happy-path check (`ALLOW` + zero `failed_reason_codes` is required when required approvers are approved).
 - Canary rollback guard happy-path check (`PASS` + `incident_status=NONE` is required when stage enablement is allowed).
+- Canary lifecycle gate sequence checks (`FAIL` on pending approval path and `PASS` on auto-approved path) using consolidated lifecycle summary artifacts.
 - Docker deployment sanity gates (`docker compose config --quiet` + `docker compose build runtime-gui`).
 
 Run validation:
@@ -401,6 +403,34 @@ F3 rollback artifact usage:
 - `runtime/canary_rollback_incident_report.json` captures required emergency actions, rollback authority, responsible authority, and deterministic handoff sequence.
 - `runtime/canary_rollback_guard_audit.jsonl` is append-only and records each guard evaluation with actor/reason plus guard/incident hashes.
 - `config/integration/canary_rollback_policy.v1.json` is the canonical source for rollback trigger thresholds, emergency actions, and authority mapping.
+
+Run F4 canary lifecycle gate (single command orchestration across certification + enablement + rollback guard):
+```bash
+python3 scripts/run_canary_lifecycle_gate.py \
+  --rehearsal-report runtime/rollout_rehearsal_report.json \
+  --criteria-config config/integration/canary_promotion_criteria.v1.json \
+  --approval-record config/integration/canary_approval_record_template.v1.json \
+  --rollout-config config/integration/live_trade_rollout.v1.json \
+  --policy-config config/integration/canary_rollback_policy.v1.json \
+  --cycle-report-dir runtime/rollout_rehearsal \
+  --cycle-report-pattern "**/cycle_*.json" \
+  --requested-stage canary_live \
+  --approval-status pending \
+  --certification-output runtime/canary_rollout_certification_report.json \
+  --decision-output runtime/canary_stage_enablement_decision.json \
+  --enablement-audit-output runtime/canary_stage_enablement_audit.jsonl \
+  --guard-output runtime/canary_rollback_guard_report.json \
+  --incident-output runtime/canary_rollback_incident_report.json \
+  --guard-audit-output runtime/canary_rollback_guard_audit.jsonl \
+  --summary-output runtime/canary_lifecycle_gate_report.json \
+  --decision-actor release_manager \
+  --guard-actor runtime_operator_on_call \
+  --reason "phase-f4-lifecycle-gate-evaluation" || true
+```
+F4 lifecycle artifact usage:
+- `runtime/canary_lifecycle_gate_report.json` is the consolidated gate outcome (`overall_status`, stage statuses, failed reason codes, triggered condition IDs, and evidence hashes).
+- Pending-approval runs are expected to return non-zero with `overall_status=FAIL`, `decision_status=DENY`, and `incident_status=OPEN`.
+- Promotion-ready runs use `--approval-status approved --auto-approve-required-approvers` and must return zero with `overall_status=PASS`.
 
 Run stress campaign certification:
 ```bash

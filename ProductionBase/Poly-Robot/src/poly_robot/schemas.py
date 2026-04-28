@@ -20,5 +20,6 @@ CANARY_STAGE_ENABLEMENT_AUDIT_EVENT_SCHEMA_VERSION = "canary_stage_enablement_au
 CANARY_ROLLBACK_GUARD_REPORT_SCHEMA_VERSION = "canary_rollback_guard_report.v1"
 CANARY_ROLLBACK_INCIDENT_REPORT_SCHEMA_VERSION = "canary_rollback_incident_report.v1"
 CANARY_ROLLBACK_GUARD_AUDIT_EVENT_SCHEMA_VERSION = "canary_rollback_guard_audit_event.v1"
+CANARY_LIFECYCLE_GATE_REPORT_SCHEMA_VERSION = "canary_lifecycle_gate_report.v1"
 STRESS_CERTIFICATION_REPORT_SCHEMA_VERSION = "stress_certification_report.v1"
 STRESS_CAMPAIGN_REPORT_SCHEMA_VERSION = "stress_campaign_report.v1"
