@@ -408,6 +408,128 @@ class LivePolymarketIngestionAdapterTests(unittest.TestCase):
         self.assertIn("wallet_signal_unavailable", batch.reasons)
         self.assertEqual(batch.metadata["wallet_signal_loader_error"], "OSError")
 
+    def test_domain_wallet_convergence_can_drive_domain_basket_signal(self) -> None:
+        payload = [
+            {
+                "id": "540824",
+                "question": "Will domain convergence raise basket confidence?",
+                "updatedAt": "2026-04-26T15:12:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "category": "Politics",
+                "outcomePrices": "[\"0.49\", \"0.51\"]",
+                "liquidity": "1800.0",
+                "volume24hr": 380.0,
+                "oneWeekPriceChange": 0.01,
+            }
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            whale_signal_wallet_threshold=3.0,
+            wallet_convergence_loader=lambda: {
+                "domains": {"politics": 4.0}
+            },
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "OK")
+        self.assertEqual(batch.metadata["wallet_signal_domains"], 1)
+        event = batch.events[0]
+        self.assertEqual(event.metadata["domain_key"], "politics")
+        self.assertEqual(event.metadata["domain_wallet_convergence_count"], 4.0)
+        self.assertGreater(
+            event.metadata["probability_components"]["domain_basket_component"],
+            0.0,
+        )
+
+    def test_marks_complement_arb_candidate_when_constraints_pass(self) -> None:
+        payload = [
+            {
+                "id": "540825",
+                "question": "Is complement arbitrage feasible in paper mode?",
+                "updatedAt": "2026-04-26T15:13:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "outcomePrices": "[\"0.45\", \"0.45\"]",
+                "bestBid": "0.45",
+                "bestAsk": "0.46",
+                "tickSize": "0.01",
+                "tokenId": "tok-540825",
+                "availableBalanceUsd": 100.0,
+                "allowanceUsd": 100.0,
+                "liquidity": "2200.0",
+                "volume24hr": 510.0,
+                "oneWeekPriceChange": 0.02,
+            }
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "OK")
+        event = batch.events[0]
+        self.assertTrue(event.metadata["complement_arb_candidate"])
+        self.assertTrue(event.metadata["complement_arb_signal"]["candidate"])
+        self.assertEqual(
+            event.metadata["complement_arb_signal"]["rejection_reasons"], []
+        )
+
+    def test_assigns_domain_allocation_budgets_to_selected_events(self) -> None:
+        payload = [
+            {
+                "id": "540826",
+                "question": "Will crypto market keep momentum?",
+                "updatedAt": "2026-04-26T15:14:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "category": "Crypto",
+                "outcomePrices": "[\"0.62\", \"0.38\"]",
+                "liquidity": "2800.0",
+                "volume24hr": 900.0,
+                "oneWeekPriceChange": 0.03,
+            },
+            {
+                "id": "540827",
+                "question": "Will politics market reverse this week?",
+                "updatedAt": "2026-04-26T15:15:01Z",
+                "endDate": "2026-07-31T12:00:00Z",
+                "category": "Politics",
+                "outcomePrices": "[\"0.41\", \"0.59\"]",
+                "liquidity": "2600.0",
+                "volume24hr": 850.0,
+                "oneWeekPriceChange": -0.01,
+            },
+        ]
+        adapter = LivePolymarketIngestionAdapter(
+            source_url="https://example.test/markets",
+            max_markets=5,
+            min_volume_24h=0.0,
+            max_retry_attempts=0,
+            max_invalid_rows=0,
+            fetch_json_fn=lambda _url, _timeout: payload,
+        )
+
+        batch = adapter.load_markets(timeout_seconds=1.0)
+
+        self.assertEqual(batch.status, "OK")
+        allocation = batch.metadata["domain_budget_allocation"]
+        self.assertIn("crypto", allocation)
+        self.assertIn("politics", allocation)
+        self.assertAlmostEqual(sum(allocation.values()), 1.0, places=5)
+        for event in batch.events:
+            self.assertIn("domain_allocation_budget", event.metadata)
+            self.assertGreater(event.metadata["domain_allocation_budget"], 0.0)
+
 class PolymarketClobExecutionAdapterTests(unittest.TestCase):
     def _build_adapter(
         self,

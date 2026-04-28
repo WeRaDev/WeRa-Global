@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 import json
+import math
 import os
 import socket
 import time
@@ -241,6 +242,14 @@ class LivePolymarketIngestionAdapter:
         news_signal_volume_24h_threshold: float = 300.0,
         whale_signal_liquidity_threshold: float = 30000.0,
         whale_signal_wallet_threshold: float = 3.0,
+        domain_exploration_weight: float = 0.25,
+        complement_arb_min_edge_bps: float = 30.0,
+        complement_arb_max_spread_bps: float = 120.0,
+        complement_arb_fee_rate_bps: float = 20.0,
+        complement_arb_max_tick_size: float = 0.02,
+        complement_arb_min_notional_usd: float = 25.0,
+        execution_mode: str = "paper",
+        complement_arb_paper_mode_only: bool = True,
         wallet_convergence_loader: Callable[[], dict[str, Any]] | None = None,
         sleep_fn: Callable[[float], None] | None = None,
         fetch_json_fn: Callable[[str, float], Any] | None = None,
@@ -263,6 +272,18 @@ class LivePolymarketIngestionAdapter:
             raise ValueError("max_hours_to_resolution_cap must be > 0")
         if whale_signal_wallet_threshold <= 0:
             raise ValueError("whale_signal_wallet_threshold must be > 0")
+        if not (0.0 <= domain_exploration_weight <= 1.0):
+            raise ValueError("domain_exploration_weight must be between 0 and 1")
+        if complement_arb_min_edge_bps < 0:
+            raise ValueError("complement_arb_min_edge_bps must be >= 0")
+        if complement_arb_max_spread_bps <= 0:
+            raise ValueError("complement_arb_max_spread_bps must be > 0")
+        if complement_arb_fee_rate_bps < 0:
+            raise ValueError("complement_arb_fee_rate_bps must be >= 0")
+        if complement_arb_max_tick_size <= 0:
+            raise ValueError("complement_arb_max_tick_size must be > 0")
+        if complement_arb_min_notional_usd <= 0:
+            raise ValueError("complement_arb_min_notional_usd must be > 0")
 
         self.source_url = source_url
         self.max_markets = max_markets
@@ -277,6 +298,14 @@ class LivePolymarketIngestionAdapter:
         self.news_signal_volume_24h_threshold = news_signal_volume_24h_threshold
         self.whale_signal_liquidity_threshold = whale_signal_liquidity_threshold
         self.whale_signal_wallet_threshold = whale_signal_wallet_threshold
+        self.domain_exploration_weight = domain_exploration_weight
+        self.complement_arb_min_edge_bps = complement_arb_min_edge_bps
+        self.complement_arb_max_spread_bps = complement_arb_max_spread_bps
+        self.complement_arb_fee_rate_bps = complement_arb_fee_rate_bps
+        self.complement_arb_max_tick_size = complement_arb_max_tick_size
+        self.complement_arb_min_notional_usd = complement_arb_min_notional_usd
+        self.execution_mode = execution_mode.strip() or "paper"
+        self.complement_arb_paper_mode_only = complement_arb_paper_mode_only
         self._wallet_convergence_loader = wallet_convergence_loader
         self._sleep_fn = sleep_fn or time.sleep
         self._fetch_json_fn = fetch_json_fn or self._default_fetch_json
@@ -333,35 +362,91 @@ class LivePolymarketIngestionAdapter:
             return None
         return parsed
 
-    def _load_wallet_convergence_map(self) -> tuple[dict[str, float], str | None]:
+    @staticmethod
+    def _normalize_domain_key(value: Any) -> str:
+        text = str(value or "").strip().lower()
+        if not text:
+            return ""
+        normalized = "".join(
+            character if character.isalnum() else "_"
+            for character in text
+        )
+        while "__" in normalized:
+            normalized = normalized.replace("__", "_")
+        return normalized.strip("_")
+
+    def _resolve_market_domain_key(self, row: dict[str, Any]) -> str:
+        for key in (
+            "category",
+            "categorySlug",
+            "marketCategory",
+            "groupItemTitle",
+            "tag",
+        ):
+            normalized = self._normalize_domain_key(row.get(key))
+            if normalized:
+                return normalized
+
+        text = str(row.get("question") or row.get("slug") or "").strip().lower()
+        if not text:
+            return "general"
+        if any(token in text for token in ("election", "president", "senate", "vote")):
+            return "politics"
+        if any(token in text for token in ("bitcoin", "btc", "eth", "crypto", "solana")):
+            return "crypto"
+        if any(token in text for token in ("nba", "nfl", "soccer", "mlb", "ufc", "f1")):
+            return "sports"
+        if any(
+            token in text
+            for token in ("movie", "album", "music", "award", "celebrity", "tv")
+        ):
+            return "culture"
+        return "general"
+
+    def _load_wallet_convergence_map(
+        self,
+    ) -> tuple[dict[str, float], dict[str, float], str | None]:
         if self._wallet_convergence_loader is None:
-            return {}, None
+            return {}, {}, None
         try:
             payload = self._wallet_convergence_loader()
         except Exception as exc:  # pragma: no cover - defensive branch
-            return {}, exc.__class__.__name__
+            return {}, {}, exc.__class__.__name__
 
         if payload is None:
-            return {}, None
+            return {}, {}, None
         if not isinstance(payload, dict):
-            return {}, f"invalid_payload:{type(payload).__name__}"
+            return {}, {}, f"invalid_payload:{type(payload).__name__}"
 
-        source = payload
+        market_source = payload
         if isinstance(payload.get("markets"), dict):
-            source = payload["markets"]
+            market_source = payload["markets"]
+        domain_source: dict[str, Any] = {}
+        if isinstance(payload.get("domains"), dict):
+            domain_source = payload["domains"]
 
-        normalized: dict[str, float] = {}
-        for market_id, raw_count in source.items():
+        market_counts: dict[str, float] = {}
+        for market_id, raw_count in market_source.items():
             market_key = str(market_id).strip()
             if not market_key:
                 continue
             count = self._extract_wallet_convergence_count(raw_count)
             if count is None:
                 continue
-            normalized[market_key] = count
-        return normalized, None
+            market_counts[market_key] = count
 
-    def _extract_midpoint(self, row: dict[str, Any]) -> float:
+        domain_counts: dict[str, float] = {}
+        for domain_key, raw_count in domain_source.items():
+            normalized_domain = self._normalize_domain_key(domain_key)
+            if not normalized_domain:
+                continue
+            count = self._extract_wallet_convergence_count(raw_count)
+            if count is None:
+                continue
+            domain_counts[normalized_domain] = count
+        return market_counts, domain_counts, None
+
+    def _extract_outcome_prices(self, row: dict[str, Any]) -> list[float]:
         raw_outcome_prices = row.get("outcomePrices")
         if isinstance(raw_outcome_prices, str):
             try:
@@ -372,9 +457,18 @@ class LivePolymarketIngestionAdapter:
             parsed_prices = raw_outcome_prices
         else:
             parsed_prices = []
+        outcome_prices: list[float] = []
+        for raw_value in parsed_prices:
+            parsed = self._parse_float(raw_value, default=-1.0)
+            if parsed < 0:
+                continue
+            outcome_prices.append(_clamp_probability(parsed))
+        return outcome_prices
 
-        if parsed_prices:
-            return _clamp_probability(self._parse_float(parsed_prices[0], default=0.5))
+    def _extract_midpoint(self, row: dict[str, Any]) -> float:
+        outcome_prices = self._extract_outcome_prices(row)
+        if outcome_prices:
+            return _clamp_probability(outcome_prices[0])
 
         best_bid = self._parse_float(row.get("bestBid"))
         best_ask = self._parse_float(row.get("bestAsk"))
@@ -424,12 +518,148 @@ class LivePolymarketIngestionAdapter:
         bounded = max(0.0, float(value))
         return min(1.0, bounded / saturation)
 
+    def _build_complement_arb_signal(
+        self,
+        *,
+        row: dict[str, Any],
+        outcome_prices: list[float],
+        tick_size: float,
+        token_id: str,
+        available_balance_usd: float,
+        allowance_usd: float,
+    ) -> dict[str, Any]:
+        outcome_sum = (
+            sum(outcome_prices[:2])
+            if len(outcome_prices) >= 2
+            else None
+        )
+        best_bid = self._parse_float(row.get("bestBid"), default=0.0)
+        best_ask = self._parse_float(row.get("bestAsk"), default=0.0)
+        spread_fraction = 0.0
+        if best_bid > 0 and best_ask > 0 and best_ask >= best_bid:
+            spread_fraction = best_ask - best_bid
+        elif tick_size > 0:
+            spread_fraction = tick_size
+        spread_bps = round(spread_fraction * 10_000, 2)
+        underround_fraction = (
+            max(0.0, 1.0 - outcome_sum) if outcome_sum is not None else 0.0
+        )
+        fee_fraction = self.complement_arb_fee_rate_bps / 10_000
+        effective_edge_fraction = (
+            underround_fraction - fee_fraction - spread_fraction
+        )
+        effective_edge_bps = round(effective_edge_fraction * 10_000, 2)
+        fast_path_active = (
+            self.execution_mode == "paper"
+            if self.complement_arb_paper_mode_only
+            else True
+        )
+        constraints: dict[str, bool] = {
+            "fast_path_active": fast_path_active,
+            "has_token_id": bool(token_id),
+            "tick_size_within_limit": (
+                tick_size > 0 and tick_size <= self.complement_arb_max_tick_size
+            ),
+            "spread_within_limit": spread_bps <= self.complement_arb_max_spread_bps,
+            "edge_above_threshold": (
+                effective_edge_bps >= self.complement_arb_min_edge_bps
+            ),
+            "balance_sufficient": (
+                available_balance_usd < 0
+                or available_balance_usd >= self.complement_arb_min_notional_usd
+            ),
+            "allowance_sufficient": (
+                allowance_usd < 0
+                or allowance_usd >= self.complement_arb_min_notional_usd
+            ),
+            "has_dual_outcomes": outcome_sum is not None,
+        }
+        candidate = all(constraints.values())
+        rejection_reasons = [
+            key for key, passed in constraints.items() if not passed
+        ]
+        return {
+            "fast_path_active": fast_path_active,
+            "candidate": candidate,
+            "mode": (
+                "paper_only"
+                if self.complement_arb_paper_mode_only
+                else "all_modes"
+            ),
+            "outcome_sum": outcome_sum,
+            "underround_fraction": round(underround_fraction, 6),
+            "estimated_spread_bps": spread_bps,
+            "effective_edge_bps": effective_edge_bps,
+            "constraints": constraints,
+            "rejection_reasons": rejection_reasons,
+        }
+
+    def _apply_domain_allocation_budgets(
+        self,
+        events: list[MarketEvent],
+    ) -> tuple[list[MarketEvent], dict[str, float]]:
+        if not events:
+            return events, {}
+
+        domain_reward_sum: dict[str, float] = {}
+        domain_event_count: dict[str, int] = {}
+        for event in events:
+            metadata = event.metadata
+            domain_key = str(metadata.get("domain_key") or "general").strip() or "general"
+            reward_signal = self._parse_float(
+                metadata.get("domain_bandit_reward_signal"),
+                default=0.5,
+            )
+            reward_signal = min(max(reward_signal, 0.0), 1.0)
+            domain_reward_sum[domain_key] = (
+                domain_reward_sum.get(domain_key, 0.0) + reward_signal
+            )
+            domain_event_count[domain_key] = domain_event_count.get(domain_key, 0) + 1
+
+        total_events = max(1, len(events))
+        domain_budget_score: dict[str, float] = {}
+        for domain_key, count in domain_event_count.items():
+            average_reward = domain_reward_sum[domain_key] / max(1, count)
+            exploration_bonus = math.sqrt(
+                math.log(total_events + 1.0) / (count + 1.0)
+            )
+            ucb_score = average_reward + (
+                self.domain_exploration_weight * exploration_bonus
+            )
+            domain_budget_score[domain_key] = max(1e-6, ucb_score)
+        budget_denominator = sum(domain_budget_score.values())
+        if budget_denominator <= 0:
+            equal_budget = 1.0 / max(1, len(domain_budget_score))
+            domain_budget = {
+                key: round(equal_budget, 6) for key in domain_budget_score
+            }
+        else:
+            domain_budget = {
+                key: round(score / budget_denominator, 6)
+                for key, score in domain_budget_score.items()
+            }
+
+        adjusted_events: list[MarketEvent] = []
+        for event in events:
+            event_payload = event.to_dict()
+            event_metadata = dict(event_payload.get("metadata", {}))
+            domain_key = str(event_metadata.get("domain_key") or "general").strip() or "general"
+            event_metadata["domain_allocation_budget"] = domain_budget.get(domain_key, 0.0)
+            event_metadata["domain_bandit_exploration_weight"] = round(
+                self.domain_exploration_weight,
+                6,
+            )
+            event_payload["metadata"] = event_metadata
+            adjusted_events.append(MarketEvent.from_dict(event_payload))
+        return adjusted_events, domain_budget
+
     def _build_market_event(
         self,
         row: dict[str, Any],
         *,
         fetched_at: str,
         wallet_convergence_by_market: dict[str, float] | None = None,
+        wallet_convergence_by_domain: dict[str, float] | None = None,
     ) -> tuple[MarketEvent, float]:
         market_id = str(row.get("id") or row.get("conditionId") or "").strip()
         if not market_id:
@@ -453,7 +683,12 @@ class LivePolymarketIngestionAdapter:
         )
 
         timestamp = str(row.get("updatedAt") or row.get("createdAt") or fetched_at)
-        midpoint = self._extract_midpoint(row)
+        outcome_prices = self._extract_outcome_prices(row)
+        midpoint = (
+            _clamp_probability(outcome_prices[0])
+            if outcome_prices
+            else self._extract_midpoint(row)
+        )
         one_week_change = self._parse_float(row.get("oneWeekPriceChange"))
         volume_24h = self._parse_float(
             row.get("volume24hr", row.get("volume24hrClob", 0.0))
@@ -464,9 +699,22 @@ class LivePolymarketIngestionAdapter:
         effective_liquidity = max(
             raw_liquidity, volume_24h * self.volume_to_liquidity_multiplier
         )
-        wallet_convergence_count = 0.0
+        domain_key = self._resolve_market_domain_key(row)
+        market_wallet_convergence_count = 0.0
         if wallet_convergence_by_market is not None:
-            wallet_convergence_count = wallet_convergence_by_market.get(market_id, 0.0)
+            market_wallet_convergence_count = wallet_convergence_by_market.get(
+                market_id, 0.0
+            )
+        domain_wallet_convergence_count = 0.0
+        if wallet_convergence_by_domain is not None:
+            domain_wallet_convergence_count = wallet_convergence_by_domain.get(
+                domain_key,
+                0.0,
+            )
+        wallet_convergence_count = max(
+            market_wallet_convergence_count,
+            domain_wallet_convergence_count,
+        )
         wallet_whale_signal = (
             wallet_convergence_count >= self.whale_signal_wallet_threshold
         )
@@ -474,6 +722,14 @@ class LivePolymarketIngestionAdapter:
             effective_liquidity >= self.whale_signal_liquidity_threshold
         )
         whale_signal = wallet_whale_signal or liquidity_whale_signal
+        complement_arb_signal = self._build_complement_arb_signal(
+            row=row,
+            outcome_prices=outcome_prices,
+            tick_size=tick_size,
+            token_id=token_id,
+            available_balance_usd=available_balance_usd,
+            allowance_usd=allowance_usd,
+        )
 
         previous_midpoint = self._previous_midpoint_by_market.get(market_id)
         momentum = midpoint - previous_midpoint if previous_midpoint is not None else 0.0
@@ -496,9 +752,25 @@ class LivePolymarketIngestionAdapter:
             volume_24h,
             saturation=max(self.news_signal_volume_24h_threshold * 4.0, 1.0),
         )
-        wallet_convergence_score = self._normalize_positive_feature(
-            wallet_convergence_count,
+        market_wallet_convergence_score = self._normalize_positive_feature(
+            market_wallet_convergence_count,
             saturation=max(self.whale_signal_wallet_threshold * 2.0, 1.0),
+        )
+        domain_wallet_convergence_score = self._normalize_positive_feature(
+            domain_wallet_convergence_count,
+            saturation=max(self.whale_signal_wallet_threshold * 2.0, 1.0),
+        )
+        wallet_convergence_score = max(
+            market_wallet_convergence_score,
+            domain_wallet_convergence_score,
+        )
+        domain_bandit_reward_signal = min(
+            max(
+                0.0,
+                (0.6 * signal_agreement)
+                + (0.4 * domain_wallet_convergence_score),
+            ),
+            1.0,
         )
         probability_components = {
             "alpha_prior_component": 0.035,
@@ -506,7 +778,12 @@ class LivePolymarketIngestionAdapter:
             "momentum_component": 0.03 * normalized_momentum,
             "news_volume_component": 0.02 * (volume_score - 0.25),
             "liquidity_component": 0.02 * (liquidity_score - 0.4),
-            "wallet_convergence_component": 0.035 * wallet_convergence_score,
+            "wallet_convergence_component": (
+                0.02 * market_wallet_convergence_score
+            ),
+            "domain_basket_component": (
+                0.025 * domain_wallet_convergence_score
+            ),
             "signal_agreement_component": 0.04 * (signal_agreement - 0.5),
             "whale_presence_component": 0.015 if whale_signal else -0.005,
             "disposition_component": 0.01 if check_signals["disposition"] else -0.01,
@@ -536,9 +813,24 @@ class LivePolymarketIngestionAdapter:
             "volume_24h": volume_24h,
             "raw_liquidity": raw_liquidity,
             "effective_liquidity": effective_liquidity,
+            "domain_key": domain_key,
+            "market_wallet_convergence_count": market_wallet_convergence_count,
+            "domain_wallet_convergence_count": domain_wallet_convergence_count,
             "wallet_convergence_count": wallet_convergence_count,
             "wallet_convergence_signal": wallet_whale_signal,
+            "domain_wallet_convergence_signal": (
+                domain_wallet_convergence_count
+                >= self.whale_signal_wallet_threshold
+            ),
             "liquidity_whale_signal": liquidity_whale_signal,
+            "complement_arb_candidate": bool(
+                complement_arb_signal.get("candidate")
+            ),
+            "complement_arb_signal": complement_arb_signal,
+            "outcome_prices": [
+                round(price, 6)
+                for price in outcome_prices[:4]
+            ],
             "one_week_price_change": one_week_change,
             "momentum": round(momentum, 6),
             "normalized_weekly_change": round(normalized_weekly_change, 6),
@@ -548,6 +840,14 @@ class LivePolymarketIngestionAdapter:
                 "signal_agreement": round(signal_agreement, 6),
                 "liquidity_score": round(liquidity_score, 6),
                 "volume_score": round(volume_score, 6),
+                "market_wallet_convergence_score": round(
+                    market_wallet_convergence_score,
+                    6,
+                ),
+                "domain_wallet_convergence_score": round(
+                    domain_wallet_convergence_score,
+                    6,
+                ),
                 "wallet_convergence_score": round(
                     wallet_convergence_score, 6
                 ),
@@ -559,6 +859,10 @@ class LivePolymarketIngestionAdapter:
             "raw_estimated_probability": round(raw_estimated_probability, 6),
             "legacy_signal_bonus": round(
                 max(0.0, estimated_probability - midpoint), 6
+            ),
+            "domain_bandit_reward_signal": round(
+                domain_bandit_reward_signal,
+                6,
             ),
             "hours_to_resolution_normalized": normalized_hours,
             "fetched_at": fetched_at,
@@ -655,11 +959,13 @@ class LivePolymarketIngestionAdapter:
         filtered_rows = 0
         (
             wallet_convergence_by_market,
+            wallet_convergence_by_domain,
             wallet_signal_loader_error,
         ) = self._load_wallet_convergence_map()
         wallet_signal_metadata: dict[str, Any] = {
             "wallet_signal_enabled": self._wallet_convergence_loader is not None,
             "wallet_signal_markets": len(wallet_convergence_by_market),
+            "wallet_signal_domains": len(wallet_convergence_by_domain),
             "whale_signal_wallet_threshold": self.whale_signal_wallet_threshold,
         }
         if wallet_signal_loader_error is not None:
@@ -690,6 +996,7 @@ class LivePolymarketIngestionAdapter:
                     row,
                     fetched_at=fetched_at,
                     wallet_convergence_by_market=wallet_convergence_by_market,
+                    wallet_convergence_by_domain=wallet_convergence_by_domain,
                 )
             except ValueError:
                 invalid_rows += 1
@@ -716,6 +1023,11 @@ class LivePolymarketIngestionAdapter:
                 continue
             seen_event_ids.add(event.event_id)
             events.append(event)
+        domain_budget_allocation: dict[str, float] = {}
+        if events:
+            events, domain_budget_allocation = self._apply_domain_allocation_budgets(
+                events
+            )
 
         if not events:
             if filtered_rows > 0:
@@ -732,6 +1044,7 @@ class LivePolymarketIngestionAdapter:
                         "total_rows": len(rows),
                         "invalid_rows": invalid_rows,
                         "filtered_rows": filtered_rows,
+                        "domain_exploration_weight": self.domain_exploration_weight,
                         **wallet_signal_metadata,
                     },
                 )
@@ -747,6 +1060,7 @@ class LivePolymarketIngestionAdapter:
                         "attempt_number": attempt_number,
                         "source_url": self.source_url,
                         "total_rows": len(rows),
+                        "domain_exploration_weight": self.domain_exploration_weight,
                         **wallet_signal_metadata,
                     },
                 )
@@ -763,6 +1077,7 @@ class LivePolymarketIngestionAdapter:
                     "total_rows": len(rows),
                     "invalid_rows": invalid_rows,
                     "filtered_rows": filtered_rows,
+                    "domain_exploration_weight": self.domain_exploration_weight,
                     **wallet_signal_metadata,
                 },
             )
@@ -796,6 +1111,8 @@ class LivePolymarketIngestionAdapter:
                 "filtered_rows": filtered_rows,
                 "max_markets": self.max_markets,
                 "min_volume_24h": self.min_volume_24h,
+                "domain_exploration_weight": self.domain_exploration_weight,
+                "domain_budget_allocation": domain_budget_allocation,
                 "fetched_at": fetched_at,
                 **wallet_signal_metadata,
             },
