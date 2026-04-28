@@ -332,7 +332,10 @@ class TestTokenLoopRun:
 
     @property
     def calibration_applied_ratio(self) -> float:
-        return float(self._strategy_probability_metrics()["calibration_applied_ratio"])
+        ratio = self._strategy_probability_metrics()["calibration_applied_ratio"]
+        if ratio is None:
+            return 0.0
+        return ratio
 
     @property
     def attributed_trade_count(self) -> int:
