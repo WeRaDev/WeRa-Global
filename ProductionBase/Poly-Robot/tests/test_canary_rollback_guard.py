@@ -58,6 +58,11 @@ def _cycle_report_stub(
     execution_cost_to_expected_net_ratio: float | None,
     expected_value_after_execution_cost: float | None,
     execution_statuses: list[str] | None = None,
+    net_pnl: float | None = 0.0,
+    open_notional: float | None = 0.0,
+    confirmed_exit_count: int = 1,
+    confirmed_exit_ratio: float | None = 1.0,
+    stale_position_ratio: float | None = 0.0,
 ) -> dict:
     statuses = execution_statuses or ["FILLED"]
     return {
@@ -65,6 +70,11 @@ def _cycle_report_stub(
         "run_context": {"cycle_index": cycle_index},
         "execution_cost_to_expected_net_ratio": execution_cost_to_expected_net_ratio,
         "expected_value_after_execution_cost": expected_value_after_execution_cost,
+        "net_pnl": net_pnl,
+        "open_notional": open_notional,
+        "confirmed_exit_count": confirmed_exit_count,
+        "confirmed_exit_ratio": confirmed_exit_ratio,
+        "stale_position_ratio": stale_position_ratio,
         "records": [
             {"execution_result": {"status": status}}
             for status in statuses
@@ -170,6 +180,173 @@ class CanaryRollbackGuardTests(unittest.TestCase):
         telemetry_summary = guard_report["telemetry_summary"]
         self.assertEqual(
             telemetry_summary["max_execution_cost_ratio_consecutive_breaches"], 3
+        )
+
+    def test_guard_fails_on_consecutive_negative_realized_pnl(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    net_pnl=-0.11,
+                    open_notional=0.0,
+                    confirmed_exit_count=1,
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    net_pnl=-0.09,
+                    open_notional=0.0,
+                    confirmed_exit_count=1,
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    net_pnl=-0.07,
+                    open_notional=0.0,
+                    confirmed_exit_count=1,
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("negative_realized_pnl_consecutive", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(
+            telemetry_summary["max_negative_realized_pnl_consecutive_breaches"], 3
+        )
+
+    def test_guard_fails_on_persistent_open_notional_without_confirmed_exits(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    net_pnl=0.02,
+                    open_notional=55.0,
+                    confirmed_exit_count=0,
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    net_pnl=0.01,
+                    open_notional=53.0,
+                    confirmed_exit_count=0,
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    net_pnl=0.0,
+                    open_notional=51.0,
+                    confirmed_exit_count=0,
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("open_notional_without_confirmed_exits_consecutive", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(
+            telemetry_summary[
+                "max_open_notional_without_confirmed_exits_consecutive_breaches"
+            ],
+            3,
+        )
+
+    def test_guard_fails_on_consecutive_confirmed_exit_ratio_breach(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    confirmed_exit_ratio=0.4,
+                    stale_position_ratio=0.1,
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    confirmed_exit_ratio=0.45,
+                    stale_position_ratio=0.1,
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    confirmed_exit_ratio=0.48,
+                    stale_position_ratio=0.1,
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("confirmed_exit_ratio_breach_consecutive", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(
+            telemetry_summary[
+                "max_confirmed_exit_ratio_breach_consecutive_breaches"
+            ],
+            3,
+        )
+
+    def test_guard_fails_on_consecutive_stale_position_ratio_breach(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    confirmed_exit_ratio=0.7,
+                    stale_position_ratio=0.4,
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    confirmed_exit_ratio=0.8,
+                    stale_position_ratio=0.42,
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    confirmed_exit_ratio=0.75,
+                    stale_position_ratio=0.39,
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("stale_position_ratio_breach_consecutive", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(
+            telemetry_summary[
+                "max_stale_position_ratio_breach_consecutive_breaches"
+            ],
+            3,
         )
 
     def test_runner_writes_guard_incident_and_audit_artifacts(self) -> None:

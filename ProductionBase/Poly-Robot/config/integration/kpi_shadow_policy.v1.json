@@ -75,6 +75,50 @@
       "critical_below": -0.05
     },
     {
+      "kpi_id": "calibration_applied_ratio",
+      "label": "Calibration Applied Ratio",
+      "domain": "calibration_reliability",
+      "source": "loop_metrics.calibration_applied_ratio",
+      "cycle_field": "calibration_applied_ratio",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "warning_below": 0.6,
+      "critical_below": 0.4
+    },
+    {
+      "kpi_id": "weighted_check_agreement_mean",
+      "label": "Weighted Check Agreement Mean",
+      "domain": "calibration_reliability",
+      "source": "loop_metrics.weighted_check_agreement_mean",
+      "cycle_field": "weighted_check_agreement_mean",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "warning_below": 0.55,
+      "critical_below": 0.45
+    },
+    {
+      "kpi_id": "probability_drift_abs_mean",
+      "label": "Probability Drift Absolute Mean",
+      "domain": "calibration_reliability",
+      "source": "loop_metrics.probability_drift_abs_mean",
+      "cycle_field": "probability_drift_abs_mean",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "warning_above": 0.08,
+      "critical_above": 0.12
+    },
+    {
+      "kpi_id": "probability_drift_max_abs",
+      "label": "Probability Drift Max Absolute",
+      "domain": "calibration_reliability",
+      "source": "loop_metrics.probability_drift_max_abs",
+      "cycle_field": "probability_drift_max_abs",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "warning_above": 0.18,
+      "critical_above": 0.25
+    },
+    {
       "kpi_id": "net_pnl",
       "label": "Net PnL",
       "domain": "risk_and_capital",

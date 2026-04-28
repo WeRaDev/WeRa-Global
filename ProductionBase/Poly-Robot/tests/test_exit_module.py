@@ -86,6 +86,7 @@ class ExitModuleTests(unittest.TestCase):
 
     def test_marks_single_trigger_as_unconfirmed(self) -> None:
         parameters = _load_profile_values()
+        parameters["exit.max_holding_hours"] = 72.0
         module = ExitModule(parameters)
         entry_event = _build_event(
             event_id="evt-entry",
@@ -109,7 +110,68 @@ class ExitModuleTests(unittest.TestCase):
         self.assertEqual(decision.trigger_count, 1)
         self.assertIn("stale_thesis_detected", decision.reasons)
         self.assertIn("exit_multi_trigger_unconfirmed", decision.reasons)
+        self.assertFalse(decision.metadata["forced_exit"])
         self.assertTrue(decision.metadata["triggers"]["stale_thesis"])
+
+    def test_forces_exit_when_max_holding_time_is_exceeded(self) -> None:
+        parameters = _load_profile_values()
+        parameters["exit.max_holding_hours"] = 24.0
+        module = ExitModule(parameters)
+        entry_event = _build_event(
+            event_id="evt-entry",
+            timestamp="2026-01-01T00:00:00Z",
+            midpoint=0.45,
+            estimated_probability=0.70,
+            volume_usd=1000.0,
+        )
+        position = PositionSnapshot.from_fill(entry_event, filled_notional=80.0)
+
+        check_event = _build_event(
+            event_id="evt-max-hold",
+            timestamp="2026-01-02T06:00:00Z",
+            midpoint=0.62,
+            estimated_probability=0.69,
+            volume_usd=1100.0,
+        )
+        decision = module.evaluate(event=check_event, position=position)
+
+        self.assertTrue(decision.should_exit)
+        self.assertEqual(decision.trigger_count, 1)
+        self.assertIn("max_holding_time_exceeded_force_exit", decision.reasons)
+        self.assertIn("exit_forced_single_trigger", decision.reasons)
+        self.assertTrue(decision.metadata["forced_exit"])
+        self.assertTrue(decision.metadata["triggers"]["max_holding_time"])
+        self.assertFalse(decision.metadata["triggers"]["stale_thesis"])
+
+    def test_raises_inventory_aging_derisk_signal_before_forced_exit(self) -> None:
+        parameters = _load_profile_values()
+        parameters["exit.max_holding_hours"] = 48.0
+        parameters["exit.inventory_aging_derisk_hours"] = 36.0
+        module = ExitModule(parameters)
+        entry_event = _build_event(
+            event_id="evt-entry",
+            timestamp="2026-01-01T00:00:00Z",
+            midpoint=0.45,
+            estimated_probability=0.70,
+            volume_usd=1000.0,
+        )
+        position = PositionSnapshot.from_fill(entry_event, filled_notional=80.0)
+
+        check_event = _build_event(
+            event_id="evt-aging",
+            timestamp="2026-01-02T16:00:00Z",
+            midpoint=0.62,
+            estimated_probability=0.69,
+            volume_usd=1100.0,
+        )
+        decision = module.evaluate(event=check_event, position=position)
+
+        self.assertFalse(decision.should_exit)
+        self.assertEqual(decision.trigger_count, 0)
+        self.assertIn("inventory_aging_derisk_active", decision.reasons)
+        self.assertFalse(decision.metadata["forced_exit"])
+        self.assertTrue(decision.metadata["triggers"]["inventory_aging_derisk"])
+        self.assertFalse(decision.metadata["triggers"]["max_holding_time"])
 
 
 if __name__ == "__main__":

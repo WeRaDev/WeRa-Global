@@ -83,6 +83,12 @@ def default_canary_rollback_policy() -> dict[str, Any]:
             "execution_cost_ratio_consecutive_cycles": 3,
             "minimum_expected_value_after_execution_cost": 0.0,
             "negative_expected_value_consecutive_cycles": 3,
+            "negative_realized_pnl_consecutive_cycles": 3,
+            "open_notional_without_confirmed_exits_consecutive_cycles": 3,
+            "minimum_confirmed_exit_ratio": 0.5,
+            "confirmed_exit_ratio_breach_consecutive_cycles": 3,
+            "max_stale_position_ratio": 0.35,
+            "stale_position_ratio_breach_consecutive_cycles": 3,
         },
         "default_rollback_authority": [
             "runtime_operator_on_call",
@@ -174,6 +180,58 @@ def default_canary_rollback_policy() -> dict[str, Any]:
                     "disable_new_orders",
                     "switch_to_paper_mode",
                     "review_strategy_signal_quality",
+                ],
+            },
+            {
+                "trigger": "negative_realized_pnl_consecutive",
+                "condition": (
+                    "Realized net_pnl remains negative for configured consecutive "
+                    "cycles."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "disable_new_orders",
+                    "switch_to_paper_mode",
+                    "review_realized_pnl_deterioration",
+                ],
+            },
+            {
+                "trigger": "open_notional_without_confirmed_exits_consecutive",
+                "condition": (
+                    "Open notional remains above zero while confirmed exits stay at "
+                    "zero for configured consecutive cycles."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "suppress_new_entries",
+                    "reduce_open_inventory",
+                    "review_exit_path_health",
+                ],
+            },
+            {
+                "trigger": "confirmed_exit_ratio_breach_consecutive",
+                "condition": (
+                    "confirmed_exit_ratio remains below threshold for configured "
+                    "consecutive cycles."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "suppress_new_entries",
+                    "reduce_open_inventory",
+                    "review_exit_conversion_health",
+                ],
+            },
+            {
+                "trigger": "stale_position_ratio_breach_consecutive",
+                "condition": (
+                    "stale_position_ratio exceeds threshold for configured "
+                    "consecutive cycles."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "suppress_new_entries",
+                    "reduce_open_inventory",
+                    "review_position_aging_regression",
                 ],
             },
             {
@@ -302,6 +360,18 @@ def _extract_cycle_telemetry(cycle_reports: list[dict[str, Any]]) -> list[dict[s
                 "expected_value_after_execution_cost": _to_float_or_none(
                     cycle_report.get("expected_value_after_execution_cost")
                 ),
+                "net_pnl": _to_float_or_none(cycle_report.get("net_pnl")),
+                "open_notional": _to_float_or_none(cycle_report.get("open_notional")),
+                "confirmed_exit_count": _to_int(
+                    cycle_report.get("confirmed_exit_count", 0),
+                    default=0,
+                ),
+                "confirmed_exit_ratio": _to_float_or_none(
+                    cycle_report.get("confirmed_exit_ratio")
+                ),
+                "stale_position_ratio": _to_float_or_none(
+                    cycle_report.get("stale_position_ratio")
+                ),
             }
         )
     return sorted(normalized_rows, key=lambda row: _to_int(row.get("cycle_index", 0)))
@@ -418,6 +488,45 @@ def build_canary_rollback_guard_report(
         1,
         _to_int(thresholds.get("negative_expected_value_consecutive_cycles", 3), default=3),
     )
+    negative_realized_pnl_consecutive_required = max(
+        1,
+        _to_int(
+            thresholds.get("negative_realized_pnl_consecutive_cycles", 3),
+            default=3,
+        ),
+    )
+    open_notional_without_confirmed_exits_consecutive_required = max(
+        1,
+        _to_int(
+            thresholds.get(
+                "open_notional_without_confirmed_exits_consecutive_cycles",
+                3,
+            ),
+            default=3,
+        ),
+    )
+    minimum_confirmed_exit_ratio = _to_float(
+        thresholds.get("minimum_confirmed_exit_ratio", 0.5),
+        default=0.5,
+    )
+    confirmed_exit_ratio_breach_consecutive_required = max(
+        1,
+        _to_int(
+            thresholds.get("confirmed_exit_ratio_breach_consecutive_cycles", 3),
+            default=3,
+        ),
+    )
+    max_stale_position_ratio = _to_float(
+        thresholds.get("max_stale_position_ratio", 0.35),
+        default=0.35,
+    )
+    stale_position_ratio_breach_consecutive_required = max(
+        1,
+        _to_int(
+            thresholds.get("stale_position_ratio_breach_consecutive_cycles", 3),
+            default=3,
+        ),
+    )
 
     failed_order_lifecycle_total = sum(
         _to_int(row.get("failed_order_lifecycle_count", 0))
@@ -440,6 +549,45 @@ def build_canary_rollback_guard_report(
     max_negative_expected_value_consecutive = _max_consecutive_true(
         negative_expected_value_flags
     )
+    negative_realized_pnl_flags = [
+        (row.get("net_pnl") is not None)
+        and (_to_float(row.get("net_pnl"), default=0.0) < 0.0)
+        for row in normalized_cycle_telemetry
+    ]
+    max_negative_realized_pnl_consecutive = _max_consecutive_true(
+        negative_realized_pnl_flags
+    )
+    open_notional_without_confirmed_exits_flags = [
+        (row.get("open_notional") is not None)
+        and (_to_float(row.get("open_notional"), default=0.0) > 0.0)
+        and (_to_int(row.get("confirmed_exit_count", 0), default=0) <= 0)
+        for row in normalized_cycle_telemetry
+    ]
+    max_open_notional_without_confirmed_exits_consecutive = _max_consecutive_true(
+        open_notional_without_confirmed_exits_flags
+    )
+    confirmed_exit_ratio_flags = [
+        (row.get("confirmed_exit_ratio") is not None)
+        and (
+            _to_float(row.get("confirmed_exit_ratio"), default=0.0)
+            < minimum_confirmed_exit_ratio
+        )
+        for row in normalized_cycle_telemetry
+    ]
+    max_confirmed_exit_ratio_breach_consecutive = _max_consecutive_true(
+        confirmed_exit_ratio_flags
+    )
+    stale_position_ratio_flags = [
+        (row.get("stale_position_ratio") is not None)
+        and (
+            _to_float(row.get("stale_position_ratio"), default=0.0)
+            > max_stale_position_ratio
+        )
+        for row in normalized_cycle_telemetry
+    ]
+    max_stale_position_ratio_breach_consecutive = _max_consecutive_true(
+        stale_position_ratio_flags
+    )
     ratio_breach_cycles = [
         _to_int(row.get("cycle_index", 0))
         for row, breached in zip(normalized_cycle_telemetry, ratio_flags, strict=False)
@@ -449,6 +597,42 @@ def build_canary_rollback_guard_report(
         _to_int(row.get("cycle_index", 0))
         for row, breached in zip(
             normalized_cycle_telemetry, negative_expected_value_flags, strict=False
+        )
+        if breached
+    ]
+    negative_realized_pnl_cycles = [
+        _to_int(row.get("cycle_index", 0))
+        for row, breached in zip(
+            normalized_cycle_telemetry,
+            negative_realized_pnl_flags,
+            strict=False,
+        )
+        if breached
+    ]
+    open_notional_without_confirmed_exits_cycles = [
+        _to_int(row.get("cycle_index", 0))
+        for row, breached in zip(
+            normalized_cycle_telemetry,
+            open_notional_without_confirmed_exits_flags,
+            strict=False,
+        )
+        if breached
+    ]
+    confirmed_exit_ratio_breach_cycles = [
+        _to_int(row.get("cycle_index", 0))
+        for row, breached in zip(
+            normalized_cycle_telemetry,
+            confirmed_exit_ratio_flags,
+            strict=False,
+        )
+        if breached
+    ]
+    stale_position_ratio_breach_cycles = [
+        _to_int(row.get("cycle_index", 0))
+        for row, breached in zip(
+            normalized_cycle_telemetry,
+            stale_position_ratio_flags,
+            strict=False,
         )
         if breached
     ]
@@ -542,6 +726,121 @@ def build_canary_rollback_guard_report(
             default_rollback_authority=default_rollback_authority,
         ),
         _evaluate_trigger(
+            trigger_name="negative_realized_pnl_consecutive",
+            triggered=(
+                max_negative_realized_pnl_consecutive
+                >= negative_realized_pnl_consecutive_required
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    max_negative_realized_pnl_consecutive
+                    < negative_realized_pnl_consecutive_required
+                )
+                else "negative_realized_pnl_consecutive"
+            ),
+            observed={
+                "max_consecutive_breaches": max_negative_realized_pnl_consecutive,
+                "breach_cycle_indices": negative_realized_pnl_cycles,
+            },
+            expected={
+                "max_consecutive_breaches": (
+                    f"< {negative_realized_pnl_consecutive_required}"
+                ),
+                "net_pnl_threshold": 0.0,
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
+            trigger_name="open_notional_without_confirmed_exits_consecutive",
+            triggered=(
+                max_open_notional_without_confirmed_exits_consecutive
+                >= open_notional_without_confirmed_exits_consecutive_required
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    max_open_notional_without_confirmed_exits_consecutive
+                    < open_notional_without_confirmed_exits_consecutive_required
+                )
+                else "open_notional_without_confirmed_exits_consecutive"
+            ),
+            observed={
+                "max_consecutive_breaches": (
+                    max_open_notional_without_confirmed_exits_consecutive
+                ),
+                "breach_cycle_indices": open_notional_without_confirmed_exits_cycles,
+            },
+            expected={
+                "max_consecutive_breaches": (
+                    f"< {open_notional_without_confirmed_exits_consecutive_required}"
+                ),
+                "open_notional": "> 0",
+                "confirmed_exit_count": "== 0",
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
+            trigger_name="confirmed_exit_ratio_breach_consecutive",
+            triggered=(
+                max_confirmed_exit_ratio_breach_consecutive
+                >= confirmed_exit_ratio_breach_consecutive_required
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    max_confirmed_exit_ratio_breach_consecutive
+                    < confirmed_exit_ratio_breach_consecutive_required
+                )
+                else "confirmed_exit_ratio_breach_consecutive"
+            ),
+            observed={
+                "max_consecutive_breaches": (
+                    max_confirmed_exit_ratio_breach_consecutive
+                ),
+                "breach_cycle_indices": confirmed_exit_ratio_breach_cycles,
+            },
+            expected={
+                "max_consecutive_breaches": (
+                    f"< {confirmed_exit_ratio_breach_consecutive_required}"
+                ),
+                "minimum_confirmed_exit_ratio": minimum_confirmed_exit_ratio,
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
+            trigger_name="stale_position_ratio_breach_consecutive",
+            triggered=(
+                max_stale_position_ratio_breach_consecutive
+                >= stale_position_ratio_breach_consecutive_required
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    max_stale_position_ratio_breach_consecutive
+                    < stale_position_ratio_breach_consecutive_required
+                )
+                else "stale_position_ratio_breach_consecutive"
+            ),
+            observed={
+                "max_consecutive_breaches": (
+                    max_stale_position_ratio_breach_consecutive
+                ),
+                "breach_cycle_indices": stale_position_ratio_breach_cycles,
+            },
+            expected={
+                "max_consecutive_breaches": (
+                    f"< {stale_position_ratio_breach_consecutive_required}"
+                ),
+                "max_stale_position_ratio": max_stale_position_ratio,
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
             trigger_name="no_cycle_telemetry_available",
             triggered=cycle_report_count == 0,
             reason_code=("ok" if cycle_report_count > 0 else "no_cycle_telemetry_available"),
@@ -605,6 +904,20 @@ def build_canary_rollback_guard_report(
             "execution_cost_ratio_consecutive_cycles": ratio_consecutive_required,
             "minimum_expected_value_after_execution_cost": expected_value_minimum,
             "negative_expected_value_consecutive_cycles": expected_value_consecutive_required,
+            "negative_realized_pnl_consecutive_cycles": (
+                negative_realized_pnl_consecutive_required
+            ),
+            "open_notional_without_confirmed_exits_consecutive_cycles": (
+                open_notional_without_confirmed_exits_consecutive_required
+            ),
+            "minimum_confirmed_exit_ratio": minimum_confirmed_exit_ratio,
+            "confirmed_exit_ratio_breach_consecutive_cycles": (
+                confirmed_exit_ratio_breach_consecutive_required
+            ),
+            "max_stale_position_ratio": max_stale_position_ratio,
+            "stale_position_ratio_breach_consecutive_cycles": (
+                stale_position_ratio_breach_consecutive_required
+            ),
         },
         "telemetry_summary": {
             "cycle_report_count": cycle_report_count,
@@ -612,6 +925,18 @@ def build_canary_rollback_guard_report(
             "max_execution_cost_ratio_consecutive_breaches": max_ratio_consecutive,
             "max_negative_expected_value_consecutive_breaches": (
                 max_negative_expected_value_consecutive
+            ),
+            "max_negative_realized_pnl_consecutive_breaches": (
+                max_negative_realized_pnl_consecutive
+            ),
+            "max_open_notional_without_confirmed_exits_consecutive_breaches": (
+                max_open_notional_without_confirmed_exits_consecutive
+            ),
+            "max_confirmed_exit_ratio_breach_consecutive_breaches": (
+                max_confirmed_exit_ratio_breach_consecutive
+            ),
+            "max_stale_position_ratio_breach_consecutive_breaches": (
+                max_stale_position_ratio_breach_consecutive
             ),
         },
         "incident_required": bool(triggered_conditions),

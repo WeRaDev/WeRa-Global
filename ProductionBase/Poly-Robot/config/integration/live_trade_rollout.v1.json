@@ -60,11 +60,14 @@
       "preconditions": [
         "L1/L2 auth validated against production CLOB",
         "User WebSocket channel healthy with heartbeat and event persistence",
-        "Pre-trade allowance checks and order-cancel recovery path verified"
+        "Pre-trade allowance checks and order-cancel recovery path verified",
+        "Confirmed-exit ratio >= 0.50 and stale-position ratio <= 0.35 across the latest three supervised cycles"
       ],
       "rollback_conditions": [
         "Any order lifecycle enters FAILED without deterministic replayable cause",
         "Execution-cost-to-expected-net ratio > 1.0 for three consecutive cycles",
+        "Confirmed-exit ratio < 0.50 for three consecutive cycles",
+        "Stale-position ratio > 0.35 for three consecutive cycles",
         "Control-plane auth incident or unplanned restart during live session"
       ]
     },
@@ -82,6 +85,7 @@
       ],
       "preconditions": [
         "Canary live stage completed for at least 7 consecutive days without rollback",
+        "Canary telemetry maintained confirmed-exit ratio >= 0.50 and stale-position ratio <= 0.35 throughout promotion window",
         "Trade/position reconciliation with Data API has zero unresolved mismatches",
         "Incident response drill (kill switch + cancel-all) executed successfully"
       ]

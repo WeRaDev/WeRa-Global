@@ -58,16 +58,36 @@ class RiskEngine(RiskModule):
                 reasons=("strategy_not_buy",),
             )
         if _coerce_bool(event.metadata.get("suppress_new_entries")):
+            state_refresh_event = _coerce_bool(event.metadata.get("state_refresh_event"))
+            ingestion_degraded_entry_suppressed = _coerce_bool(
+                event.metadata.get("ingestion_degraded_entry_suppressed")
+            )
+            inventory_aging_derisk_active = _coerce_bool(
+                event.metadata.get("inventory_aging_derisk_active")
+            )
+            if state_refresh_event:
+                suppression_reason = "entry_suppressed_for_state_refresh"
+            elif ingestion_degraded_entry_suppressed:
+                suppression_reason = "entry_suppressed_for_ingestion_degradation"
+            elif inventory_aging_derisk_active:
+                suppression_reason = "entry_suppressed_for_inventory_aging"
+            else:
+                suppression_reason = "entry_suppressed_by_runtime_gate"
             return RiskDecision(
                 allowed=False,
                 approved_notional=0.0,
                 approved_fraction=0.0,
                 kill_switch=False,
-                reasons=("entry_suppressed_for_state_refresh",),
+                reasons=(suppression_reason,),
                 metadata={
-                    "state_refresh_event": _coerce_bool(
-                        event.metadata.get("state_refresh_event")
+                    "state_refresh_event": state_refresh_event,
+                    "ingestion_degraded_entry_suppressed": (
+                        ingestion_degraded_entry_suppressed
                     ),
+                    "ingestion_degraded_streak": int(
+                        event.metadata.get("ingestion_degraded_streak", 0) or 0
+                    ),
+                    "inventory_aging_derisk_active": inventory_aging_derisk_active,
                 },
             )
 

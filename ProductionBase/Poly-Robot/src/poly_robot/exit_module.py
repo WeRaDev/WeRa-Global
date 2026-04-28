@@ -121,6 +121,20 @@ class ExitModule:
         self.stale_price_change_threshold = float(
             parameters["exit.stale_price_change_threshold"]
         )
+        configured_max_holding_hours = float(
+            parameters.get("exit.max_holding_hours", self.stale_hours)
+        )
+        self.max_holding_hours = max(self.stale_hours, configured_max_holding_hours)
+        configured_inventory_aging_derisk_hours = float(
+            parameters.get(
+                "exit.inventory_aging_derisk_hours",
+                self.max_holding_hours * 0.75,
+            )
+        )
+        self.inventory_aging_derisk_hours = max(
+            0.0,
+            min(self.max_holding_hours, configured_inventory_aging_derisk_hours),
+        )
         self.confirmation_threshold = confirmation_threshold
 
     def evaluate(
@@ -137,7 +151,11 @@ class ExitModule:
                         "target_capture": False,
                         "abnormal_volume": False,
                         "stale_thesis": False,
-                    }
+                        "max_holding_time": False,
+                        "inventory_aging_derisk": False,
+                    },
+                    "forced_exit": False,
+                    "inventory_aging_derisk_active": False,
                 },
             )
 
@@ -161,6 +179,11 @@ class ExitModule:
             holding_hours >= self.stale_hours
             and absolute_price_change <= self.stale_price_change_threshold
         )
+        max_holding_time_trigger = holding_hours >= self.max_holding_hours
+        inventory_aging_derisk_trigger = (
+            not max_holding_time_trigger
+            and holding_hours >= self.inventory_aging_derisk_hours
+        )
 
         trigger_reasons: list[str] = []
         if target_capture_trigger:
@@ -169,13 +192,23 @@ class ExitModule:
             trigger_reasons.append("abnormal_volume_spike_detected")
         if stale_thesis_trigger:
             trigger_reasons.append("stale_thesis_detected")
+        if max_holding_time_trigger:
+            trigger_reasons.append("max_holding_time_exceeded_force_exit")
 
         trigger_count = len(trigger_reasons)
-        should_exit = trigger_count >= self.confirmation_threshold
-        if should_exit:
+        forced_exit = max_holding_time_trigger
+        should_exit = forced_exit or trigger_count >= self.confirmation_threshold
+        if forced_exit:
+            if trigger_count == 1:
+                trigger_reasons.append("exit_forced_single_trigger")
+            else:
+                trigger_reasons.append("exit_forced_with_supporting_triggers")
+        elif should_exit:
             trigger_reasons.append("exit_multi_trigger_confirmed")
         elif trigger_count > 0:
             trigger_reasons.append("exit_multi_trigger_unconfirmed")
+        if inventory_aging_derisk_trigger:
+            trigger_reasons.append("inventory_aging_derisk_active")
 
         return ExitDecision(
             should_exit=should_exit,
@@ -187,7 +220,11 @@ class ExitModule:
                     "target_capture": target_capture_trigger,
                     "abnormal_volume": abnormal_volume_trigger,
                     "stale_thesis": stale_thesis_trigger,
+                    "max_holding_time": max_holding_time_trigger,
+                    "inventory_aging_derisk": inventory_aging_derisk_trigger,
                 },
+                "forced_exit": forced_exit,
+                "inventory_aging_derisk_active": inventory_aging_derisk_trigger,
                 "target_capture_ratio": round(capture_ratio, 6),
                 "target_capture_threshold": self.target_capture_ratio,
                 "expected_move": round(expected_move, 6),
@@ -198,6 +235,10 @@ class ExitModule:
                 "current_volume": round(current_volume, 6),
                 "holding_hours": round(holding_hours, 6),
                 "stale_hours_threshold": self.stale_hours,
+                "inventory_aging_derisk_hours_threshold": (
+                    self.inventory_aging_derisk_hours
+                ),
+                "max_holding_hours_threshold": self.max_holding_hours,
                 "absolute_price_change": round(absolute_price_change, 6),
                 "stale_price_change_threshold": self.stale_price_change_threshold,
                 "position_open_notional": round(position.open_notional, 4),

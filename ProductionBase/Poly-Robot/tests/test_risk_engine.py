@@ -27,7 +27,7 @@ def _load_parameters() -> dict:
     return payload["values"]
 
 
-def _build_event() -> MarketEvent:
+def _build_event(*, metadata: dict | None = None) -> MarketEvent:
     return MarketEvent(
         event_id="evt-risk-1",
         timestamp="2026-01-01T00:00:00Z",
@@ -39,6 +39,7 @@ def _build_event() -> MarketEvent:
         asks_depth_usd=1800.0,
         liquidity_usd=90000.0,
         hours_to_resolution=24,
+        metadata=dict(metadata or {}),
     )
 
 
@@ -125,6 +126,49 @@ class RiskEngineTests(unittest.TestCase):
 
         self.assertFalse(result.allowed)
         self.assertIn("strategy_not_buy", result.reasons)
+
+    def test_denies_when_entries_are_suppressed_for_ingestion_degradation(self) -> None:
+        event = _build_event(
+            metadata={
+                "suppress_new_entries": True,
+                "ingestion_degraded_entry_suppressed": True,
+                "ingestion_degraded_streak": 3,
+            }
+        )
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("entry_suppressed_for_ingestion_degradation", result.reasons)
+        self.assertFalse(result.metadata["state_refresh_event"])
+        self.assertTrue(result.metadata["ingestion_degraded_entry_suppressed"])
+        self.assertEqual(result.metadata["ingestion_degraded_streak"], 3)
+
+    def test_denies_when_entries_are_suppressed_for_inventory_aging(self) -> None:
+        event = _build_event(
+            metadata={
+                "suppress_new_entries": True,
+                "inventory_aging_derisk_active": True,
+            }
+        )
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("entry_suppressed_for_inventory_aging", result.reasons)
+        self.assertFalse(result.metadata["state_refresh_event"])
+        self.assertFalse(result.metadata["ingestion_degraded_entry_suppressed"])
+        self.assertTrue(result.metadata["inventory_aging_derisk_active"])
 
     def test_denies_when_max_concurrent_positions_reached(self) -> None:
         portfolio = PortfolioState(

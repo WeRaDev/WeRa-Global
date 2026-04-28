@@ -62,6 +62,13 @@ def _append_cycle_completed_event(
     expected_value_after_execution_cost: float = 0.0,
     expected_edge_capture_ratio: float = 0.0,
     execution_cost_to_expected_net_ratio: float = 0.0,
+    raw_probability_mean: float | None = None,
+    calibrated_probability_mean: float | None = None,
+    probability_drift_mean: float | None = None,
+    probability_drift_abs_mean: float | None = None,
+    probability_drift_max_abs: float | None = None,
+    weighted_check_agreement_mean: float | None = None,
+    calibration_applied_ratio: float | None = None,
     open_positions: int = 0,
     state_refresh_applied: bool = False,
     state_refresh_event_count: int = 0,
@@ -103,6 +110,13 @@ def _append_cycle_completed_event(
                     "execution_cost_to_expected_net_ratio": (
                         execution_cost_to_expected_net_ratio
                     ),
+                    "raw_probability_mean": raw_probability_mean,
+                    "calibrated_probability_mean": calibrated_probability_mean,
+                    "probability_drift_mean": probability_drift_mean,
+                    "probability_drift_abs_mean": probability_drift_abs_mean,
+                    "probability_drift_max_abs": probability_drift_max_abs,
+                    "weighted_check_agreement_mean": weighted_check_agreement_mean,
+                    "calibration_applied_ratio": calibration_applied_ratio,
                     "open_positions": open_positions,
                     "state_refresh_applied": state_refresh_applied,
                     "state_refresh_event_count": state_refresh_event_count,
@@ -1091,6 +1105,131 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 kpi_shadow["items"][0]["status_reason"],
                 "warning_below_threshold",
             )
+    def test_dashboard_payload_populates_execution_kpis_when_no_fill_opportunity(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 2,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [
+                        {
+                            "worker_name": "test_token_loop",
+                            "status": "SUCCESS",
+                            "attempts": [],
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "final_failure_reason": None,
+                            "last_metadata": {
+                                "events": 0,
+                                "risk_allowed_count": 0,
+                                "filled_trade_count": 0,
+                                "partial_fill_count": 0,
+                                "total_execution_cost": 0.0,
+                                "expected_net_edge_value": 0.0,
+                                "expected_net_edge_value_on_fills": 0.0,
+                                "expected_value_after_execution_cost": 0.0,
+                                "expected_edge_capture_ratio": None,
+                                "execution_cost_to_expected_net_ratio": None,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 1000.0,
+                                "net_pnl": 0.0,
+                                "open_notional": 0.0,
+                                "open_positions": 0,
+                                "total_exposure_fraction": 0.0,
+                                "daily_drawdown_fraction": 0.0,
+                                "result_hash": "no-fill-kpi",
+                            },
+                        }
+                    ],
+                },
+            )
+
+            for cycle_index in (1, 2):
+                _append_jsonl(
+                    journal_path,
+                    {
+                        "schema_version": (
+                            RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION
+                        ),
+                        "timestamp": f"2026-01-01T00:00:0{cycle_index - 1}Z",
+                        "event_type": "worker_heartbeat",
+                        "payload": {
+                            "worker_name": "test_token_loop",
+                            "stage": "cycle_completed",
+                            "cycle_index": cycle_index,
+                            "details": {
+                                "cycle_index": cycle_index,
+                                "selected_scenario": "baseline",
+                                "control_version": cycle_index,
+                                "events": 0,
+                                "risk_allowed_count": 0,
+                                "filled_trade_count": 0,
+                                "partial_fill_count": 0,
+                                "exit_candidate_count": 0,
+                                "confirmed_exit_count": 0,
+                                "total_execution_cost": 0.0,
+                                "net_pnl": 0.0,
+                                "attributed_trade_count": 0,
+                                "expected_gross_edge_value": 0.0,
+                                "expected_net_edge_value": 0.0,
+                                "expected_net_edge_value_on_fills": 0.0,
+                                "expected_value_after_execution_cost": 0.0,
+                                "expected_edge_capture_ratio": None,
+                                "execution_cost_to_expected_net_ratio": None,
+                                "open_positions": 0,
+                                "result_hash_prefix": f"no-fill-{cycle_index}",
+                            },
+                        },
+                    },
+                )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+
+            payload = service.build_dashboard_payload(
+                kpi_window=2,
+                kpi_domain="execution_quality",
+            )
+            items_by_id = {
+                str(item["kpi_id"]): item for item in payload["kpi_shadow"]["items"]
+            }
+            targeted_kpis = (
+                "fill_rate",
+                "partial_fill_rate",
+                "average_execution_cost_per_fill",
+                "expected_edge_capture_ratio",
+                "execution_cost_to_expected_net_ratio",
+            )
+            for kpi_id in targeted_kpis:
+                with self.subTest(kpi_id=kpi_id):
+                    item = items_by_id[kpi_id]
+                    self.assertEqual(item["latest_value"], 0.0)
+                    self.assertNotEqual(item["status"], "insufficient_data")
+                    self.assertNotEqual(
+                        item["status_reason"],
+                        "latest_value_missing",
+                    )
 
     def test_dashboard_payload_rejects_invalid_kpi_status_filter(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1105,6 +1244,174 @@ class RuntimeWebGuiTests(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 service.build_dashboard_payload(kpi_status="bad-status")
+
+    def test_dashboard_payload_surfaces_calibration_reliability_kpis(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 2,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [
+                        {
+                            "worker_name": "test_token_loop",
+                            "status": "SUCCESS",
+                            "attempts": [],
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "final_failure_reason": None,
+                            "last_metadata": {
+                                "events": 12,
+                                "risk_allowed_count": 10,
+                                "filled_trade_count": 3,
+                                "partial_fill_count": 0,
+                                "total_execution_cost": 0.21,
+                                "expected_net_edge_value": 0.7,
+                                "expected_net_edge_value_on_fills": 0.6,
+                                "expected_value_after_execution_cost": 0.05,
+                                "expected_edge_capture_ratio": 0.55,
+                                "execution_cost_to_expected_net_ratio": 0.3,
+                                "raw_probability_mean": 0.66,
+                                "calibrated_probability_mean": 0.6,
+                                "probability_drift_mean": -0.06,
+                                "probability_drift_abs_mean": 0.09,
+                                "probability_drift_max_abs": 0.26,
+                                "weighted_check_agreement_mean": 0.52,
+                                "calibration_applied_ratio": 0.5,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 999.7,
+                                "net_pnl": -0.3,
+                                "open_notional": 40.0,
+                                "open_positions": 1,
+                                "total_exposure_fraction": 0.04,
+                                "daily_drawdown_fraction": 0.003,
+                                "result_hash": "calibration-kpi-hash",
+                            },
+                        }
+                    ],
+                },
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:00Z",
+                cycle_index=1,
+                events=10,
+                risk_allowed_count=9,
+                filled_trade_count=3,
+                exit_candidate_count=4,
+                confirmed_exit_count=2,
+                total_execution_cost=0.2,
+                net_pnl=-0.1,
+                expected_net_edge_value=0.8,
+                expected_net_edge_value_on_fills=0.7,
+                expected_value_after_execution_cost=0.1,
+                expected_edge_capture_ratio=0.75,
+                execution_cost_to_expected_net_ratio=0.25,
+                raw_probability_mean=0.63,
+                calibrated_probability_mean=0.60,
+                probability_drift_mean=-0.03,
+                probability_drift_abs_mean=0.03,
+                probability_drift_max_abs=0.12,
+                weighted_check_agreement_mean=0.58,
+                calibration_applied_ratio=0.65,
+                result_hash_prefix="calib-a",
+            )
+            _append_cycle_completed_event(
+                journal_path,
+                timestamp="2026-01-01T00:00:01Z",
+                cycle_index=2,
+                events=11,
+                risk_allowed_count=10,
+                filled_trade_count=3,
+                exit_candidate_count=5,
+                confirmed_exit_count=2,
+                total_execution_cost=0.21,
+                net_pnl=-0.3,
+                expected_net_edge_value=0.7,
+                expected_net_edge_value_on_fills=0.6,
+                expected_value_after_execution_cost=0.05,
+                expected_edge_capture_ratio=0.55,
+                execution_cost_to_expected_net_ratio=0.3,
+                raw_probability_mean=0.66,
+                calibrated_probability_mean=0.60,
+                probability_drift_mean=-0.06,
+                probability_drift_abs_mean=0.09,
+                probability_drift_max_abs=0.26,
+                weighted_check_agreement_mean=0.52,
+                calibration_applied_ratio=0.5,
+                result_hash_prefix="calib-b",
+            )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+
+            payload = service.build_dashboard_payload(
+                kpi_window=2,
+                kpi_domain="calibration_reliability",
+            )
+
+            kpi_shadow = payload["kpi_shadow"]
+            items_by_id = {
+                str(item["kpi_id"]): item for item in kpi_shadow["items"]
+            }
+            self.assertEqual(
+                set(items_by_id),
+                {
+                    "calibration_applied_ratio",
+                    "weighted_check_agreement_mean",
+                    "probability_drift_abs_mean",
+                    "probability_drift_max_abs",
+                },
+            )
+            self.assertEqual(
+                kpi_shadow["summary"]["status_counts"]["warning"],
+                3,
+            )
+            self.assertEqual(
+                kpi_shadow["summary"]["status_counts"]["critical"],
+                1,
+            )
+            self.assertEqual(
+                items_by_id["calibration_applied_ratio"]["status"],
+                "warning",
+            )
+            self.assertEqual(
+                items_by_id["weighted_check_agreement_mean"]["status"],
+                "warning",
+            )
+            self.assertEqual(
+                items_by_id["probability_drift_abs_mean"]["status"],
+                "warning",
+            )
+            self.assertEqual(
+                items_by_id["probability_drift_max_abs"]["status"],
+                "critical",
+            )
+            self.assertAlmostEqual(
+                payload["cycle_comparison"]["items"][1]["delta"][
+                    "probability_drift_abs_mean"
+                ],
+                0.06,
+                places=6,
+            )
 
     def test_incident_feed_pagination_accepts_string_and_integer_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

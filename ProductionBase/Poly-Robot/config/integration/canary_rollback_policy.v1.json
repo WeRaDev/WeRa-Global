@@ -8,7 +8,13 @@
     "max_execution_cost_to_expected_net_ratio": 1.0,
     "execution_cost_ratio_consecutive_cycles": 3,
     "minimum_expected_value_after_execution_cost": 0.0,
-    "negative_expected_value_consecutive_cycles": 3
+    "negative_expected_value_consecutive_cycles": 3,
+    "negative_realized_pnl_consecutive_cycles": 3,
+    "open_notional_without_confirmed_exits_consecutive_cycles": 3,
+    "minimum_confirmed_exit_ratio": 0.5,
+    "confirmed_exit_ratio_breach_consecutive_cycles": 3,
+    "max_stale_position_ratio": 0.35,
+    "stale_position_ratio_breach_consecutive_cycles": 3
   },
   "default_rollback_authority": [
     "runtime_operator_on_call",
@@ -83,6 +89,46 @@
         "disable_new_orders",
         "switch_to_paper_mode",
         "review_strategy_signal_quality"
+      ]
+    },
+    {
+      "trigger": "negative_realized_pnl_consecutive",
+      "condition": "Realized net_pnl remains negative for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "disable_new_orders",
+        "switch_to_paper_mode",
+        "review_realized_pnl_deterioration"
+      ]
+    },
+    {
+      "trigger": "open_notional_without_confirmed_exits_consecutive",
+      "condition": "Open notional remains above zero while confirmed exits stay at zero for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "suppress_new_entries",
+        "reduce_open_inventory",
+        "review_exit_path_health"
+      ]
+    },
+    {
+      "trigger": "confirmed_exit_ratio_breach_consecutive",
+      "condition": "confirmed_exit_ratio remains below threshold for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "suppress_new_entries",
+        "reduce_open_inventory",
+        "review_exit_conversion_health"
+      ]
+    },
+    {
+      "trigger": "stale_position_ratio_breach_consecutive",
+      "condition": "stale_position_ratio exceeds threshold for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "suppress_new_entries",
+        "reduce_open_inventory",
+        "review_position_aging_regression"
       ]
     },
     {

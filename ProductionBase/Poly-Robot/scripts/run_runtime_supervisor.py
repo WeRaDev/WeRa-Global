@@ -429,6 +429,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--ingestion-degraded-entry-suppress-threshold-cycles",
+        type=int,
+        default=3,
+        help=(
+            "Number of consecutive DEGRADED ingestion cycles that triggers "
+            "new-entry suppression."
+        ),
+    )
+    parser.add_argument(
         "--ingestion-max-retries",
         type=int,
         default=1,
@@ -610,6 +619,10 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--live-wallet-convergence-threshold must be > 0")
     if args.state_refresh_stale_threshold_cycles <= 0:
         raise ValueError("--state-refresh-stale-threshold-cycles must be > 0")
+    if args.ingestion_degraded_entry_suppress_threshold_cycles <= 0:
+        raise ValueError(
+            "--ingestion-degraded-entry-suppress-threshold-cycles must be > 0"
+        )
     if args.ingestion_mode == "historical_jsonl" and args.events is None:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
@@ -963,6 +976,7 @@ def main(argv: list[str] | None = None) -> int:
     open_positions_state: dict[str, object] = {}
     seen_live_event_ids: set[str] = set()
     state_refresh_streak_by_market: dict[str, int] = {}
+    ingestion_degraded_streak = 0
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
@@ -1007,7 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
         args.cycle_output_dir.mkdir(parents=True, exist_ok=True)
 
     def _run_test_token_cycle(heartbeat) -> dict:
-        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market
+        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
@@ -1061,6 +1075,19 @@ def main(argv: list[str] | None = None) -> int:
                 "partial_fill_count": 0,
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
+                "forced_exit_count": 0,
+                "confirmed_exit_ratio": None,
+                "confirmed_exit_latency_hours": None,
+                "median_position_age_hours": None,
+                "stale_position_count": 0,
+                "stale_position_ratio": 0.0,
+                "raw_probability_mean": None,
+                "calibrated_probability_mean": None,
+                "probability_drift_mean": None,
+                "probability_drift_abs_mean": None,
+                "probability_drift_max_abs": None,
+                "weighted_check_agreement_mean": None,
+                "calibration_applied_ratio": 0.0,
                 "total_execution_cost": 0.0,
                 "total_fees_paid": 0.0,
                 "total_slippage_cost": 0.0,
@@ -1113,6 +1140,19 @@ def main(argv: list[str] | None = None) -> int:
                 "partial_fill_count": 0,
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
+                "forced_exit_count": 0,
+                "confirmed_exit_ratio": None,
+                "confirmed_exit_latency_hours": None,
+                "median_position_age_hours": None,
+                "stale_position_count": 0,
+                "stale_position_ratio": 0.0,
+                "raw_probability_mean": None,
+                "calibrated_probability_mean": None,
+                "probability_drift_mean": None,
+                "probability_drift_abs_mean": None,
+                "probability_drift_max_abs": None,
+                "weighted_check_agreement_mean": None,
+                "calibration_applied_ratio": 0.0,
                 "total_execution_cost": 0.0,
                 "total_fees_paid": 0.0,
                 "total_slippage_cost": 0.0,
@@ -1420,6 +1460,39 @@ def main(argv: list[str] | None = None) -> int:
             if effective_ingestion_status == "OK":
                 effective_ingestion_status = "DEGRADED"
         effective_ingestion_reasons = list(dict.fromkeys(effective_ingestion_reasons))
+        if effective_ingestion_status == "DEGRADED":
+            ingestion_degraded_streak += 1
+        else:
+            ingestion_degraded_streak = 0
+        ingestion_degraded_entry_suppressed = (
+            ingestion_degraded_streak
+            >= args.ingestion_degraded_entry_suppress_threshold_cycles
+        )
+        if ingestion_degraded_entry_suppressed:
+            effective_ingestion_reasons.append(
+                "entry_suppressed_due_consecutive_ingestion_degraded"
+            )
+            heartbeat(
+                "ingestion_degraded_entry_suppression_applied",
+                {
+                    "cycle_index": cycle_index,
+                    "ingestion_degraded_streak": ingestion_degraded_streak,
+                    "ingestion_degraded_entry_suppress_threshold_cycles": (
+                        args.ingestion_degraded_entry_suppress_threshold_cycles
+                    ),
+                    "ingestion_status": effective_ingestion_status,
+                },
+            )
+        effective_ingestion_reasons = list(dict.fromkeys(effective_ingestion_reasons))
+        effective_ingestion_metadata["ingestion_degraded_streak"] = (
+            ingestion_degraded_streak
+        )
+        effective_ingestion_metadata[
+            "ingestion_degraded_entry_suppress_threshold_cycles"
+        ] = args.ingestion_degraded_entry_suppress_threshold_cycles
+        effective_ingestion_metadata["ingestion_degraded_entry_suppressed"] = (
+            ingestion_degraded_entry_suppressed
+        )
 
         execution_scope = f"cycle:{cycle_index}"
         scoped_events: list[MarketEvent] = []
@@ -1430,6 +1503,12 @@ def main(argv: list[str] | None = None) -> int:
             event_metadata["cycle_index"] = cycle_index
             event_metadata["kill_switch_active"] = kill_switch_active
             event_metadata["cancel_all_requested"] = cancel_all_requested
+            event_metadata["ingestion_degraded_streak"] = ingestion_degraded_streak
+            event_metadata[
+                "ingestion_degraded_entry_suppressed"
+            ] = ingestion_degraded_entry_suppressed
+            if ingestion_degraded_entry_suppressed:
+                event_metadata["suppress_new_entries"] = True
             if cancel_all_summary is not None:
                 event_metadata["cancel_all_summary"] = cancel_all_summary
             event_payload["metadata"] = event_metadata
@@ -1498,6 +1577,18 @@ def main(argv: list[str] | None = None) -> int:
                     "stale_price_change_threshold": float(
                         parameters["exit.stale_price_change_threshold"]
                     ),
+                    "inventory_aging_derisk_hours": float(
+                        parameters.get(
+                            "exit.inventory_aging_derisk_hours",
+                            float(parameters["exit.stale_hours"]) * 0.75,
+                        )
+                    ),
+                    "max_holding_hours": float(
+                        parameters.get(
+                            "exit.max_holding_hours",
+                            float(parameters["exit.stale_hours"]),
+                        )
+                    ),
                     "confirmation_threshold": 2,
                 },
                 "ingestion_status": effective_ingestion_status,
@@ -1531,6 +1622,31 @@ def main(argv: list[str] | None = None) -> int:
                 "partial_fill_count": result_payload["partial_fill_count"],
                 "exit_candidate_count": result_payload["exit_candidate_count"],
                 "confirmed_exit_count": result_payload["confirmed_exit_count"],
+                "forced_exit_count": result_payload["forced_exit_count"],
+                "confirmed_exit_ratio": result_payload["confirmed_exit_ratio"],
+                "confirmed_exit_latency_hours": result_payload[
+                    "confirmed_exit_latency_hours"
+                ],
+                "median_position_age_hours": result_payload["median_position_age_hours"],
+                "stale_position_count": result_payload["stale_position_count"],
+                "stale_position_ratio": result_payload["stale_position_ratio"],
+                "raw_probability_mean": result_payload["raw_probability_mean"],
+                "calibrated_probability_mean": result_payload[
+                    "calibrated_probability_mean"
+                ],
+                "probability_drift_mean": result_payload["probability_drift_mean"],
+                "probability_drift_abs_mean": result_payload[
+                    "probability_drift_abs_mean"
+                ],
+                "probability_drift_max_abs": result_payload[
+                    "probability_drift_max_abs"
+                ],
+                "weighted_check_agreement_mean": result_payload[
+                    "weighted_check_agreement_mean"
+                ],
+                "calibration_applied_ratio": result_payload[
+                    "calibration_applied_ratio"
+                ],
                 "total_execution_cost": result_payload["total_execution_cost"],
                 "attributed_trade_count": result_payload["attributed_trade_count"],
                 "expected_gross_edge_value": result_payload[
@@ -1598,6 +1714,19 @@ def main(argv: list[str] | None = None) -> int:
                 "filled_trade_count": run.filled_trade_count,
                 "exit_candidate_count": run.exit_candidate_count,
                 "confirmed_exit_count": run.confirmed_exit_count,
+                "forced_exit_count": run.forced_exit_count,
+                "confirmed_exit_ratio": run.confirmed_exit_ratio,
+                "confirmed_exit_latency_hours": run.confirmed_exit_latency_hours,
+                "median_position_age_hours": run.median_position_age_hours,
+                "stale_position_count": run.stale_position_count,
+                "stale_position_ratio": run.stale_position_ratio,
+                "raw_probability_mean": run.raw_probability_mean,
+                "calibrated_probability_mean": run.calibrated_probability_mean,
+                "probability_drift_mean": run.probability_drift_mean,
+                "probability_drift_abs_mean": run.probability_drift_abs_mean,
+                "probability_drift_max_abs": run.probability_drift_max_abs,
+                "weighted_check_agreement_mean": run.weighted_check_agreement_mean,
+                "calibration_applied_ratio": run.calibration_applied_ratio,
                 "total_execution_cost": run.total_execution_cost,
                 "total_fees_paid": run.total_fees_paid,
                 "total_slippage_cost": run.total_slippage_cost,
@@ -1627,6 +1756,10 @@ def main(argv: list[str] | None = None) -> int:
                 "result_hash_prefix": result_hash[:12],
                 "ingestion_status": effective_ingestion_status,
                 "ingestion_reasons": effective_ingestion_reasons,
+                "ingestion_degraded_streak": ingestion_degraded_streak,
+                "ingestion_degraded_entry_suppressed": (
+                    ingestion_degraded_entry_suppressed
+                ),
                 "state_refresh_applied": state_refresh_applied,
                 "state_refresh_event_count": state_refresh_event_count,
                 "state_refresh_market_ids": state_refresh_market_ids,
@@ -1660,6 +1793,19 @@ def main(argv: list[str] | None = None) -> int:
             "partial_fill_count": run.partial_fill_count,
             "exit_candidate_count": run.exit_candidate_count,
             "confirmed_exit_count": run.confirmed_exit_count,
+            "forced_exit_count": run.forced_exit_count,
+            "confirmed_exit_ratio": run.confirmed_exit_ratio,
+            "confirmed_exit_latency_hours": run.confirmed_exit_latency_hours,
+            "median_position_age_hours": run.median_position_age_hours,
+            "stale_position_count": run.stale_position_count,
+            "stale_position_ratio": run.stale_position_ratio,
+            "raw_probability_mean": run.raw_probability_mean,
+            "calibrated_probability_mean": run.calibrated_probability_mean,
+            "probability_drift_mean": run.probability_drift_mean,
+            "probability_drift_abs_mean": run.probability_drift_abs_mean,
+            "probability_drift_max_abs": run.probability_drift_max_abs,
+            "weighted_check_agreement_mean": run.weighted_check_agreement_mean,
+            "calibration_applied_ratio": run.calibration_applied_ratio,
             "total_execution_cost": run.total_execution_cost,
             "total_fees_paid": run.total_fees_paid,
             "total_slippage_cost": run.total_slippage_cost,
@@ -1687,6 +1833,10 @@ def main(argv: list[str] | None = None) -> int:
             "result_hash": result_hash,
             "ingestion_status": effective_ingestion_status,
             "ingestion_reasons": effective_ingestion_reasons,
+            "ingestion_degraded_streak": ingestion_degraded_streak,
+            "ingestion_degraded_entry_suppressed": (
+                ingestion_degraded_entry_suppressed
+            ),
             "state_refresh_applied": state_refresh_applied,
             "state_refresh_event_count": state_refresh_event_count,
             "state_refresh_market_ids": state_refresh_market_ids,

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from statistics import median
 from typing import Any, Iterable, Protocol
 
 from .contracts import (
@@ -35,6 +37,7 @@ class TestTokenLoopRun:
     records: list[TestTokenLoopRecord]
     final_portfolio: PortfolioState
     final_open_positions: dict[str, PositionSnapshot] = field(default_factory=dict)
+    stale_hours_threshold: float = 24.0
 
     @staticmethod
     def _as_non_negative_float(value: Any) -> float:
@@ -50,6 +53,29 @@ class TestTokenLoopRun:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _parse_iso_timestamp(timestamp: str) -> datetime | None:
+        try:
+            return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(
+                UTC
+            )
+        except ValueError:
+            return None
+
+    @classmethod
+    def _hours_between(cls, start_timestamp: str, end_timestamp: str) -> float:
+        start = cls._parse_iso_timestamp(start_timestamp)
+        end = cls._parse_iso_timestamp(end_timestamp)
+        if start is None or end is None or end < start:
+            return 0.0
+        return (end - start).total_seconds() / 3600.0
+
+    def _open_position_age_hours(self) -> list[float]:
+        return [
+            self._hours_between(position.opened_at, position.last_event_timestamp)
+            for position in self.final_open_positions.values()
+        ]
 
     def _profitability_attribution_totals(self) -> dict[str, float]:
         totals = {
@@ -100,6 +126,87 @@ class TestTokenLoopRun:
             )
         return totals
 
+    def _strategy_probability_metrics(self) -> dict[str, float | None]:
+        raw_probabilities: list[float] = []
+        calibrated_probabilities: list[float] = []
+        probability_drifts: list[float] = []
+        absolute_probability_drifts: list[float] = []
+        weighted_check_scores: list[float] = []
+        oracle_applied_count = 0
+
+        for record in self.records:
+            metadata = record.replay_record.strategy_decision.metadata
+            raw_probability = self._as_float_or_none(
+                metadata.get("raw_estimated_probability")
+            )
+            if raw_probability is not None:
+                raw_probabilities.append(raw_probability)
+            calibrated_probability = self._as_float_or_none(
+                metadata.get("calibrated_probability")
+            )
+            if calibrated_probability is not None:
+                calibrated_probabilities.append(calibrated_probability)
+            probability_drift = self._as_float_or_none(metadata.get("probability_drift"))
+            if probability_drift is not None:
+                probability_drifts.append(probability_drift)
+            probability_drift_abs = self._as_float_or_none(
+                metadata.get("probability_drift_abs")
+            )
+            if probability_drift_abs is not None:
+                absolute_probability_drifts.append(probability_drift_abs)
+            weighted_check_agreement = self._as_float_or_none(
+                metadata.get("weighted_check_agreement")
+            )
+            if weighted_check_agreement is not None:
+                weighted_check_scores.append(weighted_check_agreement)
+            if bool(metadata.get("probability_oracle_applied", False)):
+                oracle_applied_count += 1
+
+        calibrated_probability_mean = (
+            round(sum(calibrated_probabilities) / len(calibrated_probabilities), 6)
+            if calibrated_probabilities
+            else None
+        )
+        raw_probability_mean = (
+            round(sum(raw_probabilities) / len(raw_probabilities), 6)
+            if raw_probabilities
+            else None
+        )
+        probability_drift_mean = (
+            round(sum(probability_drifts) / len(probability_drifts), 6)
+            if probability_drifts
+            else None
+        )
+        probability_drift_abs_mean = (
+            round(sum(absolute_probability_drifts) / len(absolute_probability_drifts), 6)
+            if absolute_probability_drifts
+            else None
+        )
+        probability_drift_max_abs = (
+            round(max(absolute_probability_drifts), 6)
+            if absolute_probability_drifts
+            else None
+        )
+        weighted_check_agreement_mean = (
+            round(sum(weighted_check_scores) / len(weighted_check_scores), 6)
+            if weighted_check_scores
+            else None
+        )
+        calibration_applied_ratio = (
+            round(oracle_applied_count / len(self.records), 6)
+            if self.records
+            else 0.0
+        )
+        return {
+            "calibrated_probability_mean": calibrated_probability_mean,
+            "raw_probability_mean": raw_probability_mean,
+            "probability_drift_mean": probability_drift_mean,
+            "probability_drift_abs_mean": probability_drift_abs_mean,
+            "probability_drift_max_abs": probability_drift_max_abs,
+            "weighted_check_agreement_mean": weighted_check_agreement_mean,
+            "calibration_applied_ratio": calibration_applied_ratio,
+        }
+
     @property
     def risk_allowed_count(self) -> int:
         return sum(
@@ -148,6 +255,84 @@ class TestTokenLoopRun:
     @property
     def confirmed_exit_count(self) -> int:
         return sum(1 for record in self.records if record.exit_decision.should_exit)
+
+    @property
+    def forced_exit_count(self) -> int:
+        return sum(
+            1
+            for record in self.records
+            if record.exit_decision.should_exit
+            and bool(record.exit_decision.metadata.get("forced_exit", False))
+        )
+
+    @property
+    def confirmed_exit_ratio(self) -> float | None:
+        if self.exit_candidate_count <= 0:
+            return None
+        return round(self.confirmed_exit_count / self.exit_candidate_count, 6)
+
+    @property
+    def confirmed_exit_latency_hours(self) -> float | None:
+        latencies: list[float] = []
+        for record in self.records:
+            if not record.exit_decision.should_exit:
+                continue
+            holding_hours = self._as_float_or_none(
+                record.exit_decision.metadata.get("holding_hours")
+            )
+            if holding_hours is None or holding_hours < 0:
+                continue
+            latencies.append(holding_hours)
+        if not latencies:
+            return None
+        return round(sum(latencies) / len(latencies), 6)
+
+    @property
+    def median_position_age_hours(self) -> float | None:
+        ages = self._open_position_age_hours()
+        if not ages:
+            return None
+        return round(float(median(ages)), 6)
+
+    @property
+    def stale_position_count(self) -> int:
+        ages = self._open_position_age_hours()
+        return sum(1 for age in ages if age >= self.stale_hours_threshold)
+
+    @property
+    def stale_position_ratio(self) -> float:
+        ages = self._open_position_age_hours()
+        if not ages:
+            return 0.0
+        return round(self.stale_position_count / len(ages), 6)
+
+    @property
+    def calibrated_probability_mean(self) -> float | None:
+        return self._strategy_probability_metrics()["calibrated_probability_mean"]
+
+    @property
+    def raw_probability_mean(self) -> float | None:
+        return self._strategy_probability_metrics()["raw_probability_mean"]
+
+    @property
+    def probability_drift_mean(self) -> float | None:
+        return self._strategy_probability_metrics()["probability_drift_mean"]
+
+    @property
+    def probability_drift_abs_mean(self) -> float | None:
+        return self._strategy_probability_metrics()["probability_drift_abs_mean"]
+
+    @property
+    def probability_drift_max_abs(self) -> float | None:
+        return self._strategy_probability_metrics()["probability_drift_max_abs"]
+
+    @property
+    def weighted_check_agreement_mean(self) -> float | None:
+        return self._strategy_probability_metrics()["weighted_check_agreement_mean"]
+
+    @property
+    def calibration_applied_ratio(self) -> float:
+        return float(self._strategy_probability_metrics()["calibration_applied_ratio"])
 
     @property
     def attributed_trade_count(self) -> int:
@@ -290,8 +475,25 @@ class TestTokenLoop:
         for event in ordered_events:
             position = open_positions.get(event.market_id)
             exit_decision = self.exit_module.evaluate(event=event, position=position)
-            strategy_decision = self.strategy.evaluate(event, portfolio)
-            risk_decision = self.risk.evaluate(event, strategy_decision, portfolio)
+            event_for_decision = event
+            if (
+                position is not None
+                and not exit_decision.should_exit
+                and bool(
+                    exit_decision.metadata.get("inventory_aging_derisk_active", False)
+                )
+            ):
+                event_payload = event.to_dict()
+                event_metadata = dict(event_payload.get("metadata", {}))
+                event_metadata["suppress_new_entries"] = True
+                event_metadata["inventory_aging_derisk_active"] = True
+                event_metadata["inventory_aging_derisk_market_id"] = event.market_id
+                event_payload["metadata"] = event_metadata
+                event_for_decision = MarketEvent.from_dict(event_payload)
+            strategy_decision = self.strategy.evaluate(event_for_decision, portfolio)
+            risk_decision = self.risk.evaluate(
+                event_for_decision, strategy_decision, portfolio
+            )
             replay_record = ReplayRecord(
                 event_id=event.event_id,
                 timestamp=event.timestamp,
@@ -328,11 +530,13 @@ class TestTokenLoop:
                 )
             elif risk_decision.allowed and risk_decision.approved_notional > 0:
                 intent = build_execution_intent(
-                    event=event,
+                    event=event_for_decision,
                     risk_decision=risk_decision,
                     parameters=self.parameters,
                 )
-                execution_result = self.execution.execute(event=event, intent=intent)
+                execution_result = self.execution.execute(
+                    event=event_for_decision, intent=intent
+                )
                 if execution_result.is_filled:
                     portfolio.register_executed_trade(
                         event.market_id,
@@ -343,19 +547,19 @@ class TestTokenLoop:
                     tracked_position = open_positions.get(event.market_id)
                     if tracked_position is None:
                         open_positions[event.market_id] = PositionSnapshot.from_fill(
-                            event,
+                            event_for_decision,
                             filled_notional=execution_result.filled_notional,
                         )
                     else:
                         open_positions[event.market_id] = (
                             tracked_position.register_fill(
-                                event,
+                                event_for_decision,
                                 filled_notional=execution_result.filled_notional,
                             )
                         )
             else:
                 execution_result = self.execution.skip(
-                    event=event, risk_decision=risk_decision
+                    event=event_for_decision, risk_decision=risk_decision
                 )
 
             records.append(
@@ -373,6 +577,7 @@ class TestTokenLoop:
             records=records,
             final_portfolio=portfolio,
             final_open_positions=dict(open_positions),
+            stale_hours_threshold=float(self.exit_module.stale_hours),
         )
 
 
@@ -395,6 +600,19 @@ def serialize_test_token_loop_run(
         "partial_fill_count": run.partial_fill_count,
         "exit_candidate_count": run.exit_candidate_count,
         "confirmed_exit_count": run.confirmed_exit_count,
+        "forced_exit_count": run.forced_exit_count,
+        "confirmed_exit_ratio": run.confirmed_exit_ratio,
+        "confirmed_exit_latency_hours": run.confirmed_exit_latency_hours,
+        "median_position_age_hours": run.median_position_age_hours,
+        "stale_position_count": run.stale_position_count,
+        "stale_position_ratio": run.stale_position_ratio,
+        "raw_probability_mean": run.raw_probability_mean,
+        "calibrated_probability_mean": run.calibrated_probability_mean,
+        "probability_drift_mean": run.probability_drift_mean,
+        "probability_drift_abs_mean": run.probability_drift_abs_mean,
+        "probability_drift_max_abs": run.probability_drift_max_abs,
+        "weighted_check_agreement_mean": run.weighted_check_agreement_mean,
+        "calibration_applied_ratio": run.calibration_applied_ratio,
         "total_fees_paid": run.total_fees_paid,
         "total_slippage_cost": run.total_slippage_cost,
         "total_execution_cost": run.total_execution_cost,

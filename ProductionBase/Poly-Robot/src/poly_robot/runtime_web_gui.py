@@ -160,6 +160,50 @@ def _default_kpi_shadow_policy() -> dict[str, Any]:
                 "critical_below": -0.05,
             },
             {
+                "kpi_id": "calibration_applied_ratio",
+                "label": "Calibration Applied Ratio",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.calibration_applied_ratio",
+                "cycle_field": "calibration_applied_ratio",
+                "unit": "ratio",
+                "direction": "higher_is_better",
+                "warning_below": 0.60,
+                "critical_below": 0.40,
+            },
+            {
+                "kpi_id": "weighted_check_agreement_mean",
+                "label": "Weighted Check Agreement Mean",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.weighted_check_agreement_mean",
+                "cycle_field": "weighted_check_agreement_mean",
+                "unit": "ratio",
+                "direction": "higher_is_better",
+                "warning_below": 0.55,
+                "critical_below": 0.45,
+            },
+            {
+                "kpi_id": "probability_drift_abs_mean",
+                "label": "Probability Drift Absolute Mean",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.probability_drift_abs_mean",
+                "cycle_field": "probability_drift_abs_mean",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.08,
+                "critical_above": 0.12,
+            },
+            {
+                "kpi_id": "probability_drift_max_abs",
+                "label": "Probability Drift Max Absolute",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.probability_drift_max_abs",
+                "cycle_field": "probability_drift_max_abs",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.18,
+                "critical_above": 0.25,
+            },
+            {
                 "kpi_id": "net_pnl",
                 "label": "Net PnL",
                 "domain": "risk_and_capital",
@@ -541,6 +585,18 @@ class RuntimeDashboardService:
         return numerator / denominator
 
     @staticmethod
+    def _ratio_with_zero_for_empty_series(
+        numerator: float | None, denominator: float | None
+    ) -> float | None:
+        if numerator is None or denominator is None:
+            return None
+        if denominator <= 0:
+            if abs(numerator) <= 1e-12:
+                return 0.0
+            return None
+        return numerator / denominator
+
+    @staticmethod
     def _extract_loop_metrics(
         supervisor_state: dict[str, Any] | None,
     ) -> dict[str, Any]:
@@ -579,6 +635,21 @@ class RuntimeDashboardService:
             ),
             "execution_cost_to_expected_net_ratio": last_metadata.get(
                 "execution_cost_to_expected_net_ratio"
+            ),
+            "raw_probability_mean": last_metadata.get("raw_probability_mean"),
+            "calibrated_probability_mean": last_metadata.get(
+                "calibrated_probability_mean"
+            ),
+            "probability_drift_mean": last_metadata.get("probability_drift_mean"),
+            "probability_drift_abs_mean": last_metadata.get(
+                "probability_drift_abs_mean"
+            ),
+            "probability_drift_max_abs": last_metadata.get("probability_drift_max_abs"),
+            "weighted_check_agreement_mean": last_metadata.get(
+                "weighted_check_agreement_mean"
+            ),
+            "calibration_applied_ratio": last_metadata.get(
+                "calibration_applied_ratio"
             ),
             "result_hash": last_metadata.get("result_hash"),
         }
@@ -671,13 +742,15 @@ class RuntimeDashboardService:
             drawdown = max(0.0, day_start_equity - current_equity)
             daily_drawdown_fraction = drawdown / day_start_equity
 
-        fill_rate = RuntimeDashboardService._ratio(
+        fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
             RuntimeDashboardService._to_float(filled_trade_count),
             RuntimeDashboardService._to_float(risk_allowed_count),
         )
-        average_execution_cost_per_fill = RuntimeDashboardService._ratio(
+        average_execution_cost_per_fill = (
+            RuntimeDashboardService._ratio_with_zero_for_empty_series(
             total_execution_cost,
             RuntimeDashboardService._to_float(filled_trade_count),
+            )
         )
         expected_gross_edge_value = RuntimeDashboardService._to_float(
             last_metadata.get("expected_gross_edge_value")
@@ -729,17 +802,21 @@ class RuntimeDashboardService:
             last_metadata.get("expected_edge_capture_ratio")
         )
         if expected_edge_capture_ratio is None:
-            expected_edge_capture_ratio = RuntimeDashboardService._ratio(
+            expected_edge_capture_ratio = (
+                RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 expected_net_edge_value_on_fills,
                 expected_net_edge_value,
+                )
             )
         execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
             last_metadata.get("execution_cost_to_expected_net_ratio")
         )
         if execution_cost_to_expected_net_ratio is None:
-            execution_cost_to_expected_net_ratio = RuntimeDashboardService._ratio(
+            execution_cost_to_expected_net_ratio = (
+                RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 total_execution_cost,
                 expected_net_edge_value_on_fills,
+                )
             )
 
         return {
@@ -1001,7 +1078,7 @@ class RuntimeDashboardService:
         incident_feed: dict[str, Any],
         cycle_summaries: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        partial_fill_rate = RuntimeDashboardService._ratio(
+        partial_fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
             RuntimeDashboardService._to_float(financial_metrics.get("partial_fill_count")),
             RuntimeDashboardService._to_float(financial_metrics.get("filled_trade_count")),
         )
@@ -1439,17 +1516,66 @@ class RuntimeDashboardService:
             daily_drawdown_fraction = RuntimeDashboardService._to_float(
                 details.get("daily_drawdown_fraction")
             )
-            fill_rate = RuntimeDashboardService._ratio(
+            fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 RuntimeDashboardService._to_float(filled_trade_count),
                 RuntimeDashboardService._to_float(risk_allowed_count),
             )
-            partial_fill_rate = RuntimeDashboardService._ratio(
+            partial_fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 RuntimeDashboardService._to_float(partial_fill_count),
                 RuntimeDashboardService._to_float(filled_trade_count),
             )
-            average_execution_cost_per_fill = RuntimeDashboardService._ratio(
+            average_execution_cost_per_fill = (
+                RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 total_execution_cost,
                 RuntimeDashboardService._to_float(filled_trade_count),
+                )
+            )
+            expected_net_edge_value = RuntimeDashboardService._to_float(
+                details.get("expected_net_edge_value")
+            )
+            expected_net_edge_value_on_fills = RuntimeDashboardService._to_float(
+                details.get("expected_net_edge_value_on_fills")
+            )
+            expected_edge_capture_ratio = RuntimeDashboardService._to_float(
+                details.get("expected_edge_capture_ratio")
+            )
+            if expected_edge_capture_ratio is None:
+                expected_edge_capture_ratio = (
+                    RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                        expected_net_edge_value_on_fills,
+                        expected_net_edge_value,
+                    )
+                )
+            execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
+                details.get("execution_cost_to_expected_net_ratio")
+            )
+            if execution_cost_to_expected_net_ratio is None:
+                execution_cost_to_expected_net_ratio = (
+                    RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                        total_execution_cost,
+                        expected_net_edge_value_on_fills,
+                    )
+                )
+            raw_probability_mean = RuntimeDashboardService._to_float(
+                details.get("raw_probability_mean")
+            )
+            calibrated_probability_mean = RuntimeDashboardService._to_float(
+                details.get("calibrated_probability_mean")
+            )
+            probability_drift_mean = RuntimeDashboardService._to_float(
+                details.get("probability_drift_mean")
+            )
+            probability_drift_abs_mean = RuntimeDashboardService._to_float(
+                details.get("probability_drift_abs_mean")
+            )
+            probability_drift_max_abs = RuntimeDashboardService._to_float(
+                details.get("probability_drift_max_abs")
+            )
+            weighted_check_agreement_mean = RuntimeDashboardService._to_float(
+                details.get("weighted_check_agreement_mean")
+            )
+            calibration_applied_ratio = RuntimeDashboardService._to_float(
+                details.get("calibration_applied_ratio")
             )
             by_cycle_index[cycle_index] = {
                 "cycle_index": cycle_index,
@@ -1477,23 +1603,59 @@ class RuntimeDashboardService:
                     partial_fill_rate,
                     digits=6,
                 ),
+                "expected_net_edge_value_on_fills": RuntimeDashboardService._round_float(
+                    expected_net_edge_value_on_fills,
+                    digits=4,
+                ),
                 "average_execution_cost_per_fill": RuntimeDashboardService._round_float(
                     average_execution_cost_per_fill,
                     digits=4,
                 ),
                 "expected_gross_edge_value": details.get("expected_gross_edge_value"),
-                "expected_net_edge_value": details.get("expected_net_edge_value"),
-                "expected_net_edge_value_on_fills": details.get(
-                    "expected_net_edge_value_on_fills"
+                "expected_net_edge_value": RuntimeDashboardService._round_float(
+                    expected_net_edge_value,
+                    digits=4,
                 ),
                 "expected_value_after_execution_cost": details.get(
                     "expected_value_after_execution_cost"
                 ),
-                "expected_edge_capture_ratio": details.get(
-                    "expected_edge_capture_ratio"
+                "expected_edge_capture_ratio": RuntimeDashboardService._round_float(
+                    expected_edge_capture_ratio,
+                    digits=6,
                 ),
-                "execution_cost_to_expected_net_ratio": details.get(
-                    "execution_cost_to_expected_net_ratio"
+                "execution_cost_to_expected_net_ratio": (
+                    RuntimeDashboardService._round_float(
+                        execution_cost_to_expected_net_ratio,
+                        digits=6,
+                    )
+                ),
+                "raw_probability_mean": RuntimeDashboardService._round_float(
+                    raw_probability_mean,
+                    digits=6,
+                ),
+                "calibrated_probability_mean": RuntimeDashboardService._round_float(
+                    calibrated_probability_mean,
+                    digits=6,
+                ),
+                "probability_drift_mean": RuntimeDashboardService._round_float(
+                    probability_drift_mean,
+                    digits=6,
+                ),
+                "probability_drift_abs_mean": RuntimeDashboardService._round_float(
+                    probability_drift_abs_mean,
+                    digits=6,
+                ),
+                "probability_drift_max_abs": RuntimeDashboardService._round_float(
+                    probability_drift_max_abs,
+                    digits=6,
+                ),
+                "weighted_check_agreement_mean": RuntimeDashboardService._round_float(
+                    weighted_check_agreement_mean,
+                    digits=6,
+                ),
+                "calibration_applied_ratio": RuntimeDashboardService._round_float(
+                    calibration_applied_ratio,
+                    digits=6,
                 ),
                 "result_hash_prefix": details.get("result_hash_prefix"),
             }
@@ -1641,6 +1803,47 @@ class RuntimeDashboardService:
                             entry.get("execution_cost_to_expected_net_ratio"),
                             digits=6,
                         )
+                    ),
+                    "raw_probability_mean": RuntimeDashboardService._delta_float(
+                        previous.get("raw_probability_mean"),
+                        entry.get("raw_probability_mean"),
+                        digits=6,
+                    ),
+                    "calibrated_probability_mean": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("calibrated_probability_mean"),
+                            entry.get("calibrated_probability_mean"),
+                            digits=6,
+                        )
+                    ),
+                    "probability_drift_mean": RuntimeDashboardService._delta_float(
+                        previous.get("probability_drift_mean"),
+                        entry.get("probability_drift_mean"),
+                        digits=6,
+                    ),
+                    "probability_drift_abs_mean": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("probability_drift_abs_mean"),
+                            entry.get("probability_drift_abs_mean"),
+                            digits=6,
+                        )
+                    ),
+                    "probability_drift_max_abs": RuntimeDashboardService._delta_float(
+                        previous.get("probability_drift_max_abs"),
+                        entry.get("probability_drift_max_abs"),
+                        digits=6,
+                    ),
+                    "weighted_check_agreement_mean": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("weighted_check_agreement_mean"),
+                            entry.get("weighted_check_agreement_mean"),
+                            digits=6,
+                        )
+                    ),
+                    "calibration_applied_ratio": RuntimeDashboardService._delta_float(
+                        previous.get("calibration_applied_ratio"),
+                        entry.get("calibration_applied_ratio"),
+                        digits=6,
                     ),
                 }
             comparison_items.append(enriched)
