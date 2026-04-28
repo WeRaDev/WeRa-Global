@@ -62,18 +62,25 @@ def _cycle_report_stub(
     open_notional: float | None = 0.0,
     confirmed_exit_count: int = 1,
     confirmed_exit_ratio: float | None = 1.0,
+    expected_edge_capture_ratio: float | None = 1.0,
+    ingestion_status: str = "HEALTHY",
     stale_position_ratio: float | None = 0.0,
 ) -> dict:
     statuses = execution_statuses or ["FILLED"]
     return {
         "schema_version": "test_token_loop_result.v1",
-        "run_context": {"cycle_index": cycle_index},
+        "run_context": {
+            "cycle_index": cycle_index,
+            "ingestion_status": ingestion_status,
+        },
         "execution_cost_to_expected_net_ratio": execution_cost_to_expected_net_ratio,
         "expected_value_after_execution_cost": expected_value_after_execution_cost,
         "net_pnl": net_pnl,
         "open_notional": open_notional,
         "confirmed_exit_count": confirmed_exit_count,
         "confirmed_exit_ratio": confirmed_exit_ratio,
+        "expected_edge_capture_ratio": expected_edge_capture_ratio,
+        "ingestion_status": ingestion_status,
         "stale_position_ratio": stale_position_ratio,
         "records": [
             {"execution_result": {"status": status}}
@@ -267,6 +274,46 @@ class CanaryRollbackGuardTests(unittest.TestCase):
             3,
         )
 
+    def test_guard_fails_on_rolling_realized_pnl_floor_breach(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            policy={
+                "thresholds": {
+                    "minimum_rolling_realized_pnl": 0.0,
+                    "rolling_realized_pnl_window_cycles": 3,
+                }
+            },
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    net_pnl=-0.12,
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    net_pnl=-0.08,
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    net_pnl=-0.06,
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("rolling_realized_pnl_floor_breach", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(telemetry_summary["rolling_realized_pnl_window_cycle_count"], 3)
+        self.assertEqual(telemetry_summary["rolling_realized_pnl"], -0.26)
+
     def test_guard_fails_on_consecutive_confirmed_exit_ratio_breach(self) -> None:
         guard_report = build_canary_rollback_guard_report(
             canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
@@ -307,6 +354,98 @@ class CanaryRollbackGuardTests(unittest.TestCase):
             ],
             3,
         )
+
+    def test_guard_fails_on_consecutive_edge_realization_ratio_breach(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            policy={
+                "thresholds": {
+                    "minimum_edge_realization_ratio": 0.6,
+                    "edge_realization_ratio_breach_consecutive_cycles": 3,
+                }
+            },
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    expected_edge_capture_ratio=0.45,
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    expected_edge_capture_ratio=0.5,
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    expected_edge_capture_ratio=0.55,
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("edge_realization_ratio_breach_consecutive", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(
+            telemetry_summary["max_edge_realization_ratio_breach_consecutive_breaches"],
+            3,
+        )
+
+    def test_guard_fails_on_ingestion_degraded_ratio_window_breach(self) -> None:
+        guard_report = build_canary_rollback_guard_report(
+            canary_enablement_decision=_enablement_decision_stub(decision_status="ALLOW"),
+            certification_report=_certification_report_stub(overall_status="PASS"),
+            rehearsal_report=_rehearsal_report_stub(),
+            policy={
+                "thresholds": {
+                    "max_ingestion_degraded_cycle_ratio": 0.5,
+                    "ingestion_degraded_ratio_window_cycles": 4,
+                }
+            },
+            cycle_reports=[
+                _cycle_report_stub(
+                    cycle_index=1,
+                    execution_cost_to_expected_net_ratio=0.4,
+                    expected_value_after_execution_cost=0.5,
+                    ingestion_status="DEGRADED",
+                ),
+                _cycle_report_stub(
+                    cycle_index=2,
+                    execution_cost_to_expected_net_ratio=0.45,
+                    expected_value_after_execution_cost=0.4,
+                    ingestion_status="DEGRADED",
+                ),
+                _cycle_report_stub(
+                    cycle_index=3,
+                    execution_cost_to_expected_net_ratio=0.5,
+                    expected_value_after_execution_cost=0.3,
+                    ingestion_status="HEALTHY",
+                ),
+                _cycle_report_stub(
+                    cycle_index=4,
+                    execution_cost_to_expected_net_ratio=0.48,
+                    expected_value_after_execution_cost=0.25,
+                    ingestion_status="DEGRADED",
+                ),
+            ],
+        )
+
+        self.assertEqual(guard_report["guard_status"], "FAIL")
+        trigger_ids = {row["id"] for row in guard_report["triggered_conditions"]}
+        self.assertIn("ingestion_degraded_ratio_breach_window", trigger_ids)
+        telemetry_summary = guard_report["telemetry_summary"]
+        self.assertEqual(
+            telemetry_summary["ingestion_degraded_ratio_window_cycle_count"],
+            4,
+        )
+        self.assertEqual(telemetry_summary["ingestion_degraded_cycle_count"], 3)
+        self.assertEqual(telemetry_summary["ingestion_degraded_cycle_ratio"], 0.75)
 
     def test_guard_fails_on_consecutive_stale_position_ratio_breach(self) -> None:
         guard_report = build_canary_rollback_guard_report(

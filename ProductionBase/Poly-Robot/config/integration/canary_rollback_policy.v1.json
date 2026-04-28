@@ -1,7 +1,7 @@
 {
   "config_name": "poly_robot_canary_rollback_policy",
   "config_version": "1.0.0",
-  "updated_at": "2026-04-27T16:39:00Z",
+  "updated_at": "2026-04-28T19:18:00Z",
   "schema_version": "canary_rollback_policy.v1",
   "description": "Phase-F3 automated rollback enforcement policy for canary live operation with incident handoff authority mapping.",
   "thresholds": {
@@ -10,9 +10,15 @@
     "minimum_expected_value_after_execution_cost": 0.0,
     "negative_expected_value_consecutive_cycles": 3,
     "negative_realized_pnl_consecutive_cycles": 3,
+    "minimum_rolling_realized_pnl": 0.0,
+    "rolling_realized_pnl_window_cycles": 12,
     "open_notional_without_confirmed_exits_consecutive_cycles": 3,
     "minimum_confirmed_exit_ratio": 0.5,
     "confirmed_exit_ratio_breach_consecutive_cycles": 3,
+    "minimum_edge_realization_ratio": 0.55,
+    "edge_realization_ratio_breach_consecutive_cycles": 3,
+    "max_ingestion_degraded_cycle_ratio": 0.25,
+    "ingestion_degraded_ratio_window_cycles": 12,
     "max_stale_position_ratio": 0.35,
     "stale_position_ratio_breach_consecutive_cycles": 3
   },
@@ -102,6 +108,17 @@
       ]
     },
     {
+      "trigger": "rolling_realized_pnl_floor_breach",
+      "condition": "Rolling realized net_pnl over configured window remains below minimum threshold.",
+      "severity": "high",
+      "required_actions": [
+        "disable_new_orders",
+        "reduce_order_notional_limits",
+        "switch_to_paper_mode",
+        "review_realized_pnl_deterioration"
+      ]
+    },
+    {
       "trigger": "open_notional_without_confirmed_exits_consecutive",
       "condition": "Open notional remains above zero while confirmed exits stay at zero for configured consecutive cycles.",
       "severity": "high",
@@ -119,6 +136,26 @@
         "suppress_new_entries",
         "reduce_open_inventory",
         "review_exit_conversion_health"
+      ]
+    },
+    {
+      "trigger": "edge_realization_ratio_breach_consecutive",
+      "condition": "expected_edge_capture_ratio remains below threshold for configured consecutive cycles.",
+      "severity": "high",
+      "required_actions": [
+        "reduce_order_notional_limits",
+        "suppress_new_entries",
+        "review_edge_realization_regression"
+      ]
+    },
+    {
+      "trigger": "ingestion_degraded_ratio_breach_window",
+      "condition": "ingestion_status=DEGRADED ratio exceeds threshold over configured rolling window.",
+      "severity": "high",
+      "required_actions": [
+        "suppress_new_entries",
+        "switch_to_paper_mode",
+        "restore_cycle_artifact_pipeline"
       ]
     },
     {

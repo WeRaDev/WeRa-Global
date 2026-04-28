@@ -84,9 +84,15 @@ def default_canary_rollback_policy() -> dict[str, Any]:
             "minimum_expected_value_after_execution_cost": 0.0,
             "negative_expected_value_consecutive_cycles": 3,
             "negative_realized_pnl_consecutive_cycles": 3,
+            "minimum_rolling_realized_pnl": 0.0,
+            "rolling_realized_pnl_window_cycles": 12,
             "open_notional_without_confirmed_exits_consecutive_cycles": 3,
             "minimum_confirmed_exit_ratio": 0.5,
             "confirmed_exit_ratio_breach_consecutive_cycles": 3,
+            "minimum_edge_realization_ratio": 0.55,
+            "edge_realization_ratio_breach_consecutive_cycles": 3,
+            "max_ingestion_degraded_cycle_ratio": 0.25,
+            "ingestion_degraded_ratio_window_cycles": 12,
             "max_stale_position_ratio": 0.35,
             "stale_position_ratio_breach_consecutive_cycles": 3,
         },
@@ -196,6 +202,20 @@ def default_canary_rollback_policy() -> dict[str, Any]:
                 ],
             },
             {
+                "trigger": "rolling_realized_pnl_floor_breach",
+                "condition": (
+                    "Rolling realized net_pnl over configured window remains below "
+                    "minimum threshold."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "disable_new_orders",
+                    "reduce_order_notional_limits",
+                    "switch_to_paper_mode",
+                    "review_realized_pnl_deterioration",
+                ],
+            },
+            {
                 "trigger": "open_notional_without_confirmed_exits_consecutive",
                 "condition": (
                     "Open notional remains above zero while confirmed exits stay at "
@@ -219,6 +239,32 @@ def default_canary_rollback_policy() -> dict[str, Any]:
                     "suppress_new_entries",
                     "reduce_open_inventory",
                     "review_exit_conversion_health",
+                ],
+            },
+            {
+                "trigger": "edge_realization_ratio_breach_consecutive",
+                "condition": (
+                    "expected_edge_capture_ratio remains below threshold for "
+                    "configured consecutive cycles."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "reduce_order_notional_limits",
+                    "suppress_new_entries",
+                    "review_edge_realization_regression",
+                ],
+            },
+            {
+                "trigger": "ingestion_degraded_ratio_breach_window",
+                "condition": (
+                    "ingestion_status=DEGRADED ratio exceeds threshold over "
+                    "configured rolling window."
+                ),
+                "severity": "high",
+                "required_actions": [
+                    "suppress_new_entries",
+                    "switch_to_paper_mode",
+                    "restore_cycle_artifact_pipeline",
                 ],
             },
             {
@@ -369,6 +415,18 @@ def _extract_cycle_telemetry(cycle_reports: list[dict[str, Any]]) -> list[dict[s
                 "confirmed_exit_ratio": _to_float_or_none(
                     cycle_report.get("confirmed_exit_ratio")
                 ),
+                "expected_edge_capture_ratio": _to_float_or_none(
+                    cycle_report.get("expected_edge_capture_ratio")
+                ),
+                "ingestion_status": str(
+                    cycle_report.get(
+                        "ingestion_status",
+                        run_context.get("ingestion_status", "UNKNOWN"),
+                    )
+                )
+                .strip()
+                .upper()
+                or "UNKNOWN",
                 "stale_position_ratio": _to_float_or_none(
                     cycle_report.get("stale_position_ratio")
                 ),
@@ -527,6 +585,36 @@ def build_canary_rollback_guard_report(
             default=3,
         ),
     )
+    minimum_rolling_realized_pnl = _to_float(
+        thresholds.get("minimum_rolling_realized_pnl", 0.0),
+        default=0.0,
+    )
+    rolling_realized_pnl_window_cycles = max(
+        1,
+        _to_int(thresholds.get("rolling_realized_pnl_window_cycles", 12), default=12),
+    )
+    minimum_edge_realization_ratio = _to_float(
+        thresholds.get("minimum_edge_realization_ratio", 0.55),
+        default=0.55,
+    )
+    edge_realization_ratio_breach_consecutive_required = max(
+        1,
+        _to_int(
+            thresholds.get("edge_realization_ratio_breach_consecutive_cycles", 3),
+            default=3,
+        ),
+    )
+    max_ingestion_degraded_cycle_ratio = _to_float(
+        thresholds.get("max_ingestion_degraded_cycle_ratio", 0.25),
+        default=0.25,
+    )
+    ingestion_degraded_ratio_window_cycles = max(
+        1,
+        _to_int(
+            thresholds.get("ingestion_degraded_ratio_window_cycles", 12),
+            default=12,
+        ),
+    )
 
     failed_order_lifecycle_total = sum(
         _to_int(row.get("failed_order_lifecycle_count", 0))
@@ -588,6 +676,47 @@ def build_canary_rollback_guard_report(
     max_stale_position_ratio_breach_consecutive = _max_consecutive_true(
         stale_position_ratio_flags
     )
+    edge_realization_ratio_flags = [
+        (row.get("expected_edge_capture_ratio") is not None)
+        and (
+            _to_float(row.get("expected_edge_capture_ratio"), default=0.0)
+            < minimum_edge_realization_ratio
+        )
+        for row in normalized_cycle_telemetry
+    ]
+    max_edge_realization_ratio_breach_consecutive = _max_consecutive_true(
+        edge_realization_ratio_flags
+    )
+    rolling_realized_pnl_rows = normalized_cycle_telemetry[
+        -rolling_realized_pnl_window_cycles:
+    ]
+    rolling_realized_pnl_cycle_count = len(rolling_realized_pnl_rows)
+    rolling_realized_pnl_values = [
+        _to_float(row.get("net_pnl"), default=0.0)
+        for row in rolling_realized_pnl_rows
+        if row.get("net_pnl") is not None
+    ]
+    rolling_realized_pnl: float | None = None
+    if (
+        rolling_realized_pnl_cycle_count > 0
+        and len(rolling_realized_pnl_values) == rolling_realized_pnl_cycle_count
+    ):
+        rolling_realized_pnl = round(sum(rolling_realized_pnl_values), 6)
+    ingestion_window_rows = normalized_cycle_telemetry[
+        -ingestion_degraded_ratio_window_cycles:
+    ]
+    ingestion_degraded_ratio_window_cycle_count = len(ingestion_window_rows)
+    ingestion_degraded_cycle_count = sum(
+        1
+        for row in ingestion_window_rows
+        if str(row.get("ingestion_status", "")).strip().upper() == "DEGRADED"
+    )
+    ingestion_degraded_cycle_ratio: float | None = None
+    if ingestion_degraded_ratio_window_cycle_count > 0:
+        ingestion_degraded_cycle_ratio = round(
+            ingestion_degraded_cycle_count / ingestion_degraded_ratio_window_cycle_count,
+            6,
+        )
     ratio_breach_cycles = [
         _to_int(row.get("cycle_index", 0))
         for row, breached in zip(normalized_cycle_telemetry, ratio_flags, strict=False)
@@ -635,6 +764,23 @@ def build_canary_rollback_guard_report(
             strict=False,
         )
         if breached
+    ]
+    edge_realization_ratio_breach_cycles = [
+        _to_int(row.get("cycle_index", 0))
+        for row, breached in zip(
+            normalized_cycle_telemetry,
+            edge_realization_ratio_flags,
+            strict=False,
+        )
+        if breached
+    ]
+    rolling_realized_pnl_cycle_indices = [
+        _to_int(row.get("cycle_index", 0))
+        for row in rolling_realized_pnl_rows
+    ]
+    ingestion_degraded_cycle_indices = [
+        _to_int(row.get("cycle_index", 0))
+        for row in ingestion_window_rows
     ]
 
     trigger_evaluations = [
@@ -753,6 +899,37 @@ def build_canary_rollback_guard_report(
             default_rollback_authority=default_rollback_authority,
         ),
         _evaluate_trigger(
+            trigger_name="rolling_realized_pnl_floor_breach",
+            triggered=(
+                rolling_realized_pnl_cycle_count >= rolling_realized_pnl_window_cycles
+                and rolling_realized_pnl is not None
+                and rolling_realized_pnl < minimum_rolling_realized_pnl
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    rolling_realized_pnl_cycle_count
+                    < rolling_realized_pnl_window_cycles
+                    or (
+                        rolling_realized_pnl is not None
+                        and rolling_realized_pnl >= minimum_rolling_realized_pnl
+                    )
+                )
+                else "rolling_realized_pnl_floor_breach"
+            ),
+            observed={
+                "rolling_window_cycle_count": rolling_realized_pnl_cycle_count,
+                "cycle_indices": rolling_realized_pnl_cycle_indices,
+                "rolling_realized_pnl": rolling_realized_pnl,
+            },
+            expected={
+                "rolling_window_cycle_count": f">= {rolling_realized_pnl_window_cycles}",
+                "minimum_rolling_realized_pnl": minimum_rolling_realized_pnl,
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
             trigger_name="open_notional_without_confirmed_exits_consecutive",
             triggered=(
                 max_open_notional_without_confirmed_exits_consecutive
@@ -807,6 +984,75 @@ def build_canary_rollback_guard_report(
                     f"< {confirmed_exit_ratio_breach_consecutive_required}"
                 ),
                 "minimum_confirmed_exit_ratio": minimum_confirmed_exit_ratio,
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
+            trigger_name="edge_realization_ratio_breach_consecutive",
+            triggered=(
+                max_edge_realization_ratio_breach_consecutive
+                >= edge_realization_ratio_breach_consecutive_required
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    max_edge_realization_ratio_breach_consecutive
+                    < edge_realization_ratio_breach_consecutive_required
+                )
+                else "edge_realization_ratio_breach_consecutive"
+            ),
+            observed={
+                "max_consecutive_breaches": (
+                    max_edge_realization_ratio_breach_consecutive
+                ),
+                "breach_cycle_indices": edge_realization_ratio_breach_cycles,
+            },
+            expected={
+                "max_consecutive_breaches": (
+                    f"< {edge_realization_ratio_breach_consecutive_required}"
+                ),
+                "minimum_edge_realization_ratio": minimum_edge_realization_ratio,
+            },
+            trigger_definition_map=trigger_definition_map,
+            default_rollback_authority=default_rollback_authority,
+        ),
+        _evaluate_trigger(
+            trigger_name="ingestion_degraded_ratio_breach_window",
+            triggered=(
+                ingestion_degraded_ratio_window_cycle_count
+                >= ingestion_degraded_ratio_window_cycles
+                and ingestion_degraded_cycle_ratio is not None
+                and ingestion_degraded_cycle_ratio > max_ingestion_degraded_cycle_ratio
+            ),
+            reason_code=(
+                "ok"
+                if (
+                    ingestion_degraded_ratio_window_cycle_count
+                    < ingestion_degraded_ratio_window_cycles
+                    or (
+                        ingestion_degraded_cycle_ratio is not None
+                        and ingestion_degraded_cycle_ratio
+                        <= max_ingestion_degraded_cycle_ratio
+                    )
+                )
+                else "ingestion_degraded_ratio_breach_window"
+            ),
+            observed={
+                "rolling_window_cycle_count": (
+                    ingestion_degraded_ratio_window_cycle_count
+                ),
+                "cycle_indices": ingestion_degraded_cycle_indices,
+                "degraded_cycle_count": ingestion_degraded_cycle_count,
+                "ingestion_degraded_cycle_ratio": ingestion_degraded_cycle_ratio,
+            },
+            expected={
+                "rolling_window_cycle_count": (
+                    f">= {ingestion_degraded_ratio_window_cycles}"
+                ),
+                "max_ingestion_degraded_cycle_ratio": (
+                    max_ingestion_degraded_cycle_ratio
+                ),
             },
             trigger_definition_map=trigger_definition_map,
             default_rollback_authority=default_rollback_authority,
@@ -907,12 +1153,22 @@ def build_canary_rollback_guard_report(
             "negative_realized_pnl_consecutive_cycles": (
                 negative_realized_pnl_consecutive_required
             ),
+            "minimum_rolling_realized_pnl": minimum_rolling_realized_pnl,
+            "rolling_realized_pnl_window_cycles": rolling_realized_pnl_window_cycles,
             "open_notional_without_confirmed_exits_consecutive_cycles": (
                 open_notional_without_confirmed_exits_consecutive_required
             ),
             "minimum_confirmed_exit_ratio": minimum_confirmed_exit_ratio,
             "confirmed_exit_ratio_breach_consecutive_cycles": (
                 confirmed_exit_ratio_breach_consecutive_required
+            ),
+            "minimum_edge_realization_ratio": minimum_edge_realization_ratio,
+            "edge_realization_ratio_breach_consecutive_cycles": (
+                edge_realization_ratio_breach_consecutive_required
+            ),
+            "max_ingestion_degraded_cycle_ratio": max_ingestion_degraded_cycle_ratio,
+            "ingestion_degraded_ratio_window_cycles": (
+                ingestion_degraded_ratio_window_cycles
             ),
             "max_stale_position_ratio": max_stale_position_ratio,
             "stale_position_ratio_breach_consecutive_cycles": (
@@ -935,6 +1191,18 @@ def build_canary_rollback_guard_report(
             "max_confirmed_exit_ratio_breach_consecutive_breaches": (
                 max_confirmed_exit_ratio_breach_consecutive
             ),
+            "max_edge_realization_ratio_breach_consecutive_breaches": (
+                max_edge_realization_ratio_breach_consecutive
+            ),
+            "rolling_realized_pnl_window_cycle_count": rolling_realized_pnl_cycle_count,
+            "rolling_realized_pnl_cycle_indices": rolling_realized_pnl_cycle_indices,
+            "rolling_realized_pnl": rolling_realized_pnl,
+            "ingestion_degraded_ratio_window_cycle_count": (
+                ingestion_degraded_ratio_window_cycle_count
+            ),
+            "ingestion_degraded_cycle_indices": ingestion_degraded_cycle_indices,
+            "ingestion_degraded_cycle_count": ingestion_degraded_cycle_count,
+            "ingestion_degraded_cycle_ratio": ingestion_degraded_cycle_ratio,
             "max_stale_position_ratio_breach_consecutive_breaches": (
                 max_stale_position_ratio_breach_consecutive
             ),

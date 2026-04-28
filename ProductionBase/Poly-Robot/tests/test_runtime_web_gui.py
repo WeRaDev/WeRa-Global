@@ -1691,15 +1691,20 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('id="auditActorFilter"', html)
         self.assertIn('id="incidentLimit"', html)
         self.assertIn('id="comparisonWindow"', html)
+        self.assertIn('id="refreshIntervalSeconds"', html)
+        self.assertIn('id="autoRefreshEnabled"', html)
         self.assertIn('id="kpiWindow"', html)
         self.assertIn('id="kpiDomainFilter"', html)
         self.assertIn('id="kpiStatusFilter"', html)
         self.assertIn('onclick="loadNewerIncidents()"', html)
         self.assertIn('onclick="loadOlderIncidents()"', html)
+        self.assertIn('onclick="applyRefreshSettings()"', html)
+        self.assertIn('onclick="manualRefresh()"', html)
         self.assertIn('onclick="clearKpiFilters()"', html)
         self.assertIn('id="financialPayload"', html)
         self.assertIn('id="kpiPayload"', html)
         self.assertIn('id="kpiSummary"', html)
+        self.assertIn('id="refreshStatus"', html)
         self.assertIn("How to Use and Control Poly-Robot", html)
         self.assertIn("Kill Switch ON", html)
         self.assertIn("Cancel All Orders", html)
@@ -1730,10 +1735,14 @@ class RuntimeWebGuiTests(unittest.TestCase):
             'title="Optional exact actor filter applied to operator audit events."',
             'title="Number of incident entries to include per feed page."',
             'title="Number of most recent completed cycles included in run-to-run comparison."',
+            'title="Number of seconds between automatic dashboard refreshes."',
+            'title="Toggle continuous dashboard refresh without changing filter scope."',
             'title="Apply current filter and limit fields, then refresh dashboard data from newest incidents."',
             'title="Restore default limits, clear filters, and refresh dashboard from newest incidents."',
             'title="Navigate incident feed toward newer entries using cursor history."',
             'title="Navigate incident feed toward older entries when more pages are available."',
+            'title="Apply auto-refresh interval and enabled/disabled mode for periodic dashboard polling."',
+            'title="Fetch dashboard payload immediately regardless of current auto-refresh mode."',
             'title="Expand for step-by-step KPI rollout instructions from shadow review through governance handoff."',
             'title="Number of most recent cycle samples used for KPI shadow series and trend deltas."',
             'title="Optional exact domain filter applied to KPI shadow items."',

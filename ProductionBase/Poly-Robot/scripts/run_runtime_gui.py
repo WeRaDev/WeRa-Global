@@ -269,6 +269,16 @@ def _html_page() -> str:
         <input id="comparisonWindow" placeholder="10" value="10" title="Number of most recent completed cycles included in run-to-run comparison." />
         <p class="field-hint">Increase window for trend detection; reduce window to focus on immediate regressions.</p>
       </div>
+      <div class="field-group">
+        <label class="field-label" for="refreshIntervalSeconds">Auto Refresh Interval (seconds)</label>
+        <input id="refreshIntervalSeconds" placeholder="3" value="3" title="Number of seconds between automatic dashboard refreshes." />
+        <p class="field-hint">Set lower for live incident response and higher for lower-noise retrospective analysis.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="autoRefreshEnabled">Auto Refresh Enabled</label>
+        <input id="autoRefreshEnabled" type="checkbox" checked title="Toggle continuous dashboard refresh without changing filter scope." />
+        <p class="field-hint">Disable to freeze dashboard state while reviewing a fixed payload snapshot.</p>
+      </div>
     </div>
     <div class="button-grid">
       <div class="button-group">
@@ -287,8 +297,17 @@ def _html_page() -> str:
         <button onclick="loadOlderIncidents()" title="Navigate incident feed toward older entries when more pages are available.">Older Incidents</button>
         <p class="field-hint">Moves one page deeper into incident history for forensic timeline reconstruction.</p>
       </div>
+      <div class="button-group">
+        <button onclick="applyRefreshSettings()" title="Apply auto-refresh interval and enabled/disabled mode for periodic dashboard polling.">Apply Refresh Settings</button>
+        <p class="field-hint">Use to tune dashboard polling cadence or temporarily pause periodic refresh traffic.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="manualRefresh()" title="Fetch dashboard payload immediately regardless of current auto-refresh mode.">Refresh Now</button>
+        <p class="field-hint">Use after issuing control actions to confirm state transitions without waiting for timer cadence.</p>
+      </div>
     </div>
     <div id="filterResult"></div>
+    <div id="refreshStatus"></div>
   </div>
   <div class="card">
     <h2>KPI Shadow Mode</h2>
@@ -381,7 +400,15 @@ def _html_page() -> str:
       kpi_domain: '',
       kpi_status: ''
     };
+    const defaultRefreshSettings = {
+      interval_seconds: 3,
+      enabled: true
+    };
     let dashboardQuery = { ...defaultDashboardQuery };
+    let refreshSettings = { ...defaultRefreshSettings };
+    let autoRefreshTimerId = null;
+    let lastRefreshSuccessAt = null;
+    let lastRefreshError = null;
     let incidentCursorHistory = [];
     let lastDashboardPayload = null;
     function operatorTokenHeaders() {
@@ -424,6 +451,49 @@ def _html_page() -> str:
       document.getElementById('kpiWindow').value = String(dashboardQuery.kpi_window);
       document.getElementById('kpiDomainFilter').value = dashboardQuery.kpi_domain;
       document.getElementById('kpiStatusFilter').value = dashboardQuery.kpi_status;
+    }
+
+    function syncRefreshInputsFromState() {
+      document.getElementById('refreshIntervalSeconds').value = String(refreshSettings.interval_seconds);
+      document.getElementById('autoRefreshEnabled').checked = Boolean(refreshSettings.enabled);
+    }
+
+    function updateRefreshStatus(message) {
+      const mode = refreshSettings.enabled ? 'enabled' : 'disabled';
+      const lastSuccessLabel = lastRefreshSuccessAt || '-';
+      const lastErrorLabel = lastRefreshError || '-';
+      const statusPrefix = message ? message + ' | ' : '';
+      document.getElementById('refreshStatus').textContent =
+        statusPrefix +
+        'auto_refresh=' + mode +
+        ' | interval_seconds=' + refreshSettings.interval_seconds +
+        ' | last_success=' + lastSuccessLabel +
+        ' | last_error=' + lastErrorLabel;
+    }
+
+    function scheduleAutoRefresh() {
+      if (autoRefreshTimerId !== null) {
+        clearInterval(autoRefreshTimerId);
+        autoRefreshTimerId = null;
+      }
+      if (!refreshSettings.enabled) {
+        updateRefreshStatus('Auto refresh paused');
+        return;
+      }
+      autoRefreshTimerId = setInterval(() => {
+        void fetchDashboard();
+      }, refreshSettings.interval_seconds * 1000);
+      updateRefreshStatus('Auto refresh scheduled');
+    }
+
+    function applyRefreshSettings() {
+      refreshSettings.interval_seconds = readPositiveInteger(
+        'refreshIntervalSeconds',
+        defaultRefreshSettings.interval_seconds
+      );
+      refreshSettings.enabled = Boolean(document.getElementById('autoRefreshEnabled').checked);
+      syncRefreshInputsFromState();
+      scheduleAutoRefresh();
     }
 
     function applyQueryInputValues(resetIncidentCursor) {
@@ -490,10 +560,15 @@ def _html_page() -> str:
         const errorText = await response.text();
         document.getElementById('summary').textContent =
           'Dashboard request failed: ' + response.status + (errorText ? ' ' + errorText : '');
+        lastRefreshError =
+          'status=' + response.status + (errorText ? ' ' + errorText : '');
+        updateRefreshStatus('Refresh failed');
         return;
       }
       const payload = await response.json();
       lastDashboardPayload = payload;
+      lastRefreshSuccessAt = payload.generated_at || new Date().toISOString();
+      lastRefreshError = null;
       const state = payload.supervisor_state || {};
       const financial = payload.financial_metrics || {};
       const status = state.status || 'UNKNOWN';
@@ -556,6 +631,7 @@ def _html_page() -> str:
       const totalIncidents = incidentPaging.total_incidents ?? 0;
       document.getElementById('filterResult').textContent =
         'Incident cursor=' + cursorLabel + ' | older_cursor=' + olderCursor + ' | total=' + totalIncidents;
+      updateRefreshStatus('Refresh succeeded');
     }
 
     function controlPayload() {
@@ -578,6 +654,9 @@ def _html_page() -> str:
       });
       const text = await response.text();
       document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
+      await fetchDashboard();
+    }
+    async function manualRefresh() {
       await fetchDashboard();
     }
     async function applyFilters() {
@@ -631,8 +710,9 @@ def _html_page() -> str:
       await fetchDashboard();
     }
 
+    syncRefreshInputsFromState();
     resetFilters();
-    setInterval(fetchDashboard, 3000);
+    scheduleAutoRefresh();
   </script>
 </body>
 </html>
