@@ -1,7 +1,7 @@
 {
   "config_name": "poly_robot_live_trade_rollout_controls",
   "config_version": "1.0.0",
-  "updated_at": "2026-04-27T10:40:00Z",
+  "updated_at": "2026-04-28T19:10:00Z",
   "default_execution_mode": "paper",
   "global_guards": {
     "require_server_side_request_signing": true,
@@ -83,6 +83,19 @@
         "GTD",
         "FOK"
       ],
+      "financial_preconditions": {
+        "rolling_window_cycles": 12,
+        "rolling_realized_pnl_floor": 0.0,
+        "edge_realization_ratio_floor": 0.55,
+        "max_ingestion_degraded_cycle_ratio": 0.25
+      },
+      "micro_notional_canary_evidence": {
+        "minimum_sample_size": 20,
+        "max_order_notional_usd": 50,
+        "max_execution_cost_degradation_ratio": 1.25,
+        "max_slippage_bps_delta": 5.0,
+        "max_edge_capture_ratio_delta": 0.15
+      },
       "preconditions": [
         "Canary live stage completed for at least 7 consecutive days without rollback",
         "Canary telemetry maintained confirmed-exit ratio >= 0.50 and stale-position ratio <= 0.35 throughout promotion window",
@@ -103,6 +116,12 @@
         "FOK",
         "FAK"
       ],
+      "financial_preconditions": {
+        "rolling_window_cycles": 20,
+        "rolling_realized_pnl_floor": 0.0,
+        "edge_realization_ratio_floor": 0.6,
+        "max_ingestion_degraded_cycle_ratio": 0.15
+      },
       "preconditions": [
         "Limited live stage completed for at least 14 consecutive days without rollback",
         "Security hardening checklist closed (RBAC, secret rotation, network controls)",

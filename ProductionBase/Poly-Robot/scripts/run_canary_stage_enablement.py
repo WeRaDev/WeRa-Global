@@ -28,7 +28,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Build audited canary stage enablement ALLOW/DENY decision from canary "
-            "readiness certification, approval record, and rollout-stage controls."
+            "readiness certification, approval record, and rollout-stage controls, "
+            "including financial and micro-notional promotion gates."
         )
     )
     parser.add_argument(

@@ -32,6 +32,19 @@ def _as_list(value: Any) -> list[Any]:
 def _normalize_decision(value: Any) -> str:
     return str(value).strip().lower()
 
+def _to_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_float_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 
 def _criterion(
     *,
@@ -128,11 +141,123 @@ def build_canary_stage_enablement_decision(
         rollout_config,
         requested_stage=requested_stage,
     )
+    stage_payload_dict = _as_dict(stage_payload)
     stage_exists = stage_payload is not None
-    stage_enabled = bool(_as_dict(stage_payload).get("enabled", False))
+    stage_enabled = bool(stage_payload_dict.get("enabled", False))
     stage_real_order_submission = bool(
-        _as_dict(stage_payload).get("real_order_submission", False)
+        stage_payload_dict.get("real_order_submission", False)
     )
+    stage_financial_preconditions = _as_dict(
+        stage_payload_dict.get("financial_preconditions")
+    )
+    stage_micro_notional_requirements = _as_dict(
+        stage_payload_dict.get("micro_notional_canary_evidence")
+    )
+
+    promotion_evidence = _as_dict(approval_record.get("promotion_evidence"))
+    financial_kpis = _as_dict(promotion_evidence.get("financial_kpis"))
+    micro_notional_canary_evidence = _as_dict(
+        promotion_evidence.get("micro_notional_canary")
+    )
+
+    required_rolling_window_cycles = max(
+        0,
+        _to_int(stage_financial_preconditions.get("rolling_window_cycles"), default=0),
+    )
+    required_rolling_realized_pnl_floor = _to_float_or_none(
+        stage_financial_preconditions.get("rolling_realized_pnl_floor")
+    )
+    required_edge_realization_ratio_floor = _to_float_or_none(
+        stage_financial_preconditions.get("edge_realization_ratio_floor")
+    )
+    required_max_ingestion_degraded_cycle_ratio = _to_float_or_none(
+        stage_financial_preconditions.get("max_ingestion_degraded_cycle_ratio")
+    )
+
+    observed_rolling_window_cycles = max(
+        0,
+        _to_int(financial_kpis.get("rolling_window_cycles"), default=0),
+    )
+    observed_rolling_realized_pnl = _to_float_or_none(
+        financial_kpis.get("rolling_realized_pnl")
+    )
+    observed_edge_realization_ratio = _to_float_or_none(
+        financial_kpis.get("edge_realization_ratio")
+    )
+    observed_ingestion_degraded_cycle_ratio = _to_float_or_none(
+        financial_kpis.get("ingestion_degraded_cycle_ratio")
+    )
+
+    required_micro_sample_size = max(
+        0,
+        _to_int(stage_micro_notional_requirements.get("minimum_sample_size"), default=0),
+    )
+    required_micro_max_order_notional_usd = _to_float_or_none(
+        stage_micro_notional_requirements.get("max_order_notional_usd")
+    )
+    required_micro_max_execution_cost_degradation_ratio = _to_float_or_none(
+        stage_micro_notional_requirements.get(
+            "max_execution_cost_degradation_ratio"
+        )
+    )
+    required_micro_max_slippage_bps_delta = _to_float_or_none(
+        stage_micro_notional_requirements.get("max_slippage_bps_delta")
+    )
+    required_micro_max_edge_capture_ratio_delta = _to_float_or_none(
+        stage_micro_notional_requirements.get("max_edge_capture_ratio_delta")
+    )
+
+    observed_micro_sample_size = max(
+        0,
+        _to_int(micro_notional_canary_evidence.get("sample_size"), default=0),
+    )
+    observed_micro_max_order_notional_usd = _to_float_or_none(
+        micro_notional_canary_evidence.get("max_order_notional_usd")
+    )
+    observed_modeled_execution_cost_per_fill = _to_float_or_none(
+        micro_notional_canary_evidence.get("modeled_execution_cost_per_fill")
+    )
+    observed_realized_execution_cost_per_fill = _to_float_or_none(
+        micro_notional_canary_evidence.get("realized_execution_cost_per_fill")
+    )
+    observed_modeled_slippage_bps = _to_float_or_none(
+        micro_notional_canary_evidence.get("modeled_slippage_bps")
+    )
+    observed_realized_slippage_bps = _to_float_or_none(
+        micro_notional_canary_evidence.get("realized_slippage_bps")
+    )
+    observed_modeled_edge_capture_ratio = _to_float_or_none(
+        micro_notional_canary_evidence.get("modeled_edge_capture_ratio")
+    )
+    observed_realized_edge_capture_ratio = _to_float_or_none(
+        micro_notional_canary_evidence.get("realized_edge_capture_ratio")
+    )
+    observed_micro_execution_cost_degradation_ratio: float | None = None
+    if (
+        observed_modeled_execution_cost_per_fill is not None
+        and observed_modeled_execution_cost_per_fill > 0.0
+        and observed_realized_execution_cost_per_fill is not None
+    ):
+        observed_micro_execution_cost_degradation_ratio = (
+            observed_realized_execution_cost_per_fill
+            / observed_modeled_execution_cost_per_fill
+        )
+    observed_micro_slippage_bps_delta: float | None = None
+    if (
+        observed_modeled_slippage_bps is not None
+        and observed_realized_slippage_bps is not None
+    ):
+        observed_micro_slippage_bps_delta = (
+            observed_realized_slippage_bps - observed_modeled_slippage_bps
+        )
+    observed_micro_edge_capture_ratio_delta: float | None = None
+    if (
+        observed_modeled_edge_capture_ratio is not None
+        and observed_realized_edge_capture_ratio is not None
+    ):
+        observed_micro_edge_capture_ratio_delta = (
+            observed_modeled_edge_capture_ratio - observed_realized_edge_capture_ratio
+        )
 
     criteria = [
         _criterion(
@@ -238,6 +363,345 @@ def build_canary_stage_enablement_decision(
             expected={"enabled": False},
         ),
     ]
+    if stage_financial_preconditions:
+        criteria.extend(
+            [
+                _criterion(
+                    criterion_id="rolling_window_cycles_sufficient",
+                    description=(
+                        "Financial KPI evidence window must include at least the "
+                        "required rolling cycle count."
+                    ),
+                    passed=(
+                        required_rolling_window_cycles <= 0
+                        or observed_rolling_window_cycles >= required_rolling_window_cycles
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_rolling_window_cycles <= 0
+                            or observed_rolling_window_cycles
+                            >= required_rolling_window_cycles
+                        )
+                        else (
+                            "financial_window_cycles_missing"
+                            if observed_rolling_window_cycles <= 0
+                            else "rolling_window_cycles_below_requirement"
+                        )
+                    ),
+                    observed={"rolling_window_cycles": observed_rolling_window_cycles},
+                    expected={">=": required_rolling_window_cycles},
+                ),
+                _criterion(
+                    criterion_id="rolling_realized_pnl_floor_met",
+                    description=(
+                        "Rolling realized PnL must meet or exceed configured floor."
+                    ),
+                    passed=(
+                        required_rolling_realized_pnl_floor is None
+                        or (
+                            observed_rolling_realized_pnl is not None
+                            and observed_rolling_realized_pnl
+                            >= required_rolling_realized_pnl_floor
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_rolling_realized_pnl_floor is None
+                            or (
+                                observed_rolling_realized_pnl is not None
+                                and observed_rolling_realized_pnl
+                                >= required_rolling_realized_pnl_floor
+                            )
+                        )
+                        else (
+                            "rolling_realized_pnl_missing"
+                            if observed_rolling_realized_pnl is None
+                            else "rolling_realized_pnl_below_floor"
+                        )
+                    ),
+                    observed={"rolling_realized_pnl": observed_rolling_realized_pnl},
+                    expected={
+                        "rolling_realized_pnl_floor": required_rolling_realized_pnl_floor
+                    },
+                ),
+                _criterion(
+                    criterion_id="edge_realization_ratio_floor_met",
+                    description=(
+                        "Edge-realization ratio must meet or exceed configured floor."
+                    ),
+                    passed=(
+                        required_edge_realization_ratio_floor is None
+                        or (
+                            observed_edge_realization_ratio is not None
+                            and observed_edge_realization_ratio
+                            >= required_edge_realization_ratio_floor
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_edge_realization_ratio_floor is None
+                            or (
+                                observed_edge_realization_ratio is not None
+                                and observed_edge_realization_ratio
+                                >= required_edge_realization_ratio_floor
+                            )
+                        )
+                        else (
+                            "edge_realization_ratio_missing"
+                            if observed_edge_realization_ratio is None
+                            else "edge_realization_ratio_below_floor"
+                        )
+                    ),
+                    observed={"edge_realization_ratio": observed_edge_realization_ratio},
+                    expected={
+                        "edge_realization_ratio_floor": (
+                            required_edge_realization_ratio_floor
+                        )
+                    },
+                ),
+                _criterion(
+                    criterion_id="ingestion_quality_ceiling_met",
+                    description=(
+                        "Ingestion degraded-cycle ratio must stay at or below "
+                        "configured ceiling."
+                    ),
+                    passed=(
+                        required_max_ingestion_degraded_cycle_ratio is None
+                        or (
+                            observed_ingestion_degraded_cycle_ratio is not None
+                            and observed_ingestion_degraded_cycle_ratio
+                            <= required_max_ingestion_degraded_cycle_ratio
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_max_ingestion_degraded_cycle_ratio is None
+                            or (
+                                observed_ingestion_degraded_cycle_ratio is not None
+                                and observed_ingestion_degraded_cycle_ratio
+                                <= required_max_ingestion_degraded_cycle_ratio
+                            )
+                        )
+                        else (
+                            "ingestion_degraded_ratio_missing"
+                            if observed_ingestion_degraded_cycle_ratio is None
+                            else "ingestion_degraded_ratio_above_ceiling"
+                        )
+                    ),
+                    observed={
+                        "ingestion_degraded_cycle_ratio": (
+                            observed_ingestion_degraded_cycle_ratio
+                        )
+                    },
+                    expected={
+                        "max_ingestion_degraded_cycle_ratio": (
+                            required_max_ingestion_degraded_cycle_ratio
+                        )
+                    },
+                ),
+            ]
+        )
+    if stage_micro_notional_requirements:
+        criteria.extend(
+            [
+                _criterion(
+                    criterion_id="micro_notional_sample_size_sufficient",
+                    description=(
+                        "Micro-notional canary evidence must include required minimum "
+                        "sample size."
+                    ),
+                    passed=(
+                        required_micro_sample_size <= 0
+                        or observed_micro_sample_size >= required_micro_sample_size
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_micro_sample_size <= 0
+                            or observed_micro_sample_size >= required_micro_sample_size
+                        )
+                        else (
+                            "micro_notional_sample_size_missing"
+                            if observed_micro_sample_size <= 0
+                            else "micro_notional_sample_size_below_requirement"
+                        )
+                    ),
+                    observed={"sample_size": observed_micro_sample_size},
+                    expected={">=": required_micro_sample_size},
+                ),
+                _criterion(
+                    criterion_id="micro_notional_notional_cap_respected",
+                    description=(
+                        "Micro-notional canary evidence must stay within configured "
+                        "maximum order notional."
+                    ),
+                    passed=(
+                        required_micro_max_order_notional_usd is None
+                        or (
+                            observed_micro_max_order_notional_usd is not None
+                            and observed_micro_max_order_notional_usd
+                            <= required_micro_max_order_notional_usd
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_micro_max_order_notional_usd is None
+                            or (
+                                observed_micro_max_order_notional_usd is not None
+                                and observed_micro_max_order_notional_usd
+                                <= required_micro_max_order_notional_usd
+                            )
+                        )
+                        else (
+                            "micro_notional_max_order_notional_missing"
+                            if observed_micro_max_order_notional_usd is None
+                            else "micro_notional_order_notional_above_cap"
+                        )
+                    ),
+                    observed={"max_order_notional_usd": observed_micro_max_order_notional_usd},
+                    expected={"max_order_notional_usd": required_micro_max_order_notional_usd},
+                ),
+                _criterion(
+                    criterion_id="micro_notional_execution_cost_alignment_met",
+                    description=(
+                        "Realized execution cost degradation versus modeled execution "
+                        "cost must stay within configured tolerance."
+                    ),
+                    passed=(
+                        required_micro_max_execution_cost_degradation_ratio is None
+                        or (
+                            observed_micro_execution_cost_degradation_ratio is not None
+                            and observed_micro_execution_cost_degradation_ratio
+                            <= required_micro_max_execution_cost_degradation_ratio
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_micro_max_execution_cost_degradation_ratio is None
+                            or (
+                                observed_micro_execution_cost_degradation_ratio
+                                is not None
+                                and observed_micro_execution_cost_degradation_ratio
+                                <= required_micro_max_execution_cost_degradation_ratio
+                            )
+                        )
+                        else (
+                            "micro_notional_execution_cost_evidence_missing"
+                            if observed_micro_execution_cost_degradation_ratio is None
+                            else "micro_notional_execution_cost_degradation_exceeded"
+                        )
+                    ),
+                    observed={
+                        "modeled_execution_cost_per_fill": (
+                            observed_modeled_execution_cost_per_fill
+                        ),
+                        "realized_execution_cost_per_fill": (
+                            observed_realized_execution_cost_per_fill
+                        ),
+                        "execution_cost_degradation_ratio": (
+                            observed_micro_execution_cost_degradation_ratio
+                        ),
+                    },
+                    expected={
+                        "max_execution_cost_degradation_ratio": (
+                            required_micro_max_execution_cost_degradation_ratio
+                        )
+                    },
+                ),
+                _criterion(
+                    criterion_id="micro_notional_slippage_alignment_met",
+                    description=(
+                        "Realized slippage delta versus modeled slippage must remain "
+                        "within configured tolerance (bps)."
+                    ),
+                    passed=(
+                        required_micro_max_slippage_bps_delta is None
+                        or (
+                            observed_micro_slippage_bps_delta is not None
+                            and observed_micro_slippage_bps_delta
+                            <= required_micro_max_slippage_bps_delta
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_micro_max_slippage_bps_delta is None
+                            or (
+                                observed_micro_slippage_bps_delta is not None
+                                and observed_micro_slippage_bps_delta
+                                <= required_micro_max_slippage_bps_delta
+                            )
+                        )
+                        else (
+                            "micro_notional_slippage_evidence_missing"
+                            if observed_micro_slippage_bps_delta is None
+                            else "micro_notional_slippage_delta_exceeded"
+                        )
+                    ),
+                    observed={
+                        "modeled_slippage_bps": observed_modeled_slippage_bps,
+                        "realized_slippage_bps": observed_realized_slippage_bps,
+                        "slippage_bps_delta": observed_micro_slippage_bps_delta,
+                    },
+                    expected={
+                        "max_slippage_bps_delta": required_micro_max_slippage_bps_delta
+                    },
+                ),
+                _criterion(
+                    criterion_id="micro_notional_edge_capture_alignment_met",
+                    description=(
+                        "Realized edge-capture ratio degradation versus modeled edge "
+                        "capture must stay within configured tolerance."
+                    ),
+                    passed=(
+                        required_micro_max_edge_capture_ratio_delta is None
+                        or (
+                            observed_micro_edge_capture_ratio_delta is not None
+                            and observed_micro_edge_capture_ratio_delta
+                            <= required_micro_max_edge_capture_ratio_delta
+                        )
+                    ),
+                    reason_code=(
+                        "ok"
+                        if (
+                            required_micro_max_edge_capture_ratio_delta is None
+                            or (
+                                observed_micro_edge_capture_ratio_delta is not None
+                                and observed_micro_edge_capture_ratio_delta
+                                <= required_micro_max_edge_capture_ratio_delta
+                            )
+                        )
+                        else (
+                            "micro_notional_edge_capture_evidence_missing"
+                            if observed_micro_edge_capture_ratio_delta is None
+                            else "micro_notional_edge_capture_delta_exceeded"
+                        )
+                    ),
+                    observed={
+                        "modeled_edge_capture_ratio": (
+                            observed_modeled_edge_capture_ratio
+                        ),
+                        "realized_edge_capture_ratio": (
+                            observed_realized_edge_capture_ratio
+                        ),
+                        "edge_capture_ratio_delta": (
+                            observed_micro_edge_capture_ratio_delta
+                        ),
+                    },
+                    expected={
+                        "max_edge_capture_ratio_delta": (
+                            required_micro_max_edge_capture_ratio_delta
+                        )
+                    },
+                ),
+            ]
+        )
 
     failed_reason_codes = [
         str(criterion.get("reason_code", "unknown"))
@@ -284,9 +748,22 @@ def build_canary_stage_enablement_decision(
             "stage_exists": stage_exists,
             "enabled": stage_enabled,
             "real_order_submission": stage_real_order_submission,
-            "max_order_notional_usd": _as_dict(stage_payload).get("max_order_notional_usd"),
-            "max_daily_notional_usd": _as_dict(stage_payload).get("max_daily_notional_usd"),
-            "max_open_orders": _as_dict(stage_payload).get("max_open_orders"),
+            "max_order_notional_usd": stage_payload_dict.get("max_order_notional_usd"),
+            "max_daily_notional_usd": stage_payload_dict.get("max_daily_notional_usd"),
+            "max_open_orders": stage_payload_dict.get("max_open_orders"),
+            "financial_preconditions": stage_financial_preconditions,
+            "micro_notional_canary_evidence": stage_micro_notional_requirements,
+        },
+        "promotion_evidence": {
+            "financial_kpis": financial_kpis,
+            "micro_notional_canary": micro_notional_canary_evidence,
+            "derived": {
+                "execution_cost_degradation_ratio": (
+                    observed_micro_execution_cost_degradation_ratio
+                ),
+                "slippage_bps_delta": observed_micro_slippage_bps_delta,
+                "edge_capture_ratio_delta": observed_micro_edge_capture_ratio_delta,
+            },
         },
         "rollback_handoff": {
             "rollback_authority": rollback_authority,

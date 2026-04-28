@@ -372,6 +372,7 @@ python3 scripts/run_canary_stage_enablement.py \
 F2 enablement artifact usage:
 - `runtime/canary_stage_enablement_decision.json` emits criterion-level `ALLOW`/`DENY` with explicit `failed_reason_codes` for certification, approval, and rollout-stage gate checks.
 - Enablement is denied whenever certification is not `PASS`, certification blockers are present, or required approvers are missing/not approved.
+- For stages that increase live limits (`limited_live`, `full_live`), enablement additionally requires `promotion_evidence` in the approval record with financial KPI floors/ceilings and micro-notional modeled-vs-realized execution evidence.
 - `runtime/canary_stage_enablement_audit.jsonl` is append-only and records actor, reason, decision status, and evidence hashes per evaluation.
 - `config/integration/canary_approval_record_template.v1.json` is the canonical approval-record format for required approvers (`release_manager`, `runtime_operator_on_call`) and rollback authority mapping.
 

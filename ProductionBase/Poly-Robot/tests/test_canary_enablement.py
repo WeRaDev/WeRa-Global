@@ -42,17 +42,57 @@ def _certification_report_stub(
     }
 
 
+def _promotion_evidence_stub(
+    *,
+    rolling_window_cycles: int = 12,
+    rolling_realized_pnl: float | None = 0.42,
+    edge_realization_ratio: float | None = 0.71,
+    ingestion_degraded_cycle_ratio: float | None = 0.08,
+    sample_size: int = 24,
+    max_order_notional_usd: float | None = 48.0,
+    modeled_execution_cost_per_fill: float | None = 0.19,
+    realized_execution_cost_per_fill: float | None = 0.21,
+    modeled_slippage_bps: float | None = 9.0,
+    realized_slippage_bps: float | None = 11.5,
+    modeled_edge_capture_ratio: float | None = 0.74,
+    realized_edge_capture_ratio: float | None = 0.67,
+) -> dict:
+    return {
+        "financial_kpis": {
+            "rolling_window_cycles": rolling_window_cycles,
+            "rolling_realized_pnl": rolling_realized_pnl,
+            "edge_realization_ratio": edge_realization_ratio,
+            "ingestion_degraded_cycle_ratio": ingestion_degraded_cycle_ratio,
+        },
+        "micro_notional_canary": {
+            "sample_size": sample_size,
+            "max_order_notional_usd": max_order_notional_usd,
+            "modeled_execution_cost_per_fill": modeled_execution_cost_per_fill,
+            "realized_execution_cost_per_fill": realized_execution_cost_per_fill,
+            "modeled_slippage_bps": modeled_slippage_bps,
+            "realized_slippage_bps": realized_slippage_bps,
+            "modeled_edge_capture_ratio": modeled_edge_capture_ratio,
+            "realized_edge_capture_ratio": realized_edge_capture_ratio,
+        },
+    }
+
+
 def _approval_record_stub(
     *,
     approvals: list[dict],
+    requested_stage: str = "canary_live",
+    promotion_evidence: dict | None = None,
 ) -> dict:
     return {
         "schema_version": "canary_approval_record.v1",
         "record_id": "approval-record-001",
         "requested_by": "release_manager",
-        "requested_stage": "canary_live",
+        "requested_stage": requested_stage,
         "required_approvers": ["release_manager", "runtime_operator_on_call"],
         "approvals": approvals,
+        "promotion_evidence": (
+            promotion_evidence if isinstance(promotion_evidence, dict) else {}
+        ),
     }
 
 
@@ -71,6 +111,27 @@ def _rollout_config_stub() -> dict:
                 "max_order_notional_usd": 50,
                 "max_daily_notional_usd": 500,
                 "max_open_orders": 3,
+            },
+            {
+                "stage": "limited_live",
+                "enabled": False,
+                "real_order_submission": True,
+                "max_order_notional_usd": 200,
+                "max_daily_notional_usd": 2000,
+                "max_open_orders": 8,
+                "financial_preconditions": {
+                    "rolling_window_cycles": 12,
+                    "rolling_realized_pnl_floor": 0.0,
+                    "edge_realization_ratio_floor": 0.55,
+                    "max_ingestion_degraded_cycle_ratio": 0.25,
+                },
+                "micro_notional_canary_evidence": {
+                    "minimum_sample_size": 20,
+                    "max_order_notional_usd": 50,
+                    "max_execution_cost_degradation_ratio": 1.25,
+                    "max_slippage_bps_delta": 5.0,
+                    "max_edge_capture_ratio_delta": 0.15,
+                },
             },
         ],
         "emergency_actions": [
@@ -164,6 +225,76 @@ class CanaryEnablementTests(unittest.TestCase):
         self.assertTrue(decision["evidence"]["certification_hash"])
         self.assertTrue(decision["evidence"]["approval_record_hash"])
         self.assertTrue(decision["evidence"]["decision_hash"])
+
+    def test_limited_live_denied_when_financial_floor_is_breached(self) -> None:
+        decision = build_canary_stage_enablement_decision(
+            certification_report=_certification_report_stub(),
+            approval_record=_approval_record_stub(
+                approvals=[
+                    {"actor": "release_manager", "decision": "approved"},
+                    {"actor": "runtime_operator_on_call", "decision": "approved"},
+                ],
+                requested_stage="limited_live",
+                promotion_evidence=_promotion_evidence_stub(
+                    rolling_realized_pnl=-0.11,
+                ),
+            ),
+            rollout_config=_rollout_config_stub(),
+            requested_stage="limited_live",
+        )
+
+        self.assertEqual(decision["decision_status"], "DENY")
+        self.assertIn(
+            "rolling_realized_pnl_below_floor",
+            decision["failed_reason_codes"],
+        )
+
+    def test_limited_live_denied_when_micro_notional_slippage_degrades(self) -> None:
+        decision = build_canary_stage_enablement_decision(
+            certification_report=_certification_report_stub(),
+            approval_record=_approval_record_stub(
+                approvals=[
+                    {"actor": "release_manager", "decision": "approved"},
+                    {"actor": "runtime_operator_on_call", "decision": "approved"},
+                ],
+                requested_stage="limited_live",
+                promotion_evidence=_promotion_evidence_stub(
+                    modeled_slippage_bps=8.0,
+                    realized_slippage_bps=16.5,
+                ),
+            ),
+            rollout_config=_rollout_config_stub(),
+            requested_stage="limited_live",
+        )
+
+        self.assertEqual(decision["decision_status"], "DENY")
+        self.assertIn(
+            "micro_notional_slippage_delta_exceeded",
+            decision["failed_reason_codes"],
+        )
+
+    def test_limited_live_allowed_when_financial_and_micro_notional_checks_pass(self) -> None:
+        decision = build_canary_stage_enablement_decision(
+            certification_report=_certification_report_stub(),
+            approval_record=_approval_record_stub(
+                approvals=[
+                    {"actor": "release_manager", "decision": "approved"},
+                    {"actor": "runtime_operator_on_call", "decision": "approved"},
+                ],
+                requested_stage="limited_live",
+                promotion_evidence=_promotion_evidence_stub(),
+            ),
+            rollout_config=_rollout_config_stub(),
+            requested_stage="limited_live",
+        )
+
+        self.assertEqual(decision["decision_status"], "ALLOW")
+        self.assertEqual(decision["failed_reason_codes"], [])
+        self.assertTrue(decision["canary_stage_enablement_allowed"])
+        self.assertEqual(
+            decision["promotion_evidence"]["derived"]["slippage_bps_delta"],
+            2.5,
+        )
 
     def test_runner_appends_audit_events_for_each_decision(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
