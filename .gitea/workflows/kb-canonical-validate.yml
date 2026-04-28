@@ -29,5 +29,11 @@ jobs:
         run: python3 --version
       - name: Run canonical KB validation checks
         run: python3 kb-governance/ci/scripts/kb_canonical_validate.py
+      - name: Verify canonical README/wiki index cutover
+        run: python3 kb-governance/ci/scripts/kb_rewrite_links_and_index.py --mode verify
+      - name: Verify legacy-to-canonical migration contract
+        run: python3 kb-governance/ci/scripts/kb_migrate_legacy_docs.py --mode verify --statuses canonicalized --migration-modes move,mirror_stub
+      - name: Generate Phase A inventory baseline report
+        run: python3 kb-governance/ci/scripts/kb_inventory_baseline.py --output-json /tmp/kb-inventory-baseline.json
       - name: Run quality-gate fixture assurance
         run: python3 kb-governance/ci/scripts/kb_quality_gate_fixtures.py

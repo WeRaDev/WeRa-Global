@@ -15,6 +15,12 @@ governance_event:
     - Publish signed qualification/pricing decision package.
     - Publish qualified/unqualified worked examples and exception routing confirmation.
     - Update canonical and compatibility open-question registers with closure evidence.
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.q31_emergency_closure_kickoff
+  proof_artifact: kb-governance/formal-proofs/q31-emergency-closure-kickoff.lean
+  verification_status: verified
 ## Metadata
 - Event ID: `2026-04-24-q31-emergency-closure-kickoff`
 - Date: `2026-04-24`

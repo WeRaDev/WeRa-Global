@@ -245,7 +245,8 @@ python3 scripts/run_runtime_supervisor.py \
    - `Auto Refresh Enabled`: pauses/resumes periodic polling without clearing filters
    - `Refresh Now`: triggers an immediate dashboard reload after control actions
 7. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
-8. If GUI is started with `--token-required-read-api`, dashboard GET endpoints (`/api/*`) also require `X-Operator-Token`.
+8. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
+9. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:

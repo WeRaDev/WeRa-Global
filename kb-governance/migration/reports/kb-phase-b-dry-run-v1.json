@@ -1,0 +1,142 @@
+{
+  "mode": "dry-run",
+  "operations": [
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/standards/00-glossary.md",
+      "legacy_path": "KnowledgeBase/00-Glossary.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-value-proposition/docs/company/01-company-overview.md",
+      "legacy_path": "KnowledgeBase/01-Company-Overview.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-value-proposition/docs/products/02-products.md",
+      "legacy_path": "KnowledgeBase/02-Products.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-key-resources/docs/architecture/04-system-architecture.md",
+      "legacy_path": "KnowledgeBase/04-System-Architecture.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/tokenomics/05-tokenomics-and-governance.md",
+      "legacy_path": "KnowledgeBase/05-Tokenomics-and-Governance.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/legal/06-legal-structure.md",
+      "legacy_path": "KnowledgeBase/06-Legal-Structure.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-solution/docs/strategy/09-strategy-and-investment.md",
+      "legacy_path": "KnowledgeBase/09-Strategy-and-Investment.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-problem/docs/market/10-market-context.md",
+      "legacy_path": "KnowledgeBase/10-Market-Context.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/references/11-academic-references.md",
+      "legacy_path": "KnowledgeBase/11-Academic-References.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/audit/14-kb-audit-v1.1.md",
+      "legacy_path": "KnowledgeBase/14-KB-Audit-v1.1.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-key-resources/docs/suppliers/15-sunified-quantum-resistance.md",
+      "legacy_path": "KnowledgeBase/15-Sunified-Quantum-Resistance.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-key-activities/docs/platform/16-filantropiasolar-platform.md",
+      "legacy_path": "KnowledgeBase/16-FilantropiaSolar-Platform.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-key-activities/docs/execution/17-execution-readiness-and-next-30-days.md",
+      "legacy_path": "KnowledgeBase/17-Execution-Readiness-and-Next-30-Days.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md",
+      "legacy_path": "KnowledgeBase/31-KB-Upgrade-Status-and-Next-Steps-2026-04-15.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md",
+      "legacy_path": "KnowledgeBase/32-KB-Upgrade-Completion-and-Deferral-Policy-2026-04-15.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md",
+      "legacy_path": "KnowledgeBase/33-KB-AI-Native-Bridge-v3.2-2026-04-24.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/reviews/kb-mempalace-upgrade.md",
+      "legacy_path": "KnowledgeBase/KB-memPalace-upgrade.md",
+      "migration_mode": "move",
+      "source_exists": "yes",
+      "status": "planned",
+      "target_exists": "no"
+    }
+  ],
+  "selected_entry_count": 17
+}

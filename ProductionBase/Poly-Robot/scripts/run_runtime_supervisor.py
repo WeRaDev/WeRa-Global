@@ -245,6 +245,10 @@ def _run_live_credential_preflight(
     return preflight_summary
 
 
+def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
+    return max(1, math.ceil(secret_max_age_seconds / 86_400))
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(

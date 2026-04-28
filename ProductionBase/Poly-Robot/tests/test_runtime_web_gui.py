@@ -574,6 +574,30 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 server.server_close()
                 server_thread.join(timeout=5)
 
+    def test_runtime_gui_loopback_host_detection(self) -> None:
+        gui_module = _load_runtime_gui_script_module()
+        self.assertTrue(gui_module._is_loopback_host("127.0.0.1"))
+        self.assertTrue(gui_module._is_loopback_host("::1"))
+        self.assertTrue(gui_module._is_loopback_host("localhost"))
+        self.assertFalse(gui_module._is_loopback_host("0.0.0.0"))
+        self.assertFalse(gui_module._is_loopback_host("192.168.1.10"))
+        self.assertFalse(gui_module._is_loopback_host("runtime-gui.internal"))
+
+    def test_main_rejects_non_loopback_bind_without_operator_token(self) -> None:
+        gui_module = _load_runtime_gui_script_module()
+        with self.assertRaises(ValueError) as exc_info:
+            gui_module.main(
+                [
+                    "--host",
+                    "0.0.0.0",
+                    "--recent-events-limit",
+                    "10",
+                    "--recent-audit-limit",
+                    "10",
+                ]
+            )
+        self.assertIn("non-loopback host", str(exc_info.exception))
+
     def test_runtime_gui_rejects_dashboard_limits_above_max(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

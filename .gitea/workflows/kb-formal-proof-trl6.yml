@@ -1,0 +1,32 @@
+name: kb-formal-proof-trl6
+
+on:
+  pull_request:
+    paths:
+      - "KnowledgeBase/**/*.md"
+      - "kb-governance/ci/scripts/*.py"
+      - "kb-governance/formal-proofs/**/*.lean"
+      - ".gitea/workflows/kb-formal-proof-trl6.yml"
+  push:
+    branches:
+      - "main"
+      - "feat/**"
+    paths:
+      - "KnowledgeBase/**/*.md"
+      - "kb-governance/ci/scripts/*.py"
+      - "kb-governance/formal-proofs/**/*.lean"
+      - ".gitea/workflows/kb-formal-proof-trl6.yml"
+
+jobs:
+  formal-proof-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          github-server-url: http://host.docker.internal:3000
+          fetch-depth: 0
+      - name: Verify pre-installed Python
+        run: python3 --version
+      - name: Run TRL6 formal proof gate (ml-hilbert contract)
+        run: python3 kb-governance/ci/scripts/kb_formal_proof_gate.py

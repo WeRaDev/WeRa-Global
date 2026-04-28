@@ -1,0 +1,54 @@
+{
+  "mode": "dry-run",
+  "operations": [
+    {
+      "canonical_path": "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md",
+      "legacy_path": "KnowledgeBase/03-Business-Model.md",
+      "migration_mode": "mirror_stub",
+      "source_exists": "yes",
+      "status": "canonicalized",
+      "target_exists": "yes"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-customers/docs/gtm/07-customers-and-gtm.md",
+      "legacy_path": "KnowledgeBase/07-Customers-and-GTM.md",
+      "migration_mode": "mirror_stub",
+      "source_exists": "yes",
+      "status": "canonicalized",
+      "target_exists": "yes"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-key-partners/docs/partnerships/08-partnerships.md",
+      "legacy_path": "KnowledgeBase/08-Partnerships.md",
+      "migration_mode": "mirror_stub",
+      "source_exists": "yes",
+      "status": "canonicalized",
+      "target_exists": "yes"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/open-questions/12-open-questions.md",
+      "legacy_path": "KnowledgeBase/12-Open-Questions.md",
+      "migration_mode": "mirror_stub",
+      "source_exists": "yes",
+      "status": "canonicalized",
+      "target_exists": "yes"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-metrics/docs/financial/13-financial-model.md",
+      "legacy_path": "KnowledgeBase/13-Financial-Model.md",
+      "migration_mode": "mirror_stub",
+      "source_exists": "yes",
+      "status": "canonicalized",
+      "target_exists": "yes"
+    },
+    {
+      "canonical_path": "KnowledgeBase/kb-governance/docs/reviews/18-mempalace-critical-review-action-plan.md",
+      "legacy_path": "KnowledgeBase/18-KB-MemPalace-Critical-Review-and-Action-Plan.md",
+      "migration_mode": "mirror_stub",
+      "source_exists": "yes",
+      "status": "canonicalized",
+      "target_exists": "yes"
+    }
+  ],
+  "selected_entry_count": 6
+}
