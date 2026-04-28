@@ -18,6 +18,11 @@ from .schemas import (
     RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
 )
 KPI_SHADOW_POLICY_SCHEMA_VERSION = "kpi_shadow_policy.v1"
+MAX_DASHBOARD_RECENT_EVENTS_LIMIT = 5000
+MAX_DASHBOARD_RECENT_AUDIT_LIMIT = 2000
+MAX_DASHBOARD_INCIDENT_LIMIT = 2000
+MAX_DASHBOARD_COMPARISON_WINDOW = 1000
+MAX_DASHBOARD_KPI_WINDOW = 1000
 
 
 def _utc_now_iso() -> str:
@@ -59,7 +64,10 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
-        rows.append(json.loads(line))
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
     return rows
 
 
@@ -81,6 +89,8 @@ def _default_control_state() -> dict[str, Any]:
         "kill_switch_active": False,
         "cancel_all_requested": False,
         "selected_scenario": "baseline",
+        "agent_operator_enabled": False,
+        "agent_operator_mode": "advisory",
         "last_annotation": "",
     }
 
@@ -285,7 +295,9 @@ class OperatorControlManager:
         payload = _read_json(self.control_state_path)
         if payload.get("schema_version") != RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION:
             raise ValueError("Operator control state schema version mismatch")
-        return payload
+        baseline = _default_control_state()
+        baseline.update(payload)
+        return baseline
 
     def load_control_state(self) -> dict[str, Any]:
         with self._mutation_lock:
@@ -423,18 +435,65 @@ class OperatorControlManager:
             mutate_state=_apply,
         )
 
-    def annotate(self, *, actor: str, note: str) -> dict[str, Any]:
+    def set_agent_operator_config(
+        self,
+        *,
+        actor: str,
+        enabled: bool | None = None,
+        mode: str | None = None,
+        reason: str = "",
+    ) -> dict[str, Any]:
+        if enabled is None and mode is None:
+            raise ValueError("enabled or mode must be provided")
+        normalized_mode: str | None = None
+        if mode is not None:
+            normalized_mode = str(mode).strip().lower()
+            if normalized_mode not in {"advisory", "strategy"}:
+                raise ValueError("mode must be advisory or strategy")
+        normalized_reason = reason.strip()
+
+        def _apply(state: dict[str, Any]) -> None:
+            if enabled is not None:
+                state["agent_operator_enabled"] = bool(enabled)
+            if normalized_mode is not None:
+                state["agent_operator_mode"] = normalized_mode
+            if normalized_reason:
+                state["agent_operator_reason"] = normalized_reason
+
+        details: dict[str, Any] = {}
+        if enabled is not None:
+            details["agent_operator_enabled"] = bool(enabled)
+        if normalized_mode is not None:
+            details["agent_operator_mode"] = normalized_mode
+        if normalized_reason:
+            details["reason"] = normalized_reason
+
+        return self._mutate_state(
+            action="agent_operator_config_updated",
+            actor=actor,
+            details=details,
+            mutate_state=_apply,
+        )
+
+    def annotate(self, *, actor: str, note: str, reason: str = "") -> dict[str, Any]:
         cleaned_note = note.strip()
         if not cleaned_note:
             raise ValueError("note must not be empty")
+        cleaned_reason = reason.strip()
 
         def _apply(state: dict[str, Any]) -> None:
             state["last_annotation"] = cleaned_note
+            if cleaned_reason:
+                state["last_annotation_reason"] = cleaned_reason
+
+        details: dict[str, Any] = {"note": cleaned_note}
+        if cleaned_reason:
+            details["reason"] = cleaned_reason
 
         return self._mutate_state(
             action="incident_annotation",
             actor=actor,
-            details={"note": cleaned_note},
+            details=details,
             mutate_state=_apply,
         )
 
@@ -445,8 +504,11 @@ class OperatorControlManager:
         action: str | None = None,
         actor: str | None = None,
     ) -> list[dict[str, Any]]:
-        if limit <= 0:
-            raise ValueError("limit must be > 0")
+        limit_value = RuntimeDashboardService._as_positive_int(
+            limit,
+            field_name="limit",
+            max_value=MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
+        )
         with self._mutation_lock:
             with self._interprocess_lock():
                 rows = _read_jsonl(self.audit_path)
@@ -465,7 +527,7 @@ class OperatorControlManager:
                 for row in filtered
                 if str(row.get("actor", "")).strip() == expected_actor
             ]
-        return filtered[-limit:]
+        return filtered[-limit_value:]
 
 
 class RuntimeDashboardService:
@@ -650,6 +712,23 @@ class RuntimeDashboardService:
             ),
             "calibration_applied_ratio": last_metadata.get(
                 "calibration_applied_ratio"
+            ),
+            "agent_operator_status": last_metadata.get("agent_operator_status"),
+            "agent_operator_mode": last_metadata.get("agent_operator_mode"),
+            "agent_operator_provider": last_metadata.get("agent_operator_provider"),
+            "agent_operator_model": last_metadata.get("agent_operator_model"),
+            "agent_operator_risk_posture": last_metadata.get(
+                "agent_operator_risk_posture"
+            ),
+            "agent_operator_confidence": last_metadata.get("agent_operator_confidence"),
+            "agent_operator_strategy_scenario_applied": last_metadata.get(
+                "agent_operator_strategy_scenario_applied"
+            ),
+            "agent_operator_strategy_scenario_hint": last_metadata.get(
+                "agent_operator_strategy_scenario_hint"
+            ),
+            "agent_operator_strategy_scenario_rejected_reason": last_metadata.get(
+                "agent_operator_strategy_scenario_rejected_reason"
             ),
             "result_hash": last_metadata.get("result_hash"),
         }
@@ -882,13 +961,17 @@ class RuntimeDashboardService:
         }
 
     @staticmethod
-    def _as_positive_int(value: Any, *, field_name: str) -> int:
+    def _as_positive_int(
+        value: Any, *, field_name: str, max_value: int | None = None
+    ) -> int:
         try:
             parsed = int(value)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"{field_name} must be an integer") from exc
         if parsed <= 0:
             raise ValueError(f"{field_name} must be > 0")
+        if max_value is not None and parsed > max_value:
+            raise ValueError(f"{field_name} must be <= {max_value}")
         return parsed
 
     @staticmethod
@@ -1858,7 +1941,11 @@ class RuntimeDashboardService:
     def build_incident_feed(
         self, *, limit: int = 50, cursor: Any = None
     ) -> dict[str, Any]:
-        limit_value = self._as_positive_int(limit, field_name="incident_limit")
+        limit_value = self._as_positive_int(
+            limit,
+            field_name="incident_limit",
+            max_value=MAX_DASHBOARD_INCIDENT_LIMIT,
+        )
         journal_rows = self._load_journal()
         return self._build_incident_feed_payload(
             journal_rows,
@@ -1867,7 +1954,11 @@ class RuntimeDashboardService:
         )
 
     def build_cycle_comparison(self, *, window: int = 10) -> dict[str, Any]:
-        window_value = self._as_positive_int(window, field_name="comparison_window")
+        window_value = self._as_positive_int(
+            window,
+            field_name="comparison_window",
+            max_value=MAX_DASHBOARD_COMPARISON_WINDOW,
+        )
         journal_rows = self._load_journal()
         return self._build_cycle_comparison_payload(
             journal_rows,
@@ -1889,28 +1980,38 @@ class RuntimeDashboardService:
         kpi_status: Any = None,
     ) -> dict[str, Any]:
         events_limit = self._as_positive_int(
-            recent_events_limit, field_name="recent_events_limit"
+            recent_events_limit,
+            field_name="recent_events_limit",
+            max_value=MAX_DASHBOARD_RECENT_EVENTS_LIMIT,
         )
         audit_limit = self._as_positive_int(
-            recent_audit_limit, field_name="recent_audit_limit"
+            recent_audit_limit,
+            field_name="recent_audit_limit",
+            max_value=MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
         )
         incident_limit_value = self._as_positive_int(
-            incident_limit, field_name="incident_limit"
+            incident_limit,
+            field_name="incident_limit",
+            max_value=MAX_DASHBOARD_INCIDENT_LIMIT,
         )
         comparison_window_value = self._as_positive_int(
             comparison_window,
             field_name="comparison_window",
+            max_value=MAX_DASHBOARD_COMPARISON_WINDOW,
         )
         kpi_shadow_policy = self._load_kpi_shadow_policy()
         policy_default_window = self._to_int(kpi_shadow_policy.get("default_window"))
         if policy_default_window is None or policy_default_window <= 0:
             policy_default_window = comparison_window_value
+        if policy_default_window > MAX_DASHBOARD_KPI_WINDOW:
+            policy_default_window = MAX_DASHBOARD_KPI_WINDOW
         if kpi_window is None:
             kpi_window_value = policy_default_window
         else:
             kpi_window_value = self._as_positive_int(
                 kpi_window,
                 field_name="kpi_window",
+                max_value=MAX_DASHBOARD_KPI_WINDOW,
             )
         kpi_domain_value = self._normalize_optional_filter(kpi_domain)
         kpi_status_value = self._normalize_kpi_status_filter(kpi_status)

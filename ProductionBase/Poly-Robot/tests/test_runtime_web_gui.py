@@ -17,6 +17,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from poly_robot.runtime_web_gui import (  # noqa: E402
+    MAX_DASHBOARD_RECENT_EVENTS_LIMIT,
     OperatorControlManager,
     RuntimeDashboardService,
 )
@@ -203,6 +204,158 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 server_thread.join(timeout=5)
+
+    def test_runtime_gui_control_endpoint_updates_agent_operator_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/agent-operator",
+                    body=json.dumps(
+                        {
+                            "actor": "alice",
+                            "reason": "strategy drill",
+                            "agent_operator_enabled": True,
+                            "agent_operator_mode": "strategy",
+                        }
+                    ),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(payload["status"], "ok")
+                self.assertTrue(payload["control_state"]["agent_operator_enabled"])
+                self.assertEqual(
+                    payload["control_state"]["agent_operator_mode"], "strategy"
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
+    def test_dashboard_payload_includes_agent_operator_strategy_rejection_reason(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 2,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [
+                        {
+                            "worker_name": "test_token_loop",
+                            "status": "SUCCESS",
+                            "attempts": [],
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "final_failure_reason": None,
+                            "last_metadata": {
+                                "events": 1,
+                                "risk_allowed_count": 0,
+                                "filled_trade_count": 0,
+                                "total_execution_cost": 0.0,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 1000.0,
+                                "net_pnl": 0.0,
+                                "open_notional": 0.0,
+                                "open_positions": 0,
+                                "total_exposure_fraction": 0.0,
+                                "daily_drawdown_fraction": 0.0,
+                                "result_hash": "hash",
+                                "agent_operator_status": "OK",
+                                "agent_operator_mode": "strategy",
+                                "agent_operator_provider": "claude_api",
+                                "agent_operator_model": "claude-opus-4-7",
+                                "agent_operator_strategy_scenario_applied": False,
+                                "agent_operator_strategy_scenario_hint": "unknown",
+                                "agent_operator_strategy_scenario_rejected_reason": (
+                                    "invalid_strategy_scenario_hint"
+                                ),
+                            },
+                        }
+                    ],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            payload = service.build_dashboard_payload(
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            self.assertEqual(payload["loop_metrics"]["agent_operator_mode"], "strategy")
+            self.assertEqual(
+                payload["loop_metrics"]["agent_operator_strategy_scenario_hint"],
+                "unknown",
+            )
+            self.assertEqual(
+                payload["loop_metrics"][
+                    "agent_operator_strategy_scenario_rejected_reason"
+                ],
+                "invalid_strategy_scenario_hint",
+            )
 
     def test_runtime_gui_dashboard_endpoint_applies_kpi_query_parameters(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -421,6 +574,134 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 server.server_close()
                 server_thread.join(timeout=5)
 
+    def test_runtime_gui_rejects_dashboard_limits_above_max(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token=None,
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "GET",
+                    (
+                        "/api/dashboard?"
+                        f"recent_events_limit={MAX_DASHBOARD_RECENT_EVENTS_LIMIT + 1}"
+                    ),
+                )
+                response = connection.getresponse()
+                payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 400)
+                self.assertIn("recent_events_limit must be <=", payload["error"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
+    def test_runtime_gui_rejects_oversized_control_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                payload = {
+                    "actor": "alice",
+                    "reason": "maintenance",
+                    "note": "x" * (gui_module.MAX_CONTROL_REQUEST_BODY_BYTES + 256),
+                }
+                connection.request(
+                    "POST",
+                    "/api/control/annotate",
+                    body=json.dumps(payload),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                response_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 413)
+                self.assertEqual(response_payload["error"], "request_too_large")
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
     def test_concurrent_operator_actions_keep_gap_free_action_sequence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -624,6 +905,63 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(payload["recent_operator_actions"], [])
             self.assertEqual(payload["incident_feed"]["items"], [])
             self.assertEqual(payload["cycle_comparison"]["items"], [])
+
+    def test_dashboard_payload_ignores_malformed_jsonl_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            journal_path.write_text(
+                "\n".join(
+                    [
+                        (
+                            '{"schema_version":"'
+                            + RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION
+                            + '","timestamp":"2026-01-01T00:00:00Z","event_type":"worker_heartbeat","payload":{"worker_name":"test_token_loop"}}'
+                        ),
+                        "not valid json",
+                        (
+                            '{"schema_version":"'
+                            + RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION
+                            + '","timestamp":"2026-01-01T00:00:01Z","event_type":"worker_retry_scheduled","payload":{"worker_name":"test_token_loop","next_attempt_number":2}}'
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+
+            payload = service.build_dashboard_payload(
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            self.assertEqual(payload["event_counts"]["worker_heartbeat"], 1)
+            self.assertEqual(payload["event_counts"]["worker_retry_scheduled"], 1)
+            self.assertEqual(len(payload["recent_journal_events"]), 2)
 
     def test_dashboard_payload_supports_track6_filters_incidents_and_comparison(
         self,
@@ -1511,8 +1849,16 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 actor="alice", scenario_name="liquidity_crunch"
             )
             self.assertEqual(state["selected_scenario"], "liquidity_crunch")
-            state = manager.annotate(actor="alice", note="watching retry spikes")
+            state = manager.annotate(
+                actor="alice",
+                note="watching retry spikes",
+                reason="incident timeline update",
+            )
             self.assertEqual(state["last_annotation"], "watching retry spikes")
+            self.assertEqual(
+                state["last_annotation_reason"],
+                "incident timeline update",
+            )
             state = manager.request_restart(actor="alice", reason="rolling update")
             self.assertTrue(state["restart_requested"])
             state = manager.acknowledge_restart(
@@ -1535,6 +1881,10 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(events[-2]["action"], "graceful_restart_acknowledged")
             self.assertEqual(events[-1]["action_sequence"], 6)
             self.assertEqual(events[-1]["action"], "resume")
+            self.assertEqual(
+                events[2]["details"]["reason"],
+                "incident timeline update",
+            )
 
     def test_kill_switch_and_cancel_all_actions_update_control_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1705,9 +2055,15 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('id="kpiPayload"', html)
         self.assertIn('id="kpiSummary"', html)
         self.assertIn('id="refreshStatus"', html)
+        self.assertIn('id="agentOperatorEnabled"', html)
+        self.assertIn('id="agentOperatorMode"', html)
+        self.assertIn('id="agentOperatorStatus"', html)
         self.assertIn("How to Use and Control Poly-Robot", html)
         self.assertIn("Kill Switch ON", html)
         self.assertIn("Cancel All Orders", html)
+        self.assertIn("Enable AgentOperator", html)
+        self.assertIn("Disable AgentOperator", html)
+        self.assertIn("Apply AgentOperator Config", html)
         self.assertIn("KPI Shadow Mode", html)
         self.assertIn("KPI Workflow Help (default: collapsed)", html)
         for snippet in (

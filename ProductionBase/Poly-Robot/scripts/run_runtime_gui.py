@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import os
 import sys
@@ -17,9 +18,19 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from poly_robot.runtime_web_gui import (  # noqa: E402
+    MAX_DASHBOARD_COMPARISON_WINDOW,
+    MAX_DASHBOARD_INCIDENT_LIMIT,
+    MAX_DASHBOARD_KPI_WINDOW,
+    MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
+    MAX_DASHBOARD_RECENT_EVENTS_LIMIT,
     OperatorControlManager,
     RuntimeDashboardService,
 )
+MAX_CONTROL_REQUEST_BODY_BYTES = 64 * 1024
+
+
+class RequestPayloadTooLargeError(ValueError):
+    pass
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -231,6 +242,34 @@ def _html_page() -> str:
         <p class="field-hint">Use after every key decision so responders can reconstruct timeline quickly.</p>
       </div>
     </div>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="agentOperatorEnabled">AgentOperator Enabled</label>
+        <input id="agentOperatorEnabled" type="checkbox" title="Enable or disable AgentOperator inference in runtime cycles." />
+        <p class="field-hint">Toggle parallel AgentOperator inference without restarting the GUI.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="agentOperatorMode">AgentOperator Mode</label>
+        <select id="agentOperatorMode" title="Select advisory or strategy mode for AgentOperator behavior.">
+          <option value="advisory">advisory</option>
+          <option value="strategy">strategy</option>
+        </select>
+        <p class="field-hint">Advisory mode is read-only guidance; strategy mode can auto-select scenario hints for future cycles.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="setAgentOperatorAndSend(true, null)" title="Enable AgentOperator using the currently selected mode.">Enable AgentOperator</button>
+        <p class="field-hint">Special enable action for turning AgentOperator on quickly during operations.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="setAgentOperatorAndSend(false, null)" title="Disable AgentOperator regardless of selected mode.">Disable AgentOperator</button>
+        <p class="field-hint">Immediate fail-open disable path while keeping other runtime controls active.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendControl('/api/control/agent-operator')" title="Persist AgentOperator enabled/mode configuration to control state.">Apply AgentOperator Config</button>
+        <p class="field-hint">Writes AgentOperator mode and enabled status to audited control state.</p>
+      </div>
+    </div>
+    <div id="agentOperatorStatus"></div>
     <div id="controlResult"></div>
   </div>
   <div class="card">
@@ -572,15 +611,14 @@ def _html_page() -> str:
       const state = payload.supervisor_state || {};
       const financial = payload.financial_metrics || {};
       const status = state.status || 'UNKNOWN';
-      const statusClass = status === 'SUCCESS' ? 'status-success' : (status === 'FAILED' ? 'status-failed' : '');
       const equitySummary = hasNumericValue(financial.current_equity)
         ? ' | equity=' + formatNumber(financial.current_equity, 2)
         : '';
       const netPnlSummary = hasNumericValue(financial.net_pnl)
         ? ' | net_pnl=' + (Number(financial.net_pnl) >= 0 ? '+' : '') + formatNumber(financial.net_pnl, 2)
         : '';
-      document.getElementById('summary').innerHTML =
-        'Overall: <span class="' + statusClass + '">' + status + '</span> | cycle=' +
+      document.getElementById('summary').textContent =
+        'Overall: ' + status + ' | cycle=' +
         (state.cycle_index ?? '-') + ' | failed_workers=' +
         ((state.failed_workers || []).length) +
         equitySummary +
@@ -612,23 +650,49 @@ def _html_page() -> str:
       const kpiStatusCounts = kpiSummary.status_counts || {};
       const kpiFilters = kpiShadow.filters || {};
       const statusOrder = ['ok', 'warning', 'critical', 'insufficient_data'];
-      const statusPills = statusOrder.map((statusName) => {
+      const statusCounts = statusOrder.map((statusName) => {
         const count = kpiStatusCounts[statusName] ?? 0;
-        return '<span class="status-pill ' + statusName + '">' + statusName + ': ' + count + '</span>';
-      }).join(' ');
+        return statusName + ': ' + count;
+      }).join(' | ');
       document.getElementById('kpiPayload').textContent =
         JSON.stringify(kpiShadow, null, 2);
-      document.getElementById('kpiSummary').innerHTML =
+      document.getElementById('kpiSummary').textContent =
         'KPI items=' + (kpiSummary.total_kpis ?? 0) +
         ' | window=' + (kpiFilters.window ?? '-') +
         ' | domain=' + (kpiFilters.domain ?? 'all') +
         ' | status=' + (kpiFilters.status ?? 'all') +
-        ' | ' + statusPills;
+        ' | ' + statusCounts;
 
       const incidentPaging = (payload.incident_feed || {}).paging || {};
       const cursorLabel = incidentPaging.cursor ?? 'latest';
       const olderCursor = incidentPaging.next_cursor ?? 'none';
       const totalIncidents = incidentPaging.total_incidents ?? 0;
+      const controlState = payload.control_state || {};
+      const loopMetrics = payload.loop_metrics || {};
+      if (Object.prototype.hasOwnProperty.call(controlState, 'agent_operator_enabled')) {
+        document.getElementById('agentOperatorEnabled').checked = Boolean(
+          controlState.agent_operator_enabled
+        );
+      }
+      if (controlState.agent_operator_mode) {
+        document.getElementById('agentOperatorMode').value = String(
+          controlState.agent_operator_mode
+        );
+      }
+      const agentOperatorStatus = loopMetrics.agent_operator_status || 'UNKNOWN';
+      const agentOperatorMode = controlState.agent_operator_mode || loopMetrics.agent_operator_mode || 'advisory';
+      const agentOperatorModel = loopMetrics.agent_operator_model || '-';
+      const strategyScenarioHint = loopMetrics.agent_operator_strategy_scenario_hint || '-';
+      const strategyScenarioApplied = loopMetrics.agent_operator_strategy_scenario_applied ? 'yes' : 'no';
+      const strategyScenarioRejectedReason = loopMetrics.agent_operator_strategy_scenario_rejected_reason || '-';
+      document.getElementById('agentOperatorStatus').textContent =
+        'AgentOperator status=' + agentOperatorStatus +
+        ' | enabled=' + String(Boolean(controlState.agent_operator_enabled)) +
+        ' | mode=' + agentOperatorMode +
+        ' | model=' + agentOperatorModel +
+        ' | strategy_scenario_hint=' + strategyScenarioHint +
+        ' | strategy_applied=' + strategyScenarioApplied +
+        ' | strategy_rejected_reason=' + strategyScenarioRejectedReason;
       document.getElementById('filterResult').textContent =
         'Incident cursor=' + cursorLabel + ' | older_cursor=' + olderCursor + ' | total=' + totalIncidents;
       updateRefreshStatus('Refresh succeeded');
@@ -639,7 +703,11 @@ def _html_page() -> str:
         actor: document.getElementById('actor').value || 'operator',
         reason: document.getElementById('reason').value || '',
         scenario_name: document.getElementById('scenario').value || '',
-        note: document.getElementById('annotation').value || ''
+        note: document.getElementById('annotation').value || '',
+        agent_operator_enabled: Boolean(
+          document.getElementById('agentOperatorEnabled').checked
+        ),
+        agent_operator_mode: document.getElementById('agentOperatorMode').value || 'advisory'
       };
     }
 
@@ -655,6 +723,13 @@ def _html_page() -> str:
       const text = await response.text();
       document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
       await fetchDashboard();
+    }
+    async function setAgentOperatorAndSend(enabled, mode) {
+      document.getElementById('agentOperatorEnabled').checked = Boolean(enabled);
+      if (mode) {
+        document.getElementById('agentOperatorMode').value = String(mode);
+      }
+      await sendControl('/api/control/agent-operator');
     }
     async function manualRefresh() {
       await fetchDashboard();
@@ -719,8 +794,18 @@ def _html_page() -> str:
 """
 
 
-def _read_json_body(handler: BaseHTTPRequestHandler) -> dict:
-    content_length = int(handler.headers.get("Content-Length", "0"))
+def _read_json_body(
+    handler: BaseHTTPRequestHandler, *, max_content_length: int
+) -> dict:
+    raw_content_length = handler.headers.get("Content-Length", "0")
+    try:
+        content_length = int(raw_content_length)
+    except ValueError as exc:
+        raise ValueError("Content-Length must be an integer.") from exc
+    if content_length < 0:
+        raise ValueError("Content-Length must be >= 0.")
+    if content_length > max_content_length:
+        raise RequestPayloadTooLargeError("request body too large")
     if content_length <= 0:
         return {}
     payload = handler.rfile.read(content_length).decode("utf-8")
@@ -754,7 +839,9 @@ def _query_value(query: dict[str, list[str]], key: str) -> str | None:
     return values[0]
 
 
-def _coerce_positive_int(value: str | None, *, field_name: str) -> int | None:
+def _coerce_positive_int(
+    value: str | None, *, field_name: str, max_value: int | None = None
+) -> int | None:
     if value is None or value == "":
         return None
     try:
@@ -763,6 +850,8 @@ def _coerce_positive_int(value: str | None, *, field_name: str) -> int | None:
         raise ValueError(f"{field_name} must be an integer.") from exc
     if parsed <= 0:
         raise ValueError(f"{field_name} must be > 0.")
+    if max_value is not None and parsed > max_value:
+        raise ValueError(f"{field_name} must be <= {max_value}.")
     return parsed
 
 
@@ -806,7 +895,7 @@ def _build_handler(
             if not operator_token:
                 return False
             request_token = self.headers.get("X-Operator-Token", "")
-            return request_token == operator_token
+            return hmac.compare_digest(request_token, operator_token)
 
         def _authorize_read_request(self) -> bool:
             if not read_api_token_required:
@@ -858,6 +947,7 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "recent_events_limit"),
                             field_name="recent_events_limit",
+                            max_value=MAX_DASHBOARD_RECENT_EVENTS_LIMIT,
                         )
                         or recent_events_limit
                     )
@@ -865,6 +955,7 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "recent_audit_limit"),
                             field_name="recent_audit_limit",
+                            max_value=MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
                         )
                         or recent_audit_limit
                     )
@@ -872,6 +963,7 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "incident_limit"),
                             field_name="incident_limit",
+                            max_value=MAX_DASHBOARD_INCIDENT_LIMIT,
                         )
                         or 50
                     )
@@ -883,12 +975,14 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "comparison_window"),
                             field_name="comparison_window",
+                            max_value=MAX_DASHBOARD_COMPARISON_WINDOW,
                         )
                         or 10
                     )
                     kpi_window = _coerce_positive_int(
                         _query_value(query, "kpi_window"),
                         field_name="kpi_window",
+                        max_value=MAX_DASHBOARD_KPI_WINDOW,
                     )
                     payload = dashboard_service.build_dashboard_payload(
                         recent_events_limit=events_limit,
@@ -909,6 +1003,7 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "limit"),
                             field_name="limit",
+                            max_value=MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
                         )
                         or recent_audit_limit
                     )
@@ -929,6 +1024,7 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "limit"),
                             field_name="limit",
+                            max_value=MAX_DASHBOARD_INCIDENT_LIMIT,
                         )
                         or 50
                     )
@@ -947,6 +1043,7 @@ def _build_handler(
                         _coerce_positive_int(
                             _query_value(query, "window"),
                             field_name="window",
+                            max_value=MAX_DASHBOARD_COMPARISON_WINDOW,
                         )
                         or 10
                     )
@@ -969,9 +1066,18 @@ def _build_handler(
                 return
 
             try:
-                payload = _read_json_body(self)
+                payload = _read_json_body(
+                    self,
+                    max_content_length=MAX_CONTROL_REQUEST_BODY_BYTES,
+                )
             except json.JSONDecodeError:
                 _send_json(self, status=400, payload={"error": "invalid_json"})
+                return
+            except RequestPayloadTooLargeError:
+                _send_json(self, status=413, payload={"error": "request_too_large"})
+                return
+            except ValueError as exc:
+                _send_json(self, status=400, payload={"error": str(exc)})
                 return
 
             actor = self._control_actor(payload)
@@ -1006,7 +1112,21 @@ def _build_handler(
                     )
                 elif parsed.path == "/api/control/annotate":
                     note = str(payload.get("note", "")).strip()
-                    state = control_manager.annotate(actor=actor, note=note)
+                    state = control_manager.annotate(
+                        actor=actor,
+                        note=note,
+                        reason=reason,
+                    )
+                elif parsed.path == "/api/control/agent-operator":
+                    enabled = bool(payload.get("agent_operator_enabled", False))
+                    mode_raw = str(payload.get("agent_operator_mode", "")).strip()
+                    mode = mode_raw or None
+                    state = control_manager.set_agent_operator_config(
+                        actor=actor,
+                        enabled=enabled,
+                        mode=mode,
+                        reason=reason,
+                    )
                 else:
                     _send_json(self, status=404, payload={"error": "not_found"})
                     return
@@ -1036,8 +1156,18 @@ def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     if args.recent_events_limit <= 0:
         raise ValueError("--recent-events-limit must be > 0")
+    if args.recent_events_limit > MAX_DASHBOARD_RECENT_EVENTS_LIMIT:
+        raise ValueError(
+            "--recent-events-limit must be <= "
+            f"{MAX_DASHBOARD_RECENT_EVENTS_LIMIT}"
+        )
     if args.recent_audit_limit <= 0:
         raise ValueError("--recent-audit-limit must be > 0")
+    if args.recent_audit_limit > MAX_DASHBOARD_RECENT_AUDIT_LIMIT:
+        raise ValueError(
+            "--recent-audit-limit must be <= "
+            f"{MAX_DASHBOARD_RECENT_AUDIT_LIMIT}"
+        )
     resolved_operator_token = _resolve_operator_token(
         operator_token=args.operator_token,
         operator_token_env=args.operator_token_env,
