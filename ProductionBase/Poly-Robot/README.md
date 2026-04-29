@@ -148,6 +148,11 @@ python3 scripts/run_test_token_loop.py \
   --output test_token_loop_report.json
 ```
 
+Run static type check (auto-installs missing dev tooling when needed):
+```bash
+python3 scripts/run_typecheck.py
+```
+
 Run C1 runtime supervisor:
 ```bash
 python3 scripts/run_runtime_supervisor.py \
