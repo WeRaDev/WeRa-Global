@@ -488,6 +488,103 @@ class CanaryRollbackGuardTests(unittest.TestCase):
             3,
         )
 
+    def test_runner_uses_numeric_cycle_order_for_max_cycle_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            enablement_path = root / "enablement.json"
+            certification_path = root / "certification.json"
+            rehearsal_path = root / "rehearsal.json"
+            policy_path = root / "policy.json"
+            cycle_dir = root / "cycles"
+            cycle_dir.mkdir(parents=True, exist_ok=True)
+            guard_output = root / "guard_report.json"
+            incident_output = root / "incident_report.json"
+            audit_output = root / "guard_audit.jsonl"
+
+            enablement_path.write_text(
+                json.dumps(_enablement_decision_stub(decision_status="ALLOW"), indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            certification_path.write_text(
+                json.dumps(_certification_report_stub(overall_status="PASS"), indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            rehearsal_path.write_text(
+                json.dumps(_rehearsal_report_stub(), indent=2) + "\n",
+                encoding="utf-8",
+            )
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "thresholds": {
+                            "max_execution_cost_to_expected_net_ratio": 10.0,
+                            "execution_cost_ratio_consecutive_cycles": 10,
+                            "negative_expected_value_consecutive_cycles": 10,
+                            "negative_realized_pnl_consecutive_cycles": 10,
+                        }
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for cycle_index in (2, 10, 11):
+                (cycle_dir / f"cycle_{cycle_index}.json").write_text(
+                    json.dumps(
+                        _cycle_report_stub(
+                            cycle_index=cycle_index,
+                            execution_cost_to_expected_net_ratio=0.5,
+                            expected_value_after_execution_cost=0.5,
+                        ),
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--enablement-decision",
+                    str(enablement_path),
+                    "--certification-report",
+                    str(certification_path),
+                    "--rehearsal-report",
+                    str(rehearsal_path),
+                    "--cycle-report-dir",
+                    str(cycle_dir),
+                    "--cycle-report-pattern",
+                    "cycle_*.json",
+                    "--max-cycle-reports",
+                    "2",
+                    "--policy-config",
+                    str(policy_path),
+                    "--guard-output",
+                    str(guard_output),
+                    "--incident-output",
+                    str(incident_output),
+                    "--audit-output",
+                    str(audit_output),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            guard_report = _read_json(guard_output)
+            loaded_cycle_files = [
+                Path(path).name
+                for path in guard_report.get("metadata", {}).get(
+                    "cycle_report_paths", []
+                )
+            ]
+            self.assertEqual(loaded_cycle_files, ["cycle_10.json", "cycle_11.json"])
+
     def test_runner_writes_guard_incident_and_audit_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

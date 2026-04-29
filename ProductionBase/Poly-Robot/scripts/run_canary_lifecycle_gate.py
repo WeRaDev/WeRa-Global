@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,6 +52,12 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
+def _cycle_report_sort_key(path: Path) -> tuple[int, str]:
+    match = re.search(r"cycle_(\d+)", path.stem)
+    if match is not None:
+        return int(match.group(1)), str(path)
+    return -1, str(path)
+
 
 def _load_cycle_reports(
     *,
@@ -60,7 +67,10 @@ def _load_cycle_reports(
 ) -> tuple[list[dict[str, Any]], list[str]]:
     if not cycle_report_dir.exists():
         return [], []
-    report_paths = sorted(cycle_report_dir.glob(cycle_report_pattern))
+    report_paths = sorted(
+        cycle_report_dir.glob(cycle_report_pattern),
+        key=_cycle_report_sort_key,
+    )
     if max_cycle_reports > 0 and len(report_paths) > max_cycle_reports:
         report_paths = report_paths[-max_cycle_reports:]
     reports: list[dict[str, Any]] = []

@@ -317,6 +317,114 @@ class CanaryLifecycleGateScriptTests(unittest.TestCase):
             self.assertEqual(summary_report["triggered_condition_ids"], [])
             self.assertTrue(summary_report["promotion_allowed"])
 
+    def test_lifecycle_runner_uses_numeric_cycle_order_for_max_cycle_reports(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            rehearsal_path = root / "rehearsal.json"
+            criteria_path = root / "criteria.json"
+            approval_path = root / "approval_record.json"
+            rollout_config_path = root / "rollout_config.json"
+            policy_path = root / "rollback_policy.json"
+            cycle_dir = root / "cycles"
+            cycle_dir.mkdir(parents=True, exist_ok=True)
+            certification_output = root / "certification.json"
+            decision_output = root / "decision.json"
+            enablement_audit_output = root / "enablement_audit.jsonl"
+            guard_output = root / "guard.json"
+            incident_output = root / "incident.json"
+            guard_audit_output = root / "guard_audit.jsonl"
+            summary_output = root / "summary.json"
+
+            rehearsal_path.write_text(
+                json.dumps(_rehearsal_report_stub(), indent=2) + "\n",
+                encoding="utf-8",
+            )
+            _copy_json(
+                ROOT_DIR
+                / "config"
+                / "integration"
+                / "canary_promotion_criteria.v1.json",
+                criteria_path,
+            )
+            _copy_json(
+                ROOT_DIR
+                / "config"
+                / "integration"
+                / "canary_approval_record_template.v1.json",
+                approval_path,
+            )
+            _copy_json(
+                ROOT_DIR / "config" / "integration" / "live_trade_rollout.v1.json",
+                rollout_config_path,
+            )
+            _copy_json(
+                ROOT_DIR
+                / "config"
+                / "integration"
+                / "canary_rollback_policy.v1.json",
+                policy_path,
+            )
+            for cycle_index in (2, 10, 11):
+                (cycle_dir / f"cycle_{cycle_index}.json").write_text(
+                    json.dumps(_cycle_report_stub(cycle_index=cycle_index), indent=2)
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--rehearsal-report",
+                    str(rehearsal_path),
+                    "--criteria-config",
+                    str(criteria_path),
+                    "--approval-record",
+                    str(approval_path),
+                    "--rollout-config",
+                    str(rollout_config_path),
+                    "--policy-config",
+                    str(policy_path),
+                    "--cycle-report-dir",
+                    str(cycle_dir),
+                    "--cycle-report-pattern",
+                    "cycle_*.json",
+                    "--max-cycle-reports",
+                    "2",
+                    "--approval-status",
+                    "approved",
+                    "--approval-actor",
+                    "release_manager",
+                    "--auto-approve-required-approvers",
+                    "--certification-output",
+                    str(certification_output),
+                    "--decision-output",
+                    str(decision_output),
+                    "--enablement-audit-output",
+                    str(enablement_audit_output),
+                    "--guard-output",
+                    str(guard_output),
+                    "--incident-output",
+                    str(incident_output),
+                    "--guard-audit-output",
+                    str(guard_audit_output),
+                    "--summary-output",
+                    str(summary_output),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            summary_report = _read_json(summary_output)
+            loaded_cycle_files = [
+                Path(path).name for path in summary_report.get("cycle_report_paths", [])
+            ]
+            self.assertEqual(loaded_cycle_files, ["cycle_10.json", "cycle_11.json"])
+
 
 if __name__ == "__main__":
     unittest.main()
