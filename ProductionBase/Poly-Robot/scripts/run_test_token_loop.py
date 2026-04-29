@@ -212,6 +212,18 @@ def main(argv: list[str] | None = None) -> int:
             "stale_price_change_threshold": float(
                 parameters["exit.stale_price_change_threshold"]
             ),
+            "inventory_aging_derisk_hours": float(
+                parameters.get(
+                    "exit.inventory_aging_derisk_hours",
+                    float(parameters["exit.stale_hours"]) * 0.75,
+                )
+            ),
+            "max_holding_hours": float(
+                parameters.get(
+                    "exit.max_holding_hours",
+                    float(parameters["exit.stale_hours"]),
+                )
+            ),
             "confirmation_threshold": 2,
         },
         "ingestion_status": ingestion.status,
@@ -233,6 +245,27 @@ def main(argv: list[str] | None = None) -> int:
             "partial_fill_count": result_payload["partial_fill_count"],
             "exit_candidate_count": result_payload["exit_candidate_count"],
             "confirmed_exit_count": result_payload["confirmed_exit_count"],
+            "forced_exit_count": result_payload["forced_exit_count"],
+            "confirmed_exit_ratio": result_payload["confirmed_exit_ratio"],
+            "confirmed_exit_latency_hours": result_payload[
+                "confirmed_exit_latency_hours"
+            ],
+            "median_position_age_hours": result_payload["median_position_age_hours"],
+            "stale_position_count": result_payload["stale_position_count"],
+            "stale_position_ratio": result_payload["stale_position_ratio"],
+            "raw_probability_mean": result_payload["raw_probability_mean"],
+            "calibrated_probability_mean": result_payload[
+                "calibrated_probability_mean"
+            ],
+            "probability_drift_mean": result_payload["probability_drift_mean"],
+            "probability_drift_abs_mean": result_payload[
+                "probability_drift_abs_mean"
+            ],
+            "probability_drift_max_abs": result_payload["probability_drift_max_abs"],
+            "weighted_check_agreement_mean": result_payload[
+                "weighted_check_agreement_mean"
+            ],
+            "calibration_applied_ratio": result_payload["calibration_applied_ratio"],
             "total_fees_paid": result_payload["total_fees_paid"],
             "total_slippage_cost": result_payload["total_slippage_cost"],
             "total_execution_cost": result_payload["total_execution_cost"],
@@ -284,6 +317,17 @@ def main(argv: list[str] | None = None) -> int:
         if run.execution_cost_to_expected_net_ratio is not None
         else "n/a"
     )
+    probability_drift_display = (
+        f"{run.probability_drift_abs_mean:.4f}"
+        if run.probability_drift_abs_mean is not None
+        else "n/a"
+    )
+    weighted_consensus_display = (
+        f"{run.weighted_check_agreement_mean:.4f}"
+        if run.weighted_check_agreement_mean is not None
+        else "n/a"
+    )
+    calibration_applied_display = f"{run.calibration_applied_ratio:.4f}"
 
     print(
         "Test-token loop complete: "
@@ -293,14 +337,20 @@ def main(argv: list[str] | None = None) -> int:
         f"partial_fills={run.partial_fill_count} "
         f"exit_candidates={run.exit_candidate_count} "
         f"confirmed_exits={run.confirmed_exit_count} "
+        f"forced_exits={run.forced_exit_count} "
         f"fees={run.total_fees_paid:.4f} "
         f"slippage_cost={run.total_slippage_cost:.4f} "
         f"execution_cost={run.total_execution_cost:.4f} "
         f"expected_gross_edge={run.expected_gross_edge_value:.4f} "
         f"expected_net_edge={run.expected_net_edge_value_on_fills:.4f} "
         f"expected_value_after_cost={run.expected_value_after_execution_cost:.4f} "
+        f"confirmed_exit_latency_hours={run.confirmed_exit_latency_hours or 'n/a'} "
+        f"stale_position_ratio={run.stale_position_ratio:.4f} "
         f"edge_capture={edge_capture_display} "
         f"cost_to_expected_net={expected_net_ratio_display} "
+        f"probability_drift_abs_mean={probability_drift_display} "
+        f"weighted_consensus={weighted_consensus_display} "
+        f"calibration_applied_ratio={calibration_applied_display} "
         f"open_positions={run.final_portfolio.open_positions} "
         f"open_notional={run.final_portfolio.open_notional:.2f} "
         f"result_hash={result_hash[:12]}"

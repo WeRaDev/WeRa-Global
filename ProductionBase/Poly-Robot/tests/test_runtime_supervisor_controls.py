@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
@@ -51,6 +54,38 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
+    def _start_mock_claude_server(
+        self, *, response_text: str
+    ) -> tuple[ThreadingHTTPServer, threading.Thread, str]:
+        class _MockClaudeHandler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:  # noqa: N802
+                content_length = int(self.headers.get("Content-Length", "0"))
+                if content_length > 0:
+                    self.rfile.read(content_length)
+                body = {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": response_text,
+                        }
+                    ]
+                }
+                encoded = json.dumps(body).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+
+            def log_message(self, format: str, *args) -> None:  # noqa: A003
+                del format, args
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _MockClaudeHandler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        host, port = server.server_address
+        return server, worker, f"http://{host}:{port}/v1/messages"
     def _run_supervisor(
         self,
         *,
@@ -60,6 +95,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         scenario: str = "baseline",
         cycle_output: bool = False,
         extra_args: list[str] | None = None,
+        env: dict[str, str] | None = None,
     ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path, Path]:
         state_path = temp_root / "runtime_state.json"
         journal_path = temp_root / "runtime_journal.jsonl"
@@ -100,7 +136,13 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         if extra_args:
             command.extend(extra_args)
 
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
         return result, state_path, journal_path, control_state_path, audit_path
 
     def test_pause_control_skips_cycle_execution(self) -> None:
@@ -115,6 +157,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "kill_switch_active": False,
                 "cancel_all_requested": False,
                 "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "advisory",
                 "last_annotation": "",
             }
             result, state_path, journal_path, _, _ = self._run_supervisor(
@@ -151,6 +195,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "kill_switch_active": False,
                 "cancel_all_requested": False,
                 "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "advisory",
                 "last_annotation": "",
             }
             result, state_path, _, control_state_path, audit_path = (
@@ -207,6 +253,192 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
             self.assertEqual(
                 cycle_report["run_context"]["scenario_name"], "liquidity_crunch"
             )
+
+    def test_agent_operator_fail_open_metadata_is_written_to_run_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 9,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "advisory",
+                "last_annotation": "",
+            }
+            env = dict(os.environ)
+            env.pop("POLY_ROBOT_TEST_MISSING_CLAUDE_KEY", None)
+            result, state_path, _, _, _ = self._run_supervisor(
+                temp_root=root,
+                control_state_payload=control_state,
+                cycles=1,
+                cycle_output=True,
+                extra_args=[
+                    "--agent-operator-enabled",
+                    "--agent-operator-api-key-env",
+                    "POLY_ROBOT_TEST_MISSING_CLAUDE_KEY",
+                ],
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertEqual(metadata["agent_operator_status"], "UNAVAILABLE")
+            cycle_report = _read_json(root / "cycles" / "cycle_001.json")
+            advisory = cycle_report["run_context"]["agent_operator"]
+            self.assertEqual(advisory["status"], "UNAVAILABLE")
+            self.assertIn(
+                "agent_operator_api_key_missing",
+                advisory["reason"],
+            )
+
+    def test_strategy_mode_applies_valid_scenario_hint_for_future_cycle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 12,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "strategy",
+                "last_annotation": "",
+            }
+            response_text = json.dumps(
+                {
+                    "summary": "Shift toward stress scenario.",
+                    "profitability_hypothesis": "Pre-position for volatility.",
+                    "risk_posture": "neutral",
+                    "confidence": 0.7,
+                    "recommended_actions": ["Switch scenario for next cycle"],
+                    "scenario_hint": "liquidity_crunch",
+                }
+            )
+            server, worker, endpoint = self._start_mock_claude_server(
+                response_text=response_text
+            )
+            try:
+                env = dict(os.environ)
+                env["POLY_ROBOT_TEST_AGENT_KEY"] = "test-key"
+                result, state_path, _, control_state_path, _ = self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=1,
+                    cycle_output=True,
+                    extra_args=[
+                        "--agent-operator-api-key-env",
+                        "POLY_ROBOT_TEST_AGENT_KEY",
+                        "--agent-operator-endpoint-url",
+                        endpoint,
+                    ],
+                    env=env,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=5)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertEqual(metadata["agent_operator_mode"], "strategy")
+            self.assertEqual(
+                metadata["agent_operator_strategy_scenario_hint"],
+                "liquidity_crunch",
+            )
+            self.assertTrue(metadata["agent_operator_strategy_scenario_applied"])
+            self.assertEqual(
+                metadata["agent_operator_strategy_scenario_rejected_reason"], ""
+            )
+            self.assertEqual(metadata["selected_scenario"], "baseline")
+
+            updated_control_state = _read_json(control_state_path)
+            self.assertEqual(
+                updated_control_state["selected_scenario"], "liquidity_crunch"
+            )
+
+            cycle_report = _read_json(root / "cycles" / "cycle_001.json")
+            run_context = cycle_report["run_context"]
+            self.assertEqual(run_context["agent_operator_mode"], "strategy")
+            self.assertTrue(run_context["agent_operator_strategy_scenario_applied"])
+            self.assertEqual(
+                run_context["agent_operator_strategy_scenario_hint"],
+                "liquidity_crunch",
+            )
+
+    def test_strategy_mode_rejects_invalid_scenario_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 13,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "strategy",
+                "last_annotation": "",
+            }
+            response_text = json.dumps(
+                {
+                    "summary": "Try unsupported scenario.",
+                    "profitability_hypothesis": "N/A",
+                    "risk_posture": "neutral",
+                    "confidence": 0.4,
+                    "recommended_actions": [],
+                    "scenario_hint": "not_a_real_scenario",
+                }
+            )
+            server, worker, endpoint = self._start_mock_claude_server(
+                response_text=response_text
+            )
+            try:
+                env = dict(os.environ)
+                env["POLY_ROBOT_TEST_AGENT_KEY"] = "test-key"
+                result, state_path, _, control_state_path, _ = self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=1,
+                    extra_args=[
+                        "--agent-operator-api-key-env",
+                        "POLY_ROBOT_TEST_AGENT_KEY",
+                        "--agent-operator-endpoint-url",
+                        endpoint,
+                    ],
+                    env=env,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=5)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertEqual(metadata["agent_operator_mode"], "strategy")
+            self.assertFalse(metadata["agent_operator_strategy_scenario_applied"])
+            self.assertEqual(
+                metadata["agent_operator_strategy_scenario_hint"],
+                "not_a_real_scenario",
+            )
+            self.assertEqual(
+                metadata["agent_operator_strategy_scenario_rejected_reason"],
+                "invalid_strategy_scenario_hint",
+            )
+            updated_control_state = _read_json(control_state_path)
+            self.assertEqual(updated_control_state["selected_scenario"], "baseline")
 
     def test_supervisor_exits_non_zero_when_cycle_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

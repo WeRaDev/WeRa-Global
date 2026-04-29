@@ -17,6 +17,12 @@ from .schemas import (
     RUNTIME_SUPERVISOR_JOURNAL_EVENT_SCHEMA_VERSION,
     RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
 )
+KPI_SHADOW_POLICY_SCHEMA_VERSION = "kpi_shadow_policy.v1"
+MAX_DASHBOARD_RECENT_EVENTS_LIMIT = 5000
+MAX_DASHBOARD_RECENT_AUDIT_LIMIT = 2000
+MAX_DASHBOARD_INCIDENT_LIMIT = 2000
+MAX_DASHBOARD_COMPARISON_WINDOW = 1000
+MAX_DASHBOARD_KPI_WINDOW = 1000
 
 
 def _utc_now_iso() -> str:
@@ -58,7 +64,10 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
-        rows.append(json.loads(line))
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
     return rows
 
 
@@ -80,7 +89,184 @@ def _default_control_state() -> dict[str, Any]:
         "kill_switch_active": False,
         "cancel_all_requested": False,
         "selected_scenario": "baseline",
+        "agent_operator_enabled": False,
+        "agent_operator_mode": "advisory",
         "last_annotation": "",
+    }
+
+
+def _default_kpi_shadow_policy() -> dict[str, Any]:
+    return {
+        "schema_version": KPI_SHADOW_POLICY_SCHEMA_VERSION,
+        "updated_at": "2026-04-27T00:00:00Z",
+        "mode": "shadow",
+        "default_window": 10,
+        "minimum_sample_size": 2,
+        "kpis": [
+            {
+                "kpi_id": "fill_rate",
+                "label": "Fill Rate",
+                "domain": "execution_quality",
+                "source": "financial_metrics.fill_rate",
+                "cycle_field": "fill_rate",
+                "unit": "ratio",
+                "direction": "higher_is_better",
+                "warning_below": 0.35,
+                "critical_below": 0.20,
+            },
+            {
+                "kpi_id": "partial_fill_rate",
+                "label": "Partial Fill Rate",
+                "domain": "execution_quality",
+                "source": "kpi_derived.partial_fill_rate",
+                "cycle_field": "partial_fill_rate",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.50,
+                "critical_above": 0.75,
+            },
+            {
+                "kpi_id": "average_execution_cost_per_fill",
+                "label": "Average Execution Cost Per Fill",
+                "domain": "execution_quality",
+                "source": "financial_metrics.average_execution_cost_per_fill",
+                "cycle_field": "average_execution_cost_per_fill",
+                "unit": "usd",
+                "direction": "lower_is_better",
+                "warning_above": 0.75,
+                "critical_above": 1.25,
+            },
+            {
+                "kpi_id": "expected_edge_capture_ratio",
+                "label": "Expected Edge Capture Ratio",
+                "domain": "execution_quality",
+                "source": "financial_metrics.expected_edge_capture_ratio",
+                "cycle_field": "expected_edge_capture_ratio",
+                "unit": "ratio",
+                "direction": "higher_is_better",
+                "warning_below": 0.65,
+                "critical_below": 0.50,
+            },
+            {
+                "kpi_id": "execution_cost_to_expected_net_ratio",
+                "label": "Execution Cost to Expected Net Ratio",
+                "domain": "execution_quality",
+                "source": "financial_metrics.execution_cost_to_expected_net_ratio",
+                "cycle_field": "execution_cost_to_expected_net_ratio",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.80,
+                "critical_above": 1.00,
+            },
+            {
+                "kpi_id": "expected_value_after_execution_cost",
+                "label": "Expected Value After Execution Cost",
+                "domain": "forecast_quality",
+                "source": "financial_metrics.expected_value_after_execution_cost",
+                "cycle_field": "expected_value_after_execution_cost",
+                "unit": "usd",
+                "direction": "higher_is_better",
+                "warning_below": 0.00,
+                "critical_below": -0.05,
+            },
+            {
+                "kpi_id": "calibration_applied_ratio",
+                "label": "Calibration Applied Ratio",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.calibration_applied_ratio",
+                "cycle_field": "calibration_applied_ratio",
+                "unit": "ratio",
+                "direction": "higher_is_better",
+                "warning_below": 0.60,
+                "critical_below": 0.40,
+            },
+            {
+                "kpi_id": "weighted_check_agreement_mean",
+                "label": "Weighted Check Agreement Mean",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.weighted_check_agreement_mean",
+                "cycle_field": "weighted_check_agreement_mean",
+                "unit": "ratio",
+                "direction": "higher_is_better",
+                "warning_below": 0.55,
+                "critical_below": 0.45,
+            },
+            {
+                "kpi_id": "probability_drift_abs_mean",
+                "label": "Probability Drift Absolute Mean",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.probability_drift_abs_mean",
+                "cycle_field": "probability_drift_abs_mean",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.08,
+                "critical_above": 0.12,
+            },
+            {
+                "kpi_id": "probability_drift_max_abs",
+                "label": "Probability Drift Max Absolute",
+                "domain": "calibration_reliability",
+                "source": "loop_metrics.probability_drift_max_abs",
+                "cycle_field": "probability_drift_max_abs",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.18,
+                "critical_above": 0.25,
+            },
+            {
+                "kpi_id": "net_pnl",
+                "label": "Net PnL",
+                "domain": "risk_and_capital",
+                "source": "financial_metrics.net_pnl",
+                "cycle_field": "net_pnl",
+                "unit": "usd",
+                "direction": "higher_is_better",
+                "warning_below": -0.25,
+                "critical_below": -0.75,
+            },
+            {
+                "kpi_id": "daily_drawdown_fraction",
+                "label": "Daily Drawdown Fraction",
+                "domain": "risk_and_capital",
+                "source": "financial_metrics.daily_drawdown_fraction",
+                "cycle_field": "daily_drawdown_fraction",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.04,
+                "critical_above": 0.08,
+            },
+            {
+                "kpi_id": "total_exposure_fraction",
+                "label": "Total Exposure Fraction",
+                "domain": "risk_and_capital",
+                "source": "financial_metrics.total_exposure_fraction",
+                "cycle_field": "total_exposure_fraction",
+                "unit": "ratio",
+                "direction": "lower_is_better",
+                "warning_above": 0.50,
+                "critical_above": 0.65,
+            },
+            {
+                "kpi_id": "test_token_loop_retry_count",
+                "label": "Test Token Loop Retry Count",
+                "domain": "operational_reliability",
+                "source": "kpi_derived.test_token_loop_retry_count",
+                "unit": "count",
+                "direction": "lower_is_better",
+                "warning_above": 1.0,
+                "critical_above": 3.0,
+            },
+            {
+                "kpi_id": "incident_density_per_cycle",
+                "label": "Incident Density Per Cycle",
+                "domain": "operational_reliability",
+                "source": "kpi_derived.incident_density_per_cycle",
+                "unit": "incidents_per_cycle",
+                "direction": "lower_is_better",
+                "warning_above": 0.40,
+                "critical_above": 0.80,
+            },
+        ],
     }
 
 
@@ -109,7 +295,9 @@ class OperatorControlManager:
         payload = _read_json(self.control_state_path)
         if payload.get("schema_version") != RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION:
             raise ValueError("Operator control state schema version mismatch")
-        return payload
+        baseline = _default_control_state()
+        baseline.update(payload)
+        return baseline
 
     def load_control_state(self) -> dict[str, Any]:
         with self._mutation_lock:
@@ -247,18 +435,65 @@ class OperatorControlManager:
             mutate_state=_apply,
         )
 
-    def annotate(self, *, actor: str, note: str) -> dict[str, Any]:
+    def set_agent_operator_config(
+        self,
+        *,
+        actor: str,
+        enabled: bool | None = None,
+        mode: str | None = None,
+        reason: str = "",
+    ) -> dict[str, Any]:
+        if enabled is None and mode is None:
+            raise ValueError("enabled or mode must be provided")
+        normalized_mode: str | None = None
+        if mode is not None:
+            normalized_mode = str(mode).strip().lower()
+            if normalized_mode not in {"advisory", "strategy"}:
+                raise ValueError("mode must be advisory or strategy")
+        normalized_reason = reason.strip()
+
+        def _apply(state: dict[str, Any]) -> None:
+            if enabled is not None:
+                state["agent_operator_enabled"] = bool(enabled)
+            if normalized_mode is not None:
+                state["agent_operator_mode"] = normalized_mode
+            if normalized_reason:
+                state["agent_operator_reason"] = normalized_reason
+
+        details: dict[str, Any] = {}
+        if enabled is not None:
+            details["agent_operator_enabled"] = bool(enabled)
+        if normalized_mode is not None:
+            details["agent_operator_mode"] = normalized_mode
+        if normalized_reason:
+            details["reason"] = normalized_reason
+
+        return self._mutate_state(
+            action="agent_operator_config_updated",
+            actor=actor,
+            details=details,
+            mutate_state=_apply,
+        )
+
+    def annotate(self, *, actor: str, note: str, reason: str = "") -> dict[str, Any]:
         cleaned_note = note.strip()
         if not cleaned_note:
             raise ValueError("note must not be empty")
+        cleaned_reason = reason.strip()
 
         def _apply(state: dict[str, Any]) -> None:
             state["last_annotation"] = cleaned_note
+            if cleaned_reason:
+                state["last_annotation_reason"] = cleaned_reason
+
+        details: dict[str, Any] = {"note": cleaned_note}
+        if cleaned_reason:
+            details["reason"] = cleaned_reason
 
         return self._mutate_state(
             action="incident_annotation",
             actor=actor,
-            details={"note": cleaned_note},
+            details=details,
             mutate_state=_apply,
         )
 
@@ -269,8 +504,11 @@ class OperatorControlManager:
         action: str | None = None,
         actor: str | None = None,
     ) -> list[dict[str, Any]]:
-        if limit <= 0:
-            raise ValueError("limit must be > 0")
+        limit_value = RuntimeDashboardService._as_positive_int(
+            limit,
+            field_name="limit",
+            max_value=MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
+        )
         with self._mutation_lock:
             with self._interprocess_lock():
                 rows = _read_jsonl(self.audit_path)
@@ -289,7 +527,7 @@ class OperatorControlManager:
                 for row in filtered
                 if str(row.get("actor", "")).strip() == expected_actor
             ]
-        return filtered[-limit:]
+        return filtered[-limit_value:]
 
 
 class RuntimeDashboardService:
@@ -299,10 +537,12 @@ class RuntimeDashboardService:
         state_path: Path,
         journal_path: Path,
         control_manager: OperatorControlManager,
+        kpi_shadow_policy_path: Path | None = None,
     ) -> None:
         self.state_path = state_path
         self.journal_path = journal_path
         self.control_manager = control_manager
+        self.kpi_shadow_policy_path = kpi_shadow_policy_path
 
     def _load_state(self) -> dict[str, Any] | None:
         if not self.state_path.exists():
@@ -407,6 +647,18 @@ class RuntimeDashboardService:
         return numerator / denominator
 
     @staticmethod
+    def _ratio_with_zero_for_empty_series(
+        numerator: float | None, denominator: float | None
+    ) -> float | None:
+        if numerator is None or denominator is None:
+            return None
+        if denominator <= 0:
+            if abs(numerator) <= 1e-12:
+                return 0.0
+            return None
+        return numerator / denominator
+
+    @staticmethod
     def _extract_loop_metrics(
         supervisor_state: dict[str, Any] | None,
     ) -> dict[str, Any]:
@@ -445,6 +697,38 @@ class RuntimeDashboardService:
             ),
             "execution_cost_to_expected_net_ratio": last_metadata.get(
                 "execution_cost_to_expected_net_ratio"
+            ),
+            "raw_probability_mean": last_metadata.get("raw_probability_mean"),
+            "calibrated_probability_mean": last_metadata.get(
+                "calibrated_probability_mean"
+            ),
+            "probability_drift_mean": last_metadata.get("probability_drift_mean"),
+            "probability_drift_abs_mean": last_metadata.get(
+                "probability_drift_abs_mean"
+            ),
+            "probability_drift_max_abs": last_metadata.get("probability_drift_max_abs"),
+            "weighted_check_agreement_mean": last_metadata.get(
+                "weighted_check_agreement_mean"
+            ),
+            "calibration_applied_ratio": last_metadata.get(
+                "calibration_applied_ratio"
+            ),
+            "agent_operator_status": last_metadata.get("agent_operator_status"),
+            "agent_operator_mode": last_metadata.get("agent_operator_mode"),
+            "agent_operator_provider": last_metadata.get("agent_operator_provider"),
+            "agent_operator_model": last_metadata.get("agent_operator_model"),
+            "agent_operator_risk_posture": last_metadata.get(
+                "agent_operator_risk_posture"
+            ),
+            "agent_operator_confidence": last_metadata.get("agent_operator_confidence"),
+            "agent_operator_strategy_scenario_applied": last_metadata.get(
+                "agent_operator_strategy_scenario_applied"
+            ),
+            "agent_operator_strategy_scenario_hint": last_metadata.get(
+                "agent_operator_strategy_scenario_hint"
+            ),
+            "agent_operator_strategy_scenario_rejected_reason": last_metadata.get(
+                "agent_operator_strategy_scenario_rejected_reason"
             ),
             "result_hash": last_metadata.get("result_hash"),
         }
@@ -537,13 +821,15 @@ class RuntimeDashboardService:
             drawdown = max(0.0, day_start_equity - current_equity)
             daily_drawdown_fraction = drawdown / day_start_equity
 
-        fill_rate = RuntimeDashboardService._ratio(
+        fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
             RuntimeDashboardService._to_float(filled_trade_count),
             RuntimeDashboardService._to_float(risk_allowed_count),
         )
-        average_execution_cost_per_fill = RuntimeDashboardService._ratio(
+        average_execution_cost_per_fill = (
+            RuntimeDashboardService._ratio_with_zero_for_empty_series(
             total_execution_cost,
             RuntimeDashboardService._to_float(filled_trade_count),
+            )
         )
         expected_gross_edge_value = RuntimeDashboardService._to_float(
             last_metadata.get("expected_gross_edge_value")
@@ -595,17 +881,21 @@ class RuntimeDashboardService:
             last_metadata.get("expected_edge_capture_ratio")
         )
         if expected_edge_capture_ratio is None:
-            expected_edge_capture_ratio = RuntimeDashboardService._ratio(
+            expected_edge_capture_ratio = (
+                RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 expected_net_edge_value_on_fills,
                 expected_net_edge_value,
+                )
             )
         execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
             last_metadata.get("execution_cost_to_expected_net_ratio")
         )
         if execution_cost_to_expected_net_ratio is None:
-            execution_cost_to_expected_net_ratio = RuntimeDashboardService._ratio(
+            execution_cost_to_expected_net_ratio = (
+                RuntimeDashboardService._ratio_with_zero_for_empty_series(
                 total_execution_cost,
                 expected_net_edge_value_on_fills,
+                )
             )
 
         return {
@@ -671,14 +961,421 @@ class RuntimeDashboardService:
         }
 
     @staticmethod
-    def _as_positive_int(value: Any, *, field_name: str) -> int:
+    def _as_positive_int(
+        value: Any, *, field_name: str, max_value: int | None = None
+    ) -> int:
         try:
             parsed = int(value)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"{field_name} must be an integer") from exc
         if parsed <= 0:
             raise ValueError(f"{field_name} must be > 0")
+        if max_value is not None and parsed > max_value:
+            raise ValueError(f"{field_name} must be <= {max_value}")
         return parsed
+
+    @staticmethod
+    def _normalize_optional_filter(value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        if not cleaned:
+            return None
+        return cleaned
+
+    @staticmethod
+    def _normalize_kpi_status_filter(value: Any) -> str | None:
+        cleaned = RuntimeDashboardService._normalize_optional_filter(value)
+        if cleaned is None:
+            return None
+        allowed_statuses = {"ok", "warning", "critical", "insufficient_data"}
+        if cleaned not in allowed_statuses:
+            raise ValueError(
+                "kpi_status must be one of ok, warning, critical, insufficient_data"
+            )
+        return cleaned
+
+    @staticmethod
+    def _normalize_kpi_definitions(raw_kpis: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_kpis, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for item in raw_kpis:
+            if not isinstance(item, dict):
+                continue
+            kpi_id = str(item.get("kpi_id", "")).strip()
+            source = str(item.get("source", "")).strip()
+            if not kpi_id or not source or kpi_id in seen_ids:
+                continue
+            seen_ids.add(kpi_id)
+            direction = str(item.get("direction", "higher_is_better")).strip()
+            if direction not in {"higher_is_better", "lower_is_better"}:
+                direction = "higher_is_better"
+            normalized_item = dict(item)
+            normalized_item["kpi_id"] = kpi_id
+            normalized_item["source"] = source
+            normalized_item["label"] = (
+                str(item.get("label", "")).strip() or kpi_id.replace("_", " ").title()
+            )
+            normalized_item["domain"] = (
+                str(item.get("domain", "")).strip() or "uncategorized"
+            )
+            normalized_item["direction"] = direction
+            cycle_field = RuntimeDashboardService._normalize_optional_filter(
+                item.get("cycle_field")
+            )
+            if cycle_field is not None:
+                normalized_item["cycle_field"] = cycle_field
+            else:
+                normalized_item.pop("cycle_field", None)
+            unit = RuntimeDashboardService._normalize_optional_filter(item.get("unit"))
+            if unit is not None:
+                normalized_item["unit"] = unit
+            threshold_keys = (
+                "warning_below",
+                "critical_below",
+                "warning_above",
+                "critical_above",
+            )
+            for threshold_key in threshold_keys:
+                threshold_value = RuntimeDashboardService._to_float(
+                    item.get(threshold_key)
+                )
+                if threshold_value is None:
+                    normalized_item.pop(threshold_key, None)
+                    continue
+                normalized_item[threshold_key] = threshold_value
+            normalized.append(normalized_item)
+        return normalized
+
+    def _load_kpi_shadow_policy(self) -> dict[str, Any]:
+        default_policy = json.loads(json.dumps(_default_kpi_shadow_policy()))
+        if self.kpi_shadow_policy_path is None:
+            return default_policy
+        if not self.kpi_shadow_policy_path.exists():
+            return default_policy
+
+        payload = _read_json(self.kpi_shadow_policy_path)
+        if payload.get("schema_version") != KPI_SHADOW_POLICY_SCHEMA_VERSION:
+            raise ValueError("KPI shadow policy schema version mismatch")
+
+        default_window = RuntimeDashboardService._to_int(payload.get("default_window"))
+        if default_window is not None and default_window > 0:
+            default_policy["default_window"] = default_window
+        minimum_sample_size = RuntimeDashboardService._to_int(
+            payload.get("minimum_sample_size")
+        )
+        if minimum_sample_size is not None and minimum_sample_size > 0:
+            default_policy["minimum_sample_size"] = minimum_sample_size
+        mode = RuntimeDashboardService._normalize_optional_filter(payload.get("mode"))
+        if mode is not None:
+            default_policy["mode"] = mode
+        updated_at = RuntimeDashboardService._normalize_optional_filter(
+            payload.get("updated_at")
+        )
+        if updated_at is not None:
+            default_policy["updated_at"] = updated_at
+
+        normalized_kpis = RuntimeDashboardService._normalize_kpi_definitions(
+            payload.get("kpis")
+        )
+        if normalized_kpis:
+            default_policy["kpis"] = normalized_kpis
+        return default_policy
+
+    @staticmethod
+    def _lookup_nested_value(source: str, context: dict[str, Any]) -> Any:
+        current: Any = context
+        for segment in source.split("."):
+            if not isinstance(current, dict):
+                return None
+            current = current.get(segment)
+            if current is None:
+                return None
+        return current
+
+    @staticmethod
+    def _extract_kpi_series(
+        cycle_summaries: list[dict[str, Any]],
+        *,
+        cycle_field: str | None,
+        window: int,
+    ) -> list[dict[str, Any]]:
+        if cycle_field is None:
+            return []
+        values: list[dict[str, Any]] = []
+        for cycle_summary in cycle_summaries[-window:]:
+            value = RuntimeDashboardService._to_float(cycle_summary.get(cycle_field))
+            if value is None:
+                continue
+            values.append(
+                {
+                    "cycle_index": cycle_summary.get("cycle_index"),
+                    "timestamp": cycle_summary.get("timestamp"),
+                    "value": round(value, 6),
+                }
+            )
+        return values
+
+    @staticmethod
+    def _evaluate_kpi_status(
+        *,
+        value: float | None,
+        sample_count: int,
+        minimum_sample_size: int,
+        definition: dict[str, Any],
+    ) -> tuple[str, str]:
+        if value is None:
+            return ("insufficient_data", "latest_value_missing")
+        if sample_count < minimum_sample_size:
+            return ("insufficient_data", "minimum_sample_size_not_met")
+
+        direction = str(definition.get("direction", "higher_is_better"))
+        warning_below = RuntimeDashboardService._to_float(definition.get("warning_below"))
+        critical_below = RuntimeDashboardService._to_float(
+            definition.get("critical_below")
+        )
+        warning_above = RuntimeDashboardService._to_float(definition.get("warning_above"))
+        critical_above = RuntimeDashboardService._to_float(
+            definition.get("critical_above")
+        )
+
+        if direction == "higher_is_better":
+            if critical_below is not None and value <= critical_below:
+                return ("critical", "critical_below_threshold")
+            if warning_below is not None and value <= warning_below:
+                return ("warning", "warning_below_threshold")
+        else:
+            if critical_above is not None and value >= critical_above:
+                return ("critical", "critical_above_threshold")
+            if warning_above is not None and value >= warning_above:
+                return ("warning", "warning_above_threshold")
+        return ("ok", "within_threshold")
+
+    @staticmethod
+    def _derive_kpi_metrics(
+        *,
+        financial_metrics: dict[str, Any],
+        worker_activity: dict[str, dict[str, Any]],
+        incident_feed: dict[str, Any],
+        cycle_summaries: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        partial_fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
+            RuntimeDashboardService._to_float(financial_metrics.get("partial_fill_count")),
+            RuntimeDashboardService._to_float(financial_metrics.get("filled_trade_count")),
+        )
+        test_token_loop_retry_count = RuntimeDashboardService._to_float(
+            (worker_activity.get("test_token_loop") or {}).get("retry_count")
+        )
+        total_cycles = len(cycle_summaries)
+        total_incidents = RuntimeDashboardService._to_float(
+            (incident_feed.get("paging") or {}).get("total_incidents")
+        )
+        incident_density_per_cycle = RuntimeDashboardService._ratio(
+            total_incidents,
+            RuntimeDashboardService._to_float(total_cycles),
+        )
+        return {
+            "partial_fill_rate": RuntimeDashboardService._round_float(
+                partial_fill_rate,
+                digits=6,
+            ),
+            "test_token_loop_retry_count": RuntimeDashboardService._round_float(
+                test_token_loop_retry_count,
+                digits=4,
+            ),
+            "incident_density_per_cycle": RuntimeDashboardService._round_float(
+                incident_density_per_cycle,
+                digits=6,
+            ),
+            "incident_total_count": RuntimeDashboardService._to_int(total_incidents),
+        }
+
+    @staticmethod
+    def _build_kpi_shadow_payload(
+        *,
+        policy: dict[str, Any],
+        financial_metrics: dict[str, Any],
+        loop_metrics: dict[str, Any],
+        worker_activity: dict[str, dict[str, Any]],
+        incident_feed: dict[str, Any],
+        cycle_summaries: list[dict[str, Any]],
+        window: int,
+        kpi_domain: str | None,
+        kpi_status: str | None,
+    ) -> dict[str, Any]:
+        minimum_sample_size = RuntimeDashboardService._to_int(
+            policy.get("minimum_sample_size")
+        )
+        if minimum_sample_size is None or minimum_sample_size <= 0:
+            minimum_sample_size = 1
+        derived_metrics = RuntimeDashboardService._derive_kpi_metrics(
+            financial_metrics=financial_metrics,
+            worker_activity=worker_activity,
+            incident_feed=incident_feed,
+            cycle_summaries=cycle_summaries,
+        )
+        context: dict[str, Any] = {
+            "financial_metrics": financial_metrics,
+            "loop_metrics": loop_metrics,
+            "worker_activity": worker_activity,
+            "kpi_derived": derived_metrics,
+        }
+        items: list[dict[str, Any]] = []
+        available_domains: set[str] = set()
+        for definition in policy.get("kpis", []):
+            if not isinstance(definition, dict):
+                continue
+            domain = str(definition.get("domain", "uncategorized")).strip()
+            if not domain:
+                domain = "uncategorized"
+            available_domains.add(domain)
+            if kpi_domain is not None and domain != kpi_domain:
+                continue
+            source = str(definition.get("source", "")).strip()
+            if not source:
+                continue
+            cycle_field = RuntimeDashboardService._normalize_optional_filter(
+                definition.get("cycle_field")
+            )
+            series = RuntimeDashboardService._extract_kpi_series(
+                cycle_summaries,
+                cycle_field=cycle_field,
+                window=window,
+            )
+            latest_value = RuntimeDashboardService._to_float(
+                RuntimeDashboardService._lookup_nested_value(source, context)
+            )
+            if latest_value is None and series:
+                latest_value = RuntimeDashboardService._to_float(series[-1].get("value"))
+            previous_value = None
+            if len(series) >= 2:
+                previous_value = RuntimeDashboardService._to_float(series[-2].get("value"))
+            delta_value = None
+            if latest_value is not None and previous_value is not None:
+                delta_value = round(latest_value - previous_value, 6)
+            sample_count = len(series)
+            if sample_count == 0 and latest_value is not None:
+                sample_count = 1
+            status, status_reason = RuntimeDashboardService._evaluate_kpi_status(
+                value=latest_value,
+                sample_count=sample_count,
+                minimum_sample_size=minimum_sample_size,
+                definition=definition,
+            )
+            if kpi_status is not None and status != kpi_status:
+                continue
+
+            threshold_keys = (
+                "warning_below",
+                "critical_below",
+                "warning_above",
+                "critical_above",
+            )
+            thresholds: dict[str, float] = {}
+            for threshold_key in threshold_keys:
+                threshold_value = RuntimeDashboardService._to_float(
+                    definition.get(threshold_key)
+                )
+                if threshold_value is None:
+                    continue
+                thresholds[threshold_key] = round(threshold_value, 6)
+
+            items.append(
+                {
+                    "kpi_id": definition.get("kpi_id"),
+                    "label": definition.get("label"),
+                    "domain": domain,
+                    "unit": definition.get("unit"),
+                    "direction": definition.get("direction"),
+                    "source": source,
+                    "mode": "shadow",
+                    "shadow_only": True,
+                    "status": status,
+                    "status_reason": status_reason,
+                    "sample_count": sample_count,
+                    "minimum_sample_size": minimum_sample_size,
+                    "window": window,
+                    "latest_value": RuntimeDashboardService._round_float(
+                        latest_value,
+                        digits=6,
+                    ),
+                    "previous_value": RuntimeDashboardService._round_float(
+                        previous_value,
+                        digits=6,
+                    ),
+                    "delta": RuntimeDashboardService._round_float(
+                        delta_value,
+                        digits=6,
+                    ),
+                    "latest_cycle_index": (
+                        series[-1].get("cycle_index") if series else None
+                    ),
+                    "thresholds": thresholds,
+                    "series": series,
+                }
+            )
+
+        items.sort(key=lambda item: (str(item.get("domain")), str(item.get("kpi_id"))))
+        status_counts = {
+            "ok": 0,
+            "warning": 0,
+            "critical": 0,
+            "insufficient_data": 0,
+        }
+        domain_counts: dict[str, dict[str, Any]] = {}
+        for item in items:
+            status = str(item.get("status"))
+            if status in status_counts:
+                status_counts[status] += 1
+            domain = str(item.get("domain"))
+            domain_summary = domain_counts.setdefault(
+                domain,
+                {
+                    "total": 0,
+                    "status_counts": {
+                        "ok": 0,
+                        "warning": 0,
+                        "critical": 0,
+                        "insufficient_data": 0,
+                    },
+                },
+            )
+            domain_summary["total"] += 1
+            if status in domain_summary["status_counts"]:
+                domain_summary["status_counts"][status] += 1
+
+        return {
+            "mode": str(policy.get("mode", "shadow")),
+            "policy": {
+                "schema_version": policy.get("schema_version"),
+                "updated_at": policy.get("updated_at"),
+                "minimum_sample_size": minimum_sample_size,
+                "default_window": policy.get("default_window"),
+                "configured_kpi_count": len(policy.get("kpis", [])),
+            },
+            "filters": {
+                "window": window,
+                "domain": kpi_domain,
+                "status": kpi_status,
+                "available_domains": sorted(available_domains),
+                "available_statuses": [
+                    "ok",
+                    "warning",
+                    "critical",
+                    "insufficient_data",
+                ],
+            },
+            "summary": {
+                "total_kpis": len(items),
+                "status_counts": status_counts,
+                "domain_counts": domain_counts,
+                "total_cycles_available": len(cycle_summaries),
+            },
+            "derived_metrics": derived_metrics,
+            "items": items,
+        }
 
     @staticmethod
     def _incident_from_journal_row(
@@ -729,6 +1426,27 @@ class RuntimeDashboardService:
             execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
                 details.get("execution_cost_to_expected_net_ratio")
             )
+            open_positions = RuntimeDashboardService._to_int(
+                details.get("open_positions")
+            )
+            events = RuntimeDashboardService._to_int(details.get("events"))
+            state_refresh_applied = bool(details.get("state_refresh_applied"))
+            state_refresh_event_count = RuntimeDashboardService._to_int(
+                details.get("state_refresh_event_count")
+            )
+            state_refresh_max_streak = RuntimeDashboardService._to_int(
+                details.get("state_refresh_max_streak")
+            )
+            stale_open_position_market_ids_raw = details.get(
+                "stale_open_position_market_ids"
+            )
+            stale_open_position_market_ids: list[str] = []
+            if isinstance(stale_open_position_market_ids_raw, list):
+                for market_id in stale_open_position_market_ids_raw:
+                    market_id_text = str(market_id).strip()
+                    if market_id_text:
+                        stale_open_position_market_ids.append(market_id_text)
+            open_positions_value = open_positions or 0
             if (
                 expected_value_after_execution_cost is not None
                 and expected_value_after_execution_cost < 0
@@ -747,6 +1465,35 @@ class RuntimeDashboardService:
                     "Execution cost exceeded expected net edge "
                     f"(cycle_index={cycle_index}, "
                     f"ratio={execution_cost_to_expected_net_ratio:.4f})."
+                )
+                severity = "warning"
+            elif stale_open_position_market_ids and open_positions_value > 0:
+                stale_market_preview = ", ".join(stale_open_position_market_ids[:3])
+                if len(stale_open_position_market_ids) > 3:
+                    stale_market_preview = f"{stale_market_preview}, ..."
+                summary = (
+                    "State refresh replay has persisted across consecutive cycles "
+                    "while open positions remain "
+                    f"(cycle_index={cycle_index}, "
+                    f"open_positions={open_positions_value}, "
+                    f"max_streak={state_refresh_max_streak or 0}, "
+                    f"stale_markets={stale_market_preview})."
+                )
+                severity = "error"
+            elif state_refresh_applied and open_positions_value > 0:
+                summary = (
+                    "No fresh live events were available while open positions remained; "
+                    "state refresh replay was applied "
+                    f"(cycle_index={cycle_index}, "
+                    f"open_positions={open_positions_value}, "
+                    f"state_refresh_events={state_refresh_event_count or 0})."
+                )
+                severity = "warning"
+            elif events == 0 and open_positions_value > 0:
+                summary = (
+                    "Cycle processed zero events while open positions remained "
+                    f"(cycle_index={cycle_index}, "
+                    f"open_positions={open_positions_value})."
                 )
                 severity = "warning"
             else:
@@ -824,32 +1571,174 @@ class RuntimeDashboardService:
                 cycle_index = int(raw_cycle_index)
             except (TypeError, ValueError):
                 continue
+            risk_allowed_count = RuntimeDashboardService._to_int(
+                details.get("risk_allowed_count")
+            )
+            filled_trade_count = RuntimeDashboardService._to_int(
+                details.get("filled_trade_count")
+            )
+            partial_fill_count = RuntimeDashboardService._to_int(
+                details.get("partial_fill_count")
+            )
+            total_execution_cost = RuntimeDashboardService._to_float(
+                details.get("total_execution_cost")
+            )
+            total_fees_paid = RuntimeDashboardService._to_float(
+                details.get("total_fees_paid")
+            )
+            total_slippage_cost = RuntimeDashboardService._to_float(
+                details.get("total_slippage_cost")
+            )
+            current_equity = RuntimeDashboardService._to_float(
+                details.get("current_equity")
+            )
+            open_notional = RuntimeDashboardService._to_float(details.get("open_notional"))
+            total_exposure_fraction = RuntimeDashboardService._to_float(
+                details.get("total_exposure_fraction")
+            )
+            daily_drawdown_fraction = RuntimeDashboardService._to_float(
+                details.get("daily_drawdown_fraction")
+            )
+            fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                RuntimeDashboardService._to_float(filled_trade_count),
+                RuntimeDashboardService._to_float(risk_allowed_count),
+            )
+            partial_fill_rate = RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                RuntimeDashboardService._to_float(partial_fill_count),
+                RuntimeDashboardService._to_float(filled_trade_count),
+            )
+            average_execution_cost_per_fill = (
+                RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                total_execution_cost,
+                RuntimeDashboardService._to_float(filled_trade_count),
+                )
+            )
+            expected_net_edge_value = RuntimeDashboardService._to_float(
+                details.get("expected_net_edge_value")
+            )
+            expected_net_edge_value_on_fills = RuntimeDashboardService._to_float(
+                details.get("expected_net_edge_value_on_fills")
+            )
+            expected_edge_capture_ratio = RuntimeDashboardService._to_float(
+                details.get("expected_edge_capture_ratio")
+            )
+            if expected_edge_capture_ratio is None:
+                expected_edge_capture_ratio = (
+                    RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                        expected_net_edge_value_on_fills,
+                        expected_net_edge_value,
+                    )
+                )
+            execution_cost_to_expected_net_ratio = RuntimeDashboardService._to_float(
+                details.get("execution_cost_to_expected_net_ratio")
+            )
+            if execution_cost_to_expected_net_ratio is None:
+                execution_cost_to_expected_net_ratio = (
+                    RuntimeDashboardService._ratio_with_zero_for_empty_series(
+                        total_execution_cost,
+                        expected_net_edge_value_on_fills,
+                    )
+                )
+            raw_probability_mean = RuntimeDashboardService._to_float(
+                details.get("raw_probability_mean")
+            )
+            calibrated_probability_mean = RuntimeDashboardService._to_float(
+                details.get("calibrated_probability_mean")
+            )
+            probability_drift_mean = RuntimeDashboardService._to_float(
+                details.get("probability_drift_mean")
+            )
+            probability_drift_abs_mean = RuntimeDashboardService._to_float(
+                details.get("probability_drift_abs_mean")
+            )
+            probability_drift_max_abs = RuntimeDashboardService._to_float(
+                details.get("probability_drift_max_abs")
+            )
+            weighted_check_agreement_mean = RuntimeDashboardService._to_float(
+                details.get("weighted_check_agreement_mean")
+            )
+            calibration_applied_ratio = RuntimeDashboardService._to_float(
+                details.get("calibration_applied_ratio")
+            )
             by_cycle_index[cycle_index] = {
                 "cycle_index": cycle_index,
                 "timestamp": row.get("timestamp"),
                 "selected_scenario": details.get("selected_scenario"),
                 "control_version": details.get("control_version"),
                 "events": details.get("events"),
-                "risk_allowed_count": details.get("risk_allowed_count"),
-                "filled_trade_count": details.get("filled_trade_count"),
+                "risk_allowed_count": risk_allowed_count,
+                "filled_trade_count": filled_trade_count,
+                "partial_fill_count": partial_fill_count,
                 "exit_candidate_count": details.get("exit_candidate_count"),
                 "confirmed_exit_count": details.get("confirmed_exit_count"),
-                "total_execution_cost": details.get("total_execution_cost"),
+                "total_execution_cost": total_execution_cost,
+                "total_fees_paid": total_fees_paid,
+                "total_slippage_cost": total_slippage_cost,
                 "net_pnl": details.get("net_pnl"),
+                "current_equity": current_equity,
+                "open_notional": open_notional,
+                "open_positions": details.get("open_positions"),
+                "total_exposure_fraction": total_exposure_fraction,
+                "daily_drawdown_fraction": daily_drawdown_fraction,
                 "attributed_trade_count": details.get("attributed_trade_count"),
+                "fill_rate": RuntimeDashboardService._round_float(fill_rate, digits=6),
+                "partial_fill_rate": RuntimeDashboardService._round_float(
+                    partial_fill_rate,
+                    digits=6,
+                ),
+                "expected_net_edge_value_on_fills": RuntimeDashboardService._round_float(
+                    expected_net_edge_value_on_fills,
+                    digits=4,
+                ),
+                "average_execution_cost_per_fill": RuntimeDashboardService._round_float(
+                    average_execution_cost_per_fill,
+                    digits=4,
+                ),
                 "expected_gross_edge_value": details.get("expected_gross_edge_value"),
-                "expected_net_edge_value": details.get("expected_net_edge_value"),
-                "expected_net_edge_value_on_fills": details.get(
-                    "expected_net_edge_value_on_fills"
+                "expected_net_edge_value": RuntimeDashboardService._round_float(
+                    expected_net_edge_value,
+                    digits=4,
                 ),
                 "expected_value_after_execution_cost": details.get(
                     "expected_value_after_execution_cost"
                 ),
-                "expected_edge_capture_ratio": details.get(
-                    "expected_edge_capture_ratio"
+                "expected_edge_capture_ratio": RuntimeDashboardService._round_float(
+                    expected_edge_capture_ratio,
+                    digits=6,
                 ),
-                "execution_cost_to_expected_net_ratio": details.get(
-                    "execution_cost_to_expected_net_ratio"
+                "execution_cost_to_expected_net_ratio": (
+                    RuntimeDashboardService._round_float(
+                        execution_cost_to_expected_net_ratio,
+                        digits=6,
+                    )
+                ),
+                "raw_probability_mean": RuntimeDashboardService._round_float(
+                    raw_probability_mean,
+                    digits=6,
+                ),
+                "calibrated_probability_mean": RuntimeDashboardService._round_float(
+                    calibrated_probability_mean,
+                    digits=6,
+                ),
+                "probability_drift_mean": RuntimeDashboardService._round_float(
+                    probability_drift_mean,
+                    digits=6,
+                ),
+                "probability_drift_abs_mean": RuntimeDashboardService._round_float(
+                    probability_drift_abs_mean,
+                    digits=6,
+                ),
+                "probability_drift_max_abs": RuntimeDashboardService._round_float(
+                    probability_drift_max_abs,
+                    digits=6,
+                ),
+                "weighted_check_agreement_mean": RuntimeDashboardService._round_float(
+                    weighted_check_agreement_mean,
+                    digits=6,
+                ),
+                "calibration_applied_ratio": RuntimeDashboardService._round_float(
+                    calibration_applied_ratio,
+                    digits=6,
                 ),
                 "result_hash_prefix": details.get("result_hash_prefix"),
             }
@@ -905,6 +1794,10 @@ class RuntimeDashboardService:
                         previous.get("filled_trade_count"),
                         entry.get("filled_trade_count"),
                     ),
+                    "partial_fill_count": RuntimeDashboardService._delta(
+                        previous.get("partial_fill_count"),
+                        entry.get("partial_fill_count"),
+                    ),
                     "exit_candidate_count": RuntimeDashboardService._delta(
                         previous.get("exit_candidate_count"),
                         entry.get("exit_candidate_count"),
@@ -926,6 +1819,33 @@ class RuntimeDashboardService:
                     "attributed_trade_count": RuntimeDashboardService._delta(
                         previous.get("attributed_trade_count"),
                         entry.get("attributed_trade_count"),
+                    ),
+                    "fill_rate": RuntimeDashboardService._delta_float(
+                        previous.get("fill_rate"),
+                        entry.get("fill_rate"),
+                        digits=6,
+                    ),
+                    "partial_fill_rate": RuntimeDashboardService._delta_float(
+                        previous.get("partial_fill_rate"),
+                        entry.get("partial_fill_rate"),
+                        digits=6,
+                    ),
+                    "average_execution_cost_per_fill": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("average_execution_cost_per_fill"),
+                            entry.get("average_execution_cost_per_fill"),
+                            digits=4,
+                        )
+                    ),
+                    "daily_drawdown_fraction": RuntimeDashboardService._delta_float(
+                        previous.get("daily_drawdown_fraction"),
+                        entry.get("daily_drawdown_fraction"),
+                        digits=6,
+                    ),
+                    "total_exposure_fraction": RuntimeDashboardService._delta_float(
+                        previous.get("total_exposure_fraction"),
+                        entry.get("total_exposure_fraction"),
+                        digits=6,
                     ),
                     "expected_gross_edge_value": (
                         RuntimeDashboardService._delta_float(
@@ -967,6 +1887,47 @@ class RuntimeDashboardService:
                             digits=6,
                         )
                     ),
+                    "raw_probability_mean": RuntimeDashboardService._delta_float(
+                        previous.get("raw_probability_mean"),
+                        entry.get("raw_probability_mean"),
+                        digits=6,
+                    ),
+                    "calibrated_probability_mean": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("calibrated_probability_mean"),
+                            entry.get("calibrated_probability_mean"),
+                            digits=6,
+                        )
+                    ),
+                    "probability_drift_mean": RuntimeDashboardService._delta_float(
+                        previous.get("probability_drift_mean"),
+                        entry.get("probability_drift_mean"),
+                        digits=6,
+                    ),
+                    "probability_drift_abs_mean": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("probability_drift_abs_mean"),
+                            entry.get("probability_drift_abs_mean"),
+                            digits=6,
+                        )
+                    ),
+                    "probability_drift_max_abs": RuntimeDashboardService._delta_float(
+                        previous.get("probability_drift_max_abs"),
+                        entry.get("probability_drift_max_abs"),
+                        digits=6,
+                    ),
+                    "weighted_check_agreement_mean": (
+                        RuntimeDashboardService._delta_float(
+                            previous.get("weighted_check_agreement_mean"),
+                            entry.get("weighted_check_agreement_mean"),
+                            digits=6,
+                        )
+                    ),
+                    "calibration_applied_ratio": RuntimeDashboardService._delta_float(
+                        previous.get("calibration_applied_ratio"),
+                        entry.get("calibration_applied_ratio"),
+                        digits=6,
+                    ),
                 }
             comparison_items.append(enriched)
             previous = entry
@@ -980,7 +1941,11 @@ class RuntimeDashboardService:
     def build_incident_feed(
         self, *, limit: int = 50, cursor: Any = None
     ) -> dict[str, Any]:
-        limit_value = self._as_positive_int(limit, field_name="incident_limit")
+        limit_value = self._as_positive_int(
+            limit,
+            field_name="incident_limit",
+            max_value=MAX_DASHBOARD_INCIDENT_LIMIT,
+        )
         journal_rows = self._load_journal()
         return self._build_incident_feed_payload(
             journal_rows,
@@ -989,7 +1954,11 @@ class RuntimeDashboardService:
         )
 
     def build_cycle_comparison(self, *, window: int = 10) -> dict[str, Any]:
-        window_value = self._as_positive_int(window, field_name="comparison_window")
+        window_value = self._as_positive_int(
+            window,
+            field_name="comparison_window",
+            max_value=MAX_DASHBOARD_COMPARISON_WINDOW,
+        )
         journal_rows = self._load_journal()
         return self._build_cycle_comparison_payload(
             journal_rows,
@@ -1006,20 +1975,46 @@ class RuntimeDashboardService:
         incident_limit: int = 50,
         incident_cursor: Any = None,
         comparison_window: int = 10,
+        kpi_window: Any = None,
+        kpi_domain: Any = None,
+        kpi_status: Any = None,
     ) -> dict[str, Any]:
         events_limit = self._as_positive_int(
-            recent_events_limit, field_name="recent_events_limit"
+            recent_events_limit,
+            field_name="recent_events_limit",
+            max_value=MAX_DASHBOARD_RECENT_EVENTS_LIMIT,
         )
         audit_limit = self._as_positive_int(
-            recent_audit_limit, field_name="recent_audit_limit"
+            recent_audit_limit,
+            field_name="recent_audit_limit",
+            max_value=MAX_DASHBOARD_RECENT_AUDIT_LIMIT,
         )
         incident_limit_value = self._as_positive_int(
-            incident_limit, field_name="incident_limit"
+            incident_limit,
+            field_name="incident_limit",
+            max_value=MAX_DASHBOARD_INCIDENT_LIMIT,
         )
         comparison_window_value = self._as_positive_int(
             comparison_window,
             field_name="comparison_window",
+            max_value=MAX_DASHBOARD_COMPARISON_WINDOW,
         )
+        kpi_shadow_policy = self._load_kpi_shadow_policy()
+        policy_default_window = self._to_int(kpi_shadow_policy.get("default_window"))
+        if policy_default_window is None or policy_default_window <= 0:
+            policy_default_window = comparison_window_value
+        if policy_default_window > MAX_DASHBOARD_KPI_WINDOW:
+            policy_default_window = MAX_DASHBOARD_KPI_WINDOW
+        if kpi_window is None:
+            kpi_window_value = policy_default_window
+        else:
+            kpi_window_value = self._as_positive_int(
+                kpi_window,
+                field_name="kpi_window",
+                max_value=MAX_DASHBOARD_KPI_WINDOW,
+            )
+        kpi_domain_value = self._normalize_optional_filter(kpi_domain)
+        kpi_status_value = self._normalize_kpi_status_filter(kpi_status)
 
         supervisor_state = self._load_state()
         journal_rows = self._load_journal()
@@ -1041,9 +2036,21 @@ class RuntimeDashboardService:
             limit=incident_limit_value,
             cursor=incident_cursor,
         )
+        cycle_summaries = self._extract_cycle_summaries_from_journal(journal_rows)
         cycle_comparison = self._build_cycle_comparison_payload(
             journal_rows,
             window=comparison_window_value,
+        )
+        kpi_shadow = self._build_kpi_shadow_payload(
+            policy=kpi_shadow_policy,
+            financial_metrics=financial_metrics,
+            loop_metrics=loop_metrics,
+            worker_activity=worker_activity,
+            incident_feed=incident_feed,
+            cycle_summaries=cycle_summaries,
+            window=kpi_window_value,
+            kpi_domain=kpi_domain_value,
+            kpi_status=kpi_status_value,
         )
 
         return {
@@ -1059,4 +2066,5 @@ class RuntimeDashboardService:
             "recent_operator_actions": audit_events,
             "incident_feed": incident_feed,
             "cycle_comparison": cycle_comparison,
+            "kpi_shadow": kpi_shadow,
         }

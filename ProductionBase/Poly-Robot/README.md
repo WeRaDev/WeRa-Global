@@ -27,12 +27,16 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_milestone_c_sequence.py`: staged Milestone C runner that chains soak + certification phases (`12h -> 24h -> 48h`) with per-phase artifacts.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `scripts/run_canary_stage_enablement.py`: canary stage promotion gate runner that emits ALLOW/DENY decisions from certification + approval records and appends enablement audit evidence.
+- `scripts/run_canary_rollback_guard.py`: rollback enforcement runner that evaluates canary artifacts + cycle telemetry and emits machine-readable incident handoff evidence.
+- `scripts/run_canary_lifecycle_gate.py`: lifecycle orchestration runner that executes readiness certification, stage enablement decisioning, and rollback guard evaluation in one deterministic gate sequence.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
 - `src/poly_robot/stress_certification.py`: certification evaluator that scores scenario-matrix and soak evidence against explicit gates.
 - `src/poly_robot/canary_enablement.py`: canary stage enablement decision evaluator and append-only audit event writer.
+- `src/poly_robot/canary_rollback_guard.py`: rollback trigger evaluator with incident handoff authority mapping and append-only guard audit events.
 - `tests/`: governance + replay + strategy/risk + execution + loop integration unit tests.
+- `requirements-dev.txt`: shared development tooling manifest for Dockerized virtual environment and CI parity.
 - `tasks/`: task backlogs and sprint-ready items.
 - `skills/`: project-specific Warp agent skills.
 
@@ -97,6 +101,11 @@ The default CI workflow now enforces:
 - Security static analysis (`bandit`) for source modules and runtime scripts.
 - UX regression checks for runtime web GUI and operator controls.
 - Static type check for `src/poly_robot` (`mypy`).
+- Canary stage enablement approval-boundary check (`DENY` is required while approvals remain pending).
+- Canary rollback guard incident-handoff check (`FAIL` + `incident_status=OPEN` is required when stage enablement is denied).
+- Canary stage enablement happy-path check (`ALLOW` + zero `failed_reason_codes` is required when required approvers are approved).
+- Canary rollback guard happy-path check (`PASS` + `incident_status=NONE` is required when stage enablement is allowed).
+- Canary lifecycle gate sequence checks (`FAIL` on pending approval path and `PASS` on auto-approved path) using consolidated lifecycle summary artifacts.
 - Docker deployment sanity gates (`docker compose config --quiet` + `docker compose build runtime-gui`).
 
 Run validation:
@@ -231,9 +240,13 @@ python3 scripts/run_runtime_supervisor.py \
    - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
    - `Set Scenario`: changes scenario used by the next cycle
    - `Annotate Incident`: appends an audited operator note
-6. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
-7. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
-8. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
+6. Use **Dashboard Views** refresh controls to tune polling:
+   - `Auto Refresh Interval (seconds)`: adjusts periodic dashboard polling cadence
+   - `Auto Refresh Enabled`: pauses/resumes periodic polling without clearing filters
+   - `Refresh Now`: triggers an immediate dashboard reload after control actions
+7. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
+8. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
+9. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:
@@ -279,6 +292,22 @@ docker compose config --quiet
 docker compose build runtime-gui
 docker compose up -d runtime-gui
 curl http://127.0.0.1:8765/healthz
+```
+
+Dockerized Python virtual environment (development/test workflow):
+- The Docker image creates an isolated virtual environment at `/opt/poly-robot-venv` and installs tooling from `requirements-dev.txt`.
+- Container `python`, `ruff`, `mypy`, and `bandit` commands run from that virtual environment by default.
+```bash
+docker compose --profile dev build
+docker compose --profile dev run --rm test-runner
+docker compose --profile dev run --rm quality-gate
+docker compose --profile dev run --rm dev-shell
+```
+Inside the dev shell, run project commands with the preconfigured environment:
+```bash
+python -m unittest tests.test_runtime_web_gui
+ruff check src/poly_robot tests scripts
+PYTHONPATH=src python -m mypy src/poly_robot
 ```
 
 Run the supervisor in Docker (optional):
@@ -350,8 +379,59 @@ python3 scripts/run_canary_stage_enablement.py \
 F2 enablement artifact usage:
 - `runtime/canary_stage_enablement_decision.json` emits criterion-level `ALLOW`/`DENY` with explicit `failed_reason_codes` for certification, approval, and rollout-stage gate checks.
 - Enablement is denied whenever certification is not `PASS`, certification blockers are present, or required approvers are missing/not approved.
+- For stages that increase live limits (`limited_live`, `full_live`), enablement additionally requires `promotion_evidence` in the approval record with financial KPI floors/ceilings and micro-notional modeled-vs-realized execution evidence.
 - `runtime/canary_stage_enablement_audit.jsonl` is append-only and records actor, reason, decision status, and evidence hashes per evaluation.
 - `config/integration/canary_approval_record_template.v1.json` is the canonical approval-record format for required approvers (`release_manager`, `runtime_operator_on_call`) and rollback authority mapping.
+
+Run F3 canary rollback guard (automated rollback enforcement + incident handoff):
+```bash
+python3 scripts/run_canary_rollback_guard.py \
+  --enablement-decision runtime/canary_stage_enablement_decision.json \
+  --certification-report runtime/canary_rollout_certification_report.json \
+  --rehearsal-report runtime/rollout_rehearsal_report.json \
+  --cycle-report-dir runtime/rollout_rehearsal \
+  --cycle-report-pattern "**/cycle_*.json" \
+  --policy-config config/integration/canary_rollback_policy.v1.json \
+  --guard-output runtime/canary_rollback_guard_report.json \
+  --incident-output runtime/canary_rollback_incident_report.json \
+  --audit-output runtime/canary_rollback_guard_audit.jsonl \
+  --actor runtime_operator_on_call \
+  --reason "phase-f3-guard-evaluation"
+```
+F3 rollback artifact usage:
+- `runtime/canary_rollback_guard_report.json` emits trigger-level PASS/FAIL evidence and `guard_status` (`PASS` or `FAIL`) from canary artifacts plus cycle telemetry thresholds.
+- Any trigger activation sets `incident_required=true` and generates `incident_handoff` with reason-coded trigger evidence.
+- `runtime/canary_rollback_incident_report.json` captures required emergency actions, rollback authority, responsible authority, and deterministic handoff sequence.
+- `runtime/canary_rollback_guard_audit.jsonl` is append-only and records each guard evaluation with actor/reason plus guard/incident hashes.
+- `config/integration/canary_rollback_policy.v1.json` is the canonical source for rollback trigger thresholds, emergency actions, and authority mapping.
+
+Run F4 canary lifecycle gate (single command orchestration across certification + enablement + rollback guard):
+```bash
+python3 scripts/run_canary_lifecycle_gate.py \
+  --rehearsal-report runtime/rollout_rehearsal_report.json \
+  --criteria-config config/integration/canary_promotion_criteria.v1.json \
+  --approval-record config/integration/canary_approval_record_template.v1.json \
+  --rollout-config config/integration/live_trade_rollout.v1.json \
+  --policy-config config/integration/canary_rollback_policy.v1.json \
+  --cycle-report-dir runtime/rollout_rehearsal \
+  --cycle-report-pattern "**/cycle_*.json" \
+  --requested-stage canary_live \
+  --approval-status pending \
+  --certification-output runtime/canary_rollout_certification_report.json \
+  --decision-output runtime/canary_stage_enablement_decision.json \
+  --enablement-audit-output runtime/canary_stage_enablement_audit.jsonl \
+  --guard-output runtime/canary_rollback_guard_report.json \
+  --incident-output runtime/canary_rollback_incident_report.json \
+  --guard-audit-output runtime/canary_rollback_guard_audit.jsonl \
+  --summary-output runtime/canary_lifecycle_gate_report.json \
+  --decision-actor release_manager \
+  --guard-actor runtime_operator_on_call \
+  --reason "phase-f4-lifecycle-gate-evaluation" || true
+```
+F4 lifecycle artifact usage:
+- `runtime/canary_lifecycle_gate_report.json` is the consolidated gate outcome (`overall_status`, stage statuses, failed reason codes, triggered condition IDs, and evidence hashes).
+- Pending-approval runs are expected to return non-zero with `overall_status=FAIL`, `decision_status=DENY`, and `incident_status=OPEN`.
+- Promotion-ready runs use `--approval-status approved --auto-approve-required-approvers` and must return zero with `overall_status=PASS`.
 
 Run stress campaign certification:
 ```bash

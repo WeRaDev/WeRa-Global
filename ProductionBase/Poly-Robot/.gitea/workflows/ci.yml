@@ -20,7 +20,7 @@ jobs:
       - name: Install static tooling
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install mypy ruff bandit
+          python3 -m pip install -r requirements-dev.txt
       - name: Baseline repository structure check
         run: |
           test -f README.md
@@ -126,6 +126,364 @@ jobs:
               f"blockers={blocker_count}"
           )
           PY
+      - name: Canary stage enablement approval-boundary gate
+        run: |
+          python3 scripts/run_canary_stage_enablement.py \
+            --certification-report runtime/canary_rollout_certification_report.json \
+            --approval-record config/integration/canary_approval_record_template.v1.json \
+            --rollout-config config/integration/live_trade_rollout.v1.json \
+            --requested-stage canary_live \
+            --decision-output runtime/canary_stage_enablement_decision.json \
+            --audit-output runtime/canary_stage_enablement_audit.jsonl \
+            --actor release_manager \
+            --reason "ci-approval-boundary-check" || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          decision_path = Path("runtime/canary_stage_enablement_decision.json")
+          if not decision_path.exists():
+              raise SystemExit("Missing canary stage enablement decision artifact")
+          decision = json.loads(decision_path.read_text(encoding="utf-8"))
+          decision_status = str(decision.get("decision_status", "UNKNOWN"))
+          failed_reason_codes = decision.get("failed_reason_codes", [])
+          if decision_status != "DENY":
+              raise SystemExit(
+                  "Canary stage enablement boundary check failed: "
+                  f"expected decision_status=DENY got {decision_status}"
+              )
+          if "required_approver_not_approved" not in failed_reason_codes:
+              raise SystemExit(
+                  "Canary stage enablement boundary check failed: "
+                  "missing required_approver_not_approved reason code"
+              )
+          if bool(decision.get("canary_stage_enablement_allowed")):
+              raise SystemExit(
+                  "Canary stage enablement boundary check failed: "
+                  "canary_stage_enablement_allowed unexpectedly true"
+              )
+          print(
+              "Canary stage enablement boundary gate passed: "
+              f"decision_status={decision_status} "
+              f"failed_reason_codes={len(failed_reason_codes)}"
+          )
+          PY
+      - name: Canary rollback guard incident-handoff gate
+        run: |
+          python3 scripts/run_canary_rollback_guard.py \
+            --enablement-decision runtime/canary_stage_enablement_decision.json \
+            --certification-report runtime/canary_rollout_certification_report.json \
+            --rehearsal-report runtime/rollout_rehearsal_report.json \
+            --cycle-report-dir runtime/rollout_rehearsal \
+            --cycle-report-pattern "**/cycle_*.json" \
+            --policy-config config/integration/canary_rollback_policy.v1.json \
+            --guard-output runtime/canary_rollback_guard_report.json \
+            --incident-output runtime/canary_rollback_incident_report.json \
+            --audit-output runtime/canary_rollback_guard_audit.jsonl \
+            --actor runtime_operator_on_call \
+            --reason "ci-rollback-incident-check" || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          guard_path = Path("runtime/canary_rollback_guard_report.json")
+          incident_path = Path("runtime/canary_rollback_incident_report.json")
+          if not guard_path.exists():
+              raise SystemExit("Missing canary rollback guard report artifact")
+          if not incident_path.exists():
+              raise SystemExit("Missing canary rollback incident report artifact")
+          guard_report = json.loads(guard_path.read_text(encoding="utf-8"))
+          incident_report = json.loads(incident_path.read_text(encoding="utf-8"))
+          guard_status = str(guard_report.get("guard_status", "UNKNOWN"))
+          incident_status = str(incident_report.get("incident_status", "UNKNOWN"))
+          if guard_status != "FAIL":
+              raise SystemExit(
+                  "Canary rollback guard gate failed: "
+                  f"expected guard_status=FAIL got {guard_status}"
+              )
+          if not bool(guard_report.get("incident_required")):
+              raise SystemExit(
+                  "Canary rollback guard gate failed: incident_required was false"
+              )
+          if incident_status != "OPEN":
+              raise SystemExit(
+                  "Canary rollback guard gate failed: "
+                  f"expected incident_status=OPEN got {incident_status}"
+              )
+          trigger_ids = {
+              str(item.get("id", "")).strip()
+              for item in guard_report.get("triggered_conditions", [])
+              if isinstance(item, dict)
+          }
+          if "enablement_decision_denied" not in trigger_ids:
+              raise SystemExit(
+                  "Canary rollback guard gate failed: "
+                  "enablement_decision_denied trigger not present"
+              )
+          print(
+              "Canary rollback guard gate passed: "
+              f"guard_status={guard_status} "
+              f"incident_status={incident_status} "
+              f"triggered_conditions={len(trigger_ids)}"
+          )
+          PY
+      - name: Canary happy-path promotion gate
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          template_path = Path("config/integration/canary_approval_record_template.v1.json")
+          approved_path = Path("runtime/canary_approval_record_ci_approved.json")
+          approval_record = json.loads(template_path.read_text(encoding="utf-8"))
+          required_approvers = {
+              str(value).strip()
+              for value in approval_record.get("required_approvers", [])
+              if str(value).strip()
+          }
+          approval_entries = approval_record.get("approvals", [])
+          now = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+          for entry in approval_entries:
+              if not isinstance(entry, dict):
+                  continue
+              actor = str(entry.get("actor", "")).strip()
+              if actor in required_approvers:
+                  entry["decision"] = "approved"
+                  entry["recorded_at"] = now
+                  note = str(entry.get("note", "")).strip()
+                  entry["note"] = (
+                      f"{note} [ci-auto-approved]"
+                      if note
+                      else "ci-auto-approved"
+                  )
+          approval_record["updated_at"] = now
+          approval_record["requested_at"] = now
+          approval_record["record_id"] = "canary-stage-enable-ci-approved"
+          approved_path.parent.mkdir(parents=True, exist_ok=True)
+          approved_path.write_text(
+              json.dumps(approval_record, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(
+              "Prepared approved canary approval record artifact: "
+              f"required_approvers={len(required_approvers)} "
+              f"path={approved_path}"
+          )
+          PY
+          python3 scripts/run_canary_stage_enablement.py \
+            --certification-report runtime/canary_rollout_certification_report.json \
+            --approval-record runtime/canary_approval_record_ci_approved.json \
+            --rollout-config config/integration/live_trade_rollout.v1.json \
+            --requested-stage canary_live \
+            --decision-output runtime/canary_stage_enablement_decision_approved.json \
+            --audit-output runtime/canary_stage_enablement_audit_approved.jsonl \
+            --actor release_manager \
+            --reason "ci-happy-path-approval-check"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          decision_path = Path("runtime/canary_stage_enablement_decision_approved.json")
+          if not decision_path.exists():
+              raise SystemExit(
+                  "Missing approved canary stage enablement decision artifact"
+              )
+          decision = json.loads(decision_path.read_text(encoding="utf-8"))
+          decision_status = str(decision.get("decision_status", "UNKNOWN"))
+          failed_reason_codes = decision.get("failed_reason_codes", [])
+          if decision_status != "ALLOW":
+              raise SystemExit(
+                  "Canary stage enablement happy-path check failed: "
+                  f"expected decision_status=ALLOW got {decision_status}"
+              )
+          if not bool(decision.get("canary_stage_enablement_allowed")):
+              raise SystemExit(
+                  "Canary stage enablement happy-path check failed: "
+                  "canary_stage_enablement_allowed unexpectedly false"
+              )
+          if failed_reason_codes:
+              raise SystemExit(
+                  "Canary stage enablement happy-path check failed: "
+                  f"expected no failed_reason_codes got {len(failed_reason_codes)}"
+              )
+          print(
+              "Canary stage enablement happy-path gate passed: "
+              f"decision_status={decision_status} "
+              f"failed_reason_codes={len(failed_reason_codes)}"
+          )
+          PY
+          python3 scripts/run_canary_rollback_guard.py \
+            --enablement-decision runtime/canary_stage_enablement_decision_approved.json \
+            --certification-report runtime/canary_rollout_certification_report.json \
+            --rehearsal-report runtime/rollout_rehearsal_report.json \
+            --cycle-report-dir runtime/rollout_rehearsal \
+            --cycle-report-pattern "**/cycle_*.json" \
+            --policy-config config/integration/canary_rollback_policy.v1.json \
+            --guard-output runtime/canary_rollback_guard_report_approved.json \
+            --incident-output runtime/canary_rollback_incident_report_approved.json \
+            --audit-output runtime/canary_rollback_guard_audit_approved.jsonl \
+            --actor runtime_operator_on_call \
+            --reason "ci-happy-path-rollback-pass-check"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          guard_path = Path("runtime/canary_rollback_guard_report_approved.json")
+          incident_path = Path("runtime/canary_rollback_incident_report_approved.json")
+          if not guard_path.exists():
+              raise SystemExit("Missing approved canary rollback guard report artifact")
+          if not incident_path.exists():
+              raise SystemExit(
+                  "Missing approved canary rollback incident report artifact"
+              )
+          guard_report = json.loads(guard_path.read_text(encoding="utf-8"))
+          incident_report = json.loads(incident_path.read_text(encoding="utf-8"))
+          guard_status = str(guard_report.get("guard_status", "UNKNOWN"))
+          incident_status = str(incident_report.get("incident_status", "UNKNOWN"))
+          triggered_condition_count = int(
+              guard_report.get("triggered_condition_count", 0)
+          )
+          if guard_status != "PASS":
+              raise SystemExit(
+                  "Canary rollback guard happy-path check failed: "
+                  f"expected guard_status=PASS got {guard_status}"
+              )
+          if bool(guard_report.get("incident_required")):
+              raise SystemExit(
+                  "Canary rollback guard happy-path check failed: "
+                  "incident_required unexpectedly true"
+              )
+          if incident_status != "NONE":
+              raise SystemExit(
+                  "Canary rollback guard happy-path check failed: "
+                  f"expected incident_status=NONE got {incident_status}"
+              )
+          if triggered_condition_count != 0:
+              raise SystemExit(
+                  "Canary rollback guard happy-path check failed: "
+                  "triggered_condition_count was not zero"
+              )
+          print(
+              "Canary rollback guard happy-path gate passed: "
+              f"guard_status={guard_status} "
+              f"incident_status={incident_status} "
+              f"triggered_conditions={triggered_condition_count}"
+          )
+          PY
+      - name: Canary lifecycle gate sequence checks
+        run: |
+          python3 scripts/run_canary_lifecycle_gate.py \
+            --rehearsal-report runtime/rollout_rehearsal_report.json \
+            --criteria-config config/integration/canary_promotion_criteria.v1.json \
+            --approval-record config/integration/canary_approval_record_template.v1.json \
+            --rollout-config config/integration/live_trade_rollout.v1.json \
+            --policy-config config/integration/canary_rollback_policy.v1.json \
+            --cycle-report-dir runtime/rollout_rehearsal \
+            --cycle-report-pattern "**/cycle_*.json" \
+            --requested-stage canary_live \
+            --approval-status pending \
+            --certification-output runtime/canary_rollout_certification_report_lifecycle_pending.json \
+            --decision-output runtime/canary_stage_enablement_decision_lifecycle_pending.json \
+            --enablement-audit-output runtime/canary_stage_enablement_audit_lifecycle_pending.jsonl \
+            --guard-output runtime/canary_rollback_guard_report_lifecycle_pending.json \
+            --incident-output runtime/canary_rollback_incident_report_lifecycle_pending.json \
+            --guard-audit-output runtime/canary_rollback_guard_audit_lifecycle_pending.jsonl \
+            --summary-output runtime/canary_lifecycle_gate_report_pending.json \
+            --decision-actor release_manager \
+            --guard-actor runtime_operator_on_call \
+            --reason "ci-lifecycle-pending-check" || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          pending_summary_path = Path("runtime/canary_lifecycle_gate_report_pending.json")
+          if not pending_summary_path.exists():
+              raise SystemExit("Missing pending canary lifecycle summary artifact")
+          pending_summary = json.loads(pending_summary_path.read_text(encoding="utf-8"))
+          pending_status = str(pending_summary.get("overall_status", "UNKNOWN"))
+          pending_statuses = pending_summary.get("statuses", {})
+          if pending_status != "FAIL":
+              raise SystemExit(
+                  "Canary lifecycle pending-path check failed: "
+                  f"expected overall_status=FAIL got {pending_status}"
+              )
+          if str(pending_statuses.get("enablement_decision_status", "UNKNOWN")) != "DENY":
+              raise SystemExit(
+                  "Canary lifecycle pending-path check failed: "
+                  "expected enablement decision status DENY"
+              )
+          if str(pending_statuses.get("rollback_guard_status", "UNKNOWN")) != "FAIL":
+              raise SystemExit(
+                  "Canary lifecycle pending-path check failed: "
+                  "expected rollback guard status FAIL"
+              )
+          if str(pending_statuses.get("incident_status", "UNKNOWN")) != "OPEN":
+              raise SystemExit(
+                  "Canary lifecycle pending-path check failed: "
+                  "expected incident status OPEN"
+              )
+          print(
+              "Canary lifecycle pending-path check passed: "
+              f"overall_status={pending_status}"
+          )
+          PY
+          python3 scripts/run_canary_lifecycle_gate.py \
+            --rehearsal-report runtime/rollout_rehearsal_report.json \
+            --criteria-config config/integration/canary_promotion_criteria.v1.json \
+            --approval-record config/integration/canary_approval_record_template.v1.json \
+            --rollout-config config/integration/live_trade_rollout.v1.json \
+            --policy-config config/integration/canary_rollback_policy.v1.json \
+            --cycle-report-dir runtime/rollout_rehearsal \
+            --cycle-report-pattern "**/cycle_*.json" \
+            --requested-stage canary_live \
+            --approval-status approved \
+            --auto-approve-required-approvers \
+            --certification-output runtime/canary_rollout_certification_report_lifecycle_approved.json \
+            --decision-output runtime/canary_stage_enablement_decision_lifecycle_approved.json \
+            --enablement-audit-output runtime/canary_stage_enablement_audit_lifecycle_approved.jsonl \
+            --guard-output runtime/canary_rollback_guard_report_lifecycle_approved.json \
+            --incident-output runtime/canary_rollback_incident_report_lifecycle_approved.json \
+            --guard-audit-output runtime/canary_rollback_guard_audit_lifecycle_approved.jsonl \
+            --summary-output runtime/canary_lifecycle_gate_report_approved.json \
+            --decision-actor release_manager \
+            --guard-actor runtime_operator_on_call \
+            --reason "ci-lifecycle-approved-check"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          approved_summary_path = Path("runtime/canary_lifecycle_gate_report_approved.json")
+          if not approved_summary_path.exists():
+              raise SystemExit("Missing approved canary lifecycle summary artifact")
+          approved_summary = json.loads(approved_summary_path.read_text(encoding="utf-8"))
+          approved_status = str(approved_summary.get("overall_status", "UNKNOWN"))
+          approved_statuses = approved_summary.get("statuses", {})
+          if approved_status != "PASS":
+              raise SystemExit(
+                  "Canary lifecycle approved-path check failed: "
+                  f"expected overall_status=PASS got {approved_status}"
+              )
+          if str(approved_statuses.get("enablement_decision_status", "UNKNOWN")) != "ALLOW":
+              raise SystemExit(
+                  "Canary lifecycle approved-path check failed: "
+                  "expected enablement decision status ALLOW"
+              )
+          if str(approved_statuses.get("rollback_guard_status", "UNKNOWN")) != "PASS":
+              raise SystemExit(
+                  "Canary lifecycle approved-path check failed: "
+                  "expected rollback guard status PASS"
+              )
+          if str(approved_statuses.get("incident_status", "UNKNOWN")) != "NONE":
+              raise SystemExit(
+                  "Canary lifecycle approved-path check failed: "
+                  "expected incident status NONE"
+              )
+          print(
+              "Canary lifecycle approved-path check passed: "
+              f"overall_status={approved_status}"
+          )
+          PY
       - name: Upload rollout rehearsal artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -134,6 +492,31 @@ jobs:
           path: |
             runtime/rollout_rehearsal_report.json
             runtime/canary_rollout_certification_report.json
+            runtime/canary_stage_enablement_decision.json
+            runtime/canary_stage_enablement_audit.jsonl
+            runtime/canary_approval_record_ci_approved.json
+            runtime/canary_stage_enablement_decision_approved.json
+            runtime/canary_stage_enablement_audit_approved.jsonl
+            runtime/canary_rollback_guard_report.json
+            runtime/canary_rollback_incident_report.json
+            runtime/canary_rollback_guard_audit.jsonl
+            runtime/canary_rollback_guard_report_approved.json
+            runtime/canary_rollback_incident_report_approved.json
+            runtime/canary_rollback_guard_audit_approved.jsonl
+            runtime/canary_rollout_certification_report_lifecycle_pending.json
+            runtime/canary_stage_enablement_decision_lifecycle_pending.json
+            runtime/canary_stage_enablement_audit_lifecycle_pending.jsonl
+            runtime/canary_rollback_guard_report_lifecycle_pending.json
+            runtime/canary_rollback_incident_report_lifecycle_pending.json
+            runtime/canary_rollback_guard_audit_lifecycle_pending.jsonl
+            runtime/canary_lifecycle_gate_report_pending.json
+            runtime/canary_rollout_certification_report_lifecycle_approved.json
+            runtime/canary_stage_enablement_decision_lifecycle_approved.json
+            runtime/canary_stage_enablement_audit_lifecycle_approved.jsonl
+            runtime/canary_rollback_guard_report_lifecycle_approved.json
+            runtime/canary_rollback_incident_report_lifecycle_approved.json
+            runtime/canary_rollback_guard_audit_lifecycle_approved.jsonl
+            runtime/canary_lifecycle_gate_report_approved.json
             runtime/rollout_rehearsal/**
           if-no-files-found: warn
           retention-days: 14

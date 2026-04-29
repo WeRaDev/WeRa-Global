@@ -10,6 +10,23 @@ from .contracts import (
     StrategyDecision,
 )
 
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+def _coerce_float(value: Any, *, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    if isinstance(value, str) and not value.strip():
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
 
 def kelly_fraction(*, p_win: float, market_price: float) -> float:
     if market_price <= 0 or market_price >= 1:
@@ -20,6 +37,7 @@ def kelly_fraction(*, p_win: float, market_price: float) -> float:
     if b <= 0:
         return 0.0
     return (p * b - q) / b
+
 def estimate_expected_slippage_bps(
     *, event: MarketEvent, notional: float, max_slippage_bps: int
 ) -> int:
@@ -49,6 +67,39 @@ class RiskEngine(RiskModule):
                 approved_fraction=0.0,
                 kill_switch=False,
                 reasons=("strategy_not_buy",),
+            )
+        if _coerce_bool(event.metadata.get("suppress_new_entries")):
+            state_refresh_event = _coerce_bool(event.metadata.get("state_refresh_event"))
+            ingestion_degraded_entry_suppressed = _coerce_bool(
+                event.metadata.get("ingestion_degraded_entry_suppressed")
+            )
+            inventory_aging_derisk_active = _coerce_bool(
+                event.metadata.get("inventory_aging_derisk_active")
+            )
+            if state_refresh_event:
+                suppression_reason = "entry_suppressed_for_state_refresh"
+            elif ingestion_degraded_entry_suppressed:
+                suppression_reason = "entry_suppressed_for_ingestion_degradation"
+            elif inventory_aging_derisk_active:
+                suppression_reason = "entry_suppressed_for_inventory_aging"
+            else:
+                suppression_reason = "entry_suppressed_by_runtime_gate"
+            return RiskDecision(
+                allowed=False,
+                approved_notional=0.0,
+                approved_fraction=0.0,
+                kill_switch=False,
+                reasons=(suppression_reason,),
+                metadata={
+                    "state_refresh_event": state_refresh_event,
+                    "ingestion_degraded_entry_suppressed": (
+                        ingestion_degraded_entry_suppressed
+                    ),
+                    "ingestion_degraded_streak": int(
+                        event.metadata.get("ingestion_degraded_streak", 0) or 0
+                    ),
+                    "inventory_aging_derisk_active": inventory_aging_derisk_active,
+                },
             )
 
         max_daily_drawdown = float(self.parameters["risk.max_daily_drawdown_fraction"])
@@ -96,6 +147,54 @@ class RiskEngine(RiskModule):
                 kill_switch=False,
                 reasons=("portfolio_exposure_limit_reached",),
             )
+        domain_key = str(event.metadata.get("domain_key") or "general").strip() or "general"
+        raw_domain_budget = event.metadata.get("domain_allocation_budget")
+        domain_allocation_budget: float | None
+        if raw_domain_budget is None:
+            domain_allocation_budget = None
+        else:
+            domain_allocation_budget = min(
+                1.0,
+                max(0.0, _coerce_float(raw_domain_budget, default=0.0)),
+            )
+        max_domain_exposure = _coerce_float(
+            self.parameters.get(
+                "risk.max_domain_exposure_fraction",
+                max_portfolio_exposure,
+            ),
+            default=max_portfolio_exposure,
+        )
+        if max_domain_exposure <= 0:
+            max_domain_exposure = max_portfolio_exposure
+        domain_open_notional = max(
+            0.0,
+            _coerce_float(
+                event.metadata.get("domain_open_notional_usd"),
+                default=0.0,
+            ),
+        )
+        current_domain_exposure = (
+            domain_open_notional / portfolio.bankroll
+            if portfolio.bankroll > 0
+            else 0.0
+        )
+        if current_domain_exposure >= max_domain_exposure:
+            return RiskDecision(
+                allowed=False,
+                approved_notional=0.0,
+                approved_fraction=0.0,
+                kill_switch=False,
+                reasons=("domain_exposure_limit_reached",),
+                metadata={
+                    "domain_key": domain_key,
+                    "max_domain_exposure_fraction": max_domain_exposure,
+                    "current_domain_exposure_fraction": current_domain_exposure,
+                },
+            )
+        remaining_domain_fraction = max(
+            0.0,
+            max_domain_exposure - current_domain_exposure,
+        )
 
         f_star = kelly_fraction(
             p_win=decision.win_probability, market_price=event.midpoint
@@ -130,14 +229,63 @@ class RiskEngine(RiskModule):
                 reasons=("insufficient_consensus_votes",),
             )
 
+        domain_budget_scale = 1.0
+        if domain_allocation_budget is not None:
+            domain_min_budget_threshold = max(
+                0.0,
+                _coerce_float(
+                    self.parameters.get("risk.domain_min_budget_threshold", 0.01),
+                    default=0.01,
+                ),
+            )
+            if domain_allocation_budget < domain_min_budget_threshold:
+                return RiskDecision(
+                    allowed=False,
+                    approved_notional=0.0,
+                    approved_fraction=0.0,
+                    kill_switch=False,
+                    reasons=("domain_budget_exhausted",),
+                    metadata={
+                        "domain_key": domain_key,
+                        "domain_allocation_budget": domain_allocation_budget,
+                        "domain_min_budget_threshold": (
+                            domain_min_budget_threshold
+                        ),
+                    },
+                )
+            domain_min_allocation_scale = min(
+                1.0,
+                max(
+                    0.0,
+                    _coerce_float(
+                        self.parameters.get(
+                            "risk.domain_min_allocation_scale",
+                            0.35,
+                        ),
+                        default=0.35,
+                    ),
+                ),
+            )
+            domain_budget_scale = domain_min_allocation_scale + (
+                (1.0 - domain_min_allocation_scale)
+                * domain_allocation_budget
+            )
+            if domain_budget_scale < 1.0:
+                approved_fraction *= domain_budget_scale
+                reasons.append("domain_budget_scaled_size")
         remaining_portfolio_fraction = max(
-            0.0, max_portfolio_exposure - current_total_exposure
+            0.0,
+            max_portfolio_exposure - current_total_exposure,
         )
         remaining_market_fraction = max(
-            0.0, max_market_exposure - current_market_exposure
+            0.0,
+            max_market_exposure - current_market_exposure,
         )
         approved_fraction = min(
-            approved_fraction, remaining_portfolio_fraction, remaining_market_fraction
+            approved_fraction,
+            remaining_portfolio_fraction,
+            remaining_market_fraction,
+            remaining_domain_fraction,
         )
 
         if approved_fraction <= 0:
@@ -176,6 +324,16 @@ class RiskEngine(RiskModule):
                     "fee_rate_bps": fee_rate_bps,
                     "gross_edge_bps": round(gross_edge_fraction * 10_000, 2),
                     "net_edge_bps": round(net_edge_fraction * 10_000, 2),
+                    "domain_key": domain_key,
+                    "domain_allocation_budget": domain_allocation_budget,
+                    "domain_budget_scale": round(domain_budget_scale, 6),
+                    "max_domain_exposure_fraction": max_domain_exposure,
+                    "current_domain_exposure_fraction": (
+                        current_domain_exposure
+                    ),
+                    "remaining_domain_exposure_fraction": (
+                        remaining_domain_fraction
+                    ),
                 },
             )
 
@@ -218,5 +376,13 @@ class RiskEngine(RiskModule):
                 "fee_rate_bps": fee_rate_bps,
                 "gross_edge_bps": round(gross_edge_fraction * 10_000, 2),
                 "net_edge_bps": round(net_edge_fraction * 10_000, 2),
+                "domain_key": domain_key,
+                "domain_allocation_budget": domain_allocation_budget,
+                "domain_budget_scale": round(domain_budget_scale, 6),
+                "max_domain_exposure_fraction": max_domain_exposure,
+                "current_domain_exposure_fraction": current_domain_exposure,
+                "remaining_domain_exposure_fraction": (
+                    remaining_domain_fraction
+                ),
             },
         )

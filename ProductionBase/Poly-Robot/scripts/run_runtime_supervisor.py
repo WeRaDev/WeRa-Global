@@ -17,6 +17,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
+from poly_robot.agent_operator import AgentOperator, ClaudeApiClient  # noqa: E402
 from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
@@ -163,6 +164,13 @@ def _as_optional_positive_int(value: object) -> int | None:
     if parsed <= 0:
         return None
     return parsed
+
+
+def _normalize_agent_operator_mode(value: object) -> str:
+    mode = str(value or "advisory").strip().lower()
+    if mode not in {"advisory", "strategy"}:
+        return "advisory"
+    return mode
 
 def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
     return max(1, math.ceil(secret_max_age_seconds / 86_400))
@@ -424,6 +432,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--state-refresh-stale-threshold-cycles",
+        type=int,
+        default=6,
+        help=(
+            "Number of consecutive state-refresh cycles with open positions "
+            "before markets are flagged as stale."
+        ),
+    )
+    parser.add_argument(
+        "--ingestion-degraded-entry-suppress-threshold-cycles",
+        type=int,
+        default=3,
+        help=(
+            "Number of consecutive DEGRADED ingestion cycles that triggers "
+            "new-entry suppression."
+        ),
+    )
+    parser.add_argument(
         "--ingestion-max-retries",
         type=int,
         default=1,
@@ -594,6 +620,58 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=2.0,
         help="Execution gateway timeout budget in seconds.",
     )
+    parser.add_argument(
+        "--agent-operator-enabled",
+        action="store_true",
+        help=(
+            "Enable parallel AgentOperator advisory inference for profitability "
+            "guidance per cycle."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-model",
+        type=str,
+        default="claude-sonnet-4-6",
+        help="Claude advisory model identifier used by AgentOperator inference.",
+    )
+    parser.add_argument(
+        "--agent-operator-strategy-model",
+        type=str,
+        default="claude-opus-4-7",
+        help=(
+            "Claude strategy model identifier used by AgentOperator when mode=strategy."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-endpoint-url",
+        type=str,
+        default="https://api.anthropic.com/v1/messages",
+        help="Claude API endpoint URL used by AgentOperator.",
+    )
+    parser.add_argument(
+        "--agent-operator-api-key-env",
+        type=str,
+        default="ANTHROPIC_API_KEY",
+        help="Environment variable name containing Claude API key.",
+    )
+    parser.add_argument(
+        "--agent-operator-timeout-seconds",
+        type=float,
+        default=8.0,
+        help="Timeout budget for AgentOperator inference request.",
+    )
+    parser.add_argument(
+        "--agent-operator-max-output-tokens",
+        type=int,
+        default=500,
+        help="Maximum tokens requested for AgentOperator response.",
+    )
+    parser.add_argument(
+        "--agent-operator-temperature",
+        type=float,
+        default=0.1,
+        help="Sampling temperature for AgentOperator inference.",
+    )
     return parser
 
 
@@ -603,6 +681,18 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--cycle-interval-seconds must be >= 0")
     if args.live_wallet_convergence_threshold <= 0:
         raise ValueError("--live-wallet-convergence-threshold must be > 0")
+    if args.state_refresh_stale_threshold_cycles <= 0:
+        raise ValueError("--state-refresh-stale-threshold-cycles must be > 0")
+    if args.ingestion_degraded_entry_suppress_threshold_cycles <= 0:
+        raise ValueError(
+            "--ingestion-degraded-entry-suppress-threshold-cycles must be > 0"
+        )
+    if args.agent_operator_timeout_seconds <= 0:
+        raise ValueError("--agent-operator-timeout-seconds must be > 0")
+    if args.agent_operator_max_output_tokens <= 0:
+        raise ValueError("--agent-operator-max-output-tokens must be > 0")
+    if args.agent_operator_temperature < 0:
+        raise ValueError("--agent-operator-temperature must be >= 0")
     if args.ingestion_mode == "historical_jsonl" and args.events is None:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
@@ -942,6 +1032,33 @@ def main(argv: list[str] | None = None) -> int:
         gateway_retry_backoff_seconds=args.execution_gateway_retry_backoff_seconds,
         gateway_timeout_seconds=args.execution_gateway_timeout_seconds,
     )
+    strategy_model = (
+        str(args.agent_operator_strategy_model).strip() or args.agent_operator_model
+    )
+    agent_operators_by_mode: dict[str, AgentOperator] = {
+        "advisory": AgentOperator(
+            client=ClaudeApiClient(
+                model=args.agent_operator_model,
+                endpoint_url=args.agent_operator_endpoint_url,
+                api_key_env=args.agent_operator_api_key_env,
+                max_output_tokens=args.agent_operator_max_output_tokens,
+                temperature=args.agent_operator_temperature,
+            ),
+            timeout_seconds=args.agent_operator_timeout_seconds,
+            enabled=True,
+        ),
+        "strategy": AgentOperator(
+            client=ClaudeApiClient(
+                model=strategy_model,
+                endpoint_url=args.agent_operator_endpoint_url,
+                api_key_env=args.agent_operator_api_key_env,
+                max_output_tokens=args.agent_operator_max_output_tokens,
+                temperature=args.agent_operator_temperature,
+            ),
+            timeout_seconds=args.agent_operator_timeout_seconds,
+            enabled=True,
+        ),
+    }
     loop = TestTokenLoop(strategy, risk, execution, parameters)
     profile_hash = stable_hash(profile_payload)
     calibration_policy_hash = stable_hash(calibration_policy_payload)
@@ -955,6 +1072,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     open_positions_state: dict[str, object] = {}
     seen_live_event_ids: set[str] = set()
+    state_refresh_streak_by_market: dict[str, int] = {}
+    ingestion_degraded_streak = 0
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
@@ -975,6 +1094,8 @@ def main(argv: list[str] | None = None) -> int:
         return cached_payload
 
     def _read_operator_control_state() -> dict:
+        default_agent_operator_enabled = bool(args.agent_operator_enabled)
+        default_agent_operator_mode = "advisory"
         if args.ignore_operator_controls or not args.control_state_path.exists():
             return {
                 "paused": False,
@@ -983,6 +1104,8 @@ def main(argv: list[str] | None = None) -> int:
                 "cancel_all_requested": False,
                 "selected_scenario": control_default_scenario_name,
                 "control_version": 0,
+                "agent_operator_enabled": default_agent_operator_enabled,
+                "agent_operator_mode": default_agent_operator_mode,
             }
 
         control_state = control_manager.load_control_state()
@@ -993,13 +1116,51 @@ def main(argv: list[str] | None = None) -> int:
             control_state["kill_switch_active"] = False
         if "cancel_all_requested" not in control_state:
             control_state["cancel_all_requested"] = False
+        if "agent_operator_enabled" not in control_state:
+            control_state["agent_operator_enabled"] = default_agent_operator_enabled
+        if "agent_operator_mode" not in control_state:
+            control_state["agent_operator_mode"] = default_agent_operator_mode
+        control_state["agent_operator_mode"] = _normalize_agent_operator_mode(
+            control_state.get("agent_operator_mode")
+        )
         return control_state
 
     if args.cycle_output_dir:
         args.cycle_output_dir.mkdir(parents=True, exist_ok=True)
+    def _agent_operator_skipped_result(reason: str, *, mode: str) -> dict:
+        operator = agent_operators_by_mode.get(mode)
+        if operator is None:
+            return {
+                "status": "DISABLED",
+                "reason": reason,
+                "provider": "none",
+                "model": "none",
+                "mode": mode,
+                "generated_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+                "summary": "",
+                "profitability_hypothesis": "",
+                "risk_posture": "neutral",
+                "confidence": None,
+                "recommended_actions": [],
+                "scenario_hint": "",
+            }
+        return {
+            "status": "SKIPPED",
+            "reason": reason,
+            "provider": operator.client.provider,
+            "model": operator.client.model,
+            "mode": mode,
+            "generated_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+            "summary": "",
+            "profitability_hypothesis": "",
+            "risk_posture": "neutral",
+            "confidence": None,
+            "recommended_actions": [],
+            "scenario_hint": "",
+        }
 
     def _run_test_token_cycle(heartbeat) -> dict:
-        nonlocal portfolio_state, open_positions_state, seen_live_event_ids
+        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
@@ -1012,6 +1173,12 @@ def main(argv: list[str] | None = None) -> int:
         restart_requested = bool(control_state.get("restart_requested", False))
         kill_switch_active = bool(control_state.get("kill_switch_active", False))
         cancel_all_requested = bool(control_state.get("cancel_all_requested", False))
+        agent_operator_enabled = bool(
+            control_state.get("agent_operator_enabled", False)
+        )
+        agent_operator_mode = _normalize_agent_operator_mode(
+            control_state.get("agent_operator_mode", "advisory")
+        )
         heartbeat(
             "cycle_started",
             {
@@ -1022,6 +1189,8 @@ def main(argv: list[str] | None = None) -> int:
                 "restart_requested": restart_requested,
                 "kill_switch_active": kill_switch_active,
                 "cancel_all_requested": cancel_all_requested,
+                "agent_operator_enabled": agent_operator_enabled,
+                "agent_operator_mode": agent_operator_mode,
             },
         )
 
@@ -1032,6 +1201,10 @@ def main(argv: list[str] | None = None) -> int:
                     note=f"acknowledged_before_cycle_{cycle_index}",
                 )
             stop_flags["restart_requested"] = True
+            agent_operator_result = _agent_operator_skipped_result(
+                "restart_requested",
+                mode=agent_operator_mode,
+            )
             heartbeat(
                 "control_restart_acknowledged",
                 {
@@ -1053,6 +1226,19 @@ def main(argv: list[str] | None = None) -> int:
                 "partial_fill_count": 0,
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
+                "forced_exit_count": 0,
+                "confirmed_exit_ratio": None,
+                "confirmed_exit_latency_hours": None,
+                "median_position_age_hours": None,
+                "stale_position_count": 0,
+                "stale_position_ratio": 0.0,
+                "raw_probability_mean": None,
+                "calibrated_probability_mean": None,
+                "probability_drift_mean": None,
+                "probability_drift_abs_mean": None,
+                "probability_drift_max_abs": None,
+                "weighted_check_agreement_mean": None,
+                "calibration_applied_ratio": 0.0,
                 "total_execution_cost": 0.0,
                 "total_fees_paid": 0.0,
                 "total_slippage_cost": 0.0,
@@ -1081,9 +1267,21 @@ def main(argv: list[str] | None = None) -> int:
                     portfolio_state.daily_drawdown_fraction, 6
                 ),
                 "result_hash": None,
+                "agent_operator": agent_operator_result,
+                "agent_operator_status": agent_operator_result["status"],
+                "agent_operator_mode": agent_operator_mode,
+                "agent_operator_provider": agent_operator_result["provider"],
+                "agent_operator_model": agent_operator_result["model"],
+                "agent_operator_strategy_scenario_applied": False,
+                "agent_operator_strategy_scenario_hint": "",
+                "agent_operator_strategy_scenario_rejected_reason": "",
             }
 
         if paused:
+            agent_operator_result = _agent_operator_skipped_result(
+                "paused",
+                mode=agent_operator_mode,
+            )
             heartbeat(
                 "control_pause_gate",
                 {
@@ -1105,6 +1303,19 @@ def main(argv: list[str] | None = None) -> int:
                 "partial_fill_count": 0,
                 "exit_candidate_count": 0,
                 "confirmed_exit_count": 0,
+                "forced_exit_count": 0,
+                "confirmed_exit_ratio": None,
+                "confirmed_exit_latency_hours": None,
+                "median_position_age_hours": None,
+                "stale_position_count": 0,
+                "stale_position_ratio": 0.0,
+                "raw_probability_mean": None,
+                "calibrated_probability_mean": None,
+                "probability_drift_mean": None,
+                "probability_drift_abs_mean": None,
+                "probability_drift_max_abs": None,
+                "weighted_check_agreement_mean": None,
+                "calibration_applied_ratio": 0.0,
                 "total_execution_cost": 0.0,
                 "total_fees_paid": 0.0,
                 "total_slippage_cost": 0.0,
@@ -1133,6 +1344,14 @@ def main(argv: list[str] | None = None) -> int:
                     portfolio_state.daily_drawdown_fraction, 6
                 ),
                 "result_hash": None,
+                "agent_operator": agent_operator_result,
+                "agent_operator_status": agent_operator_result["status"],
+                "agent_operator_mode": agent_operator_mode,
+                "agent_operator_provider": agent_operator_result["provider"],
+                "agent_operator_model": agent_operator_result["model"],
+                "agent_operator_strategy_scenario_applied": False,
+                "agent_operator_strategy_scenario_hint": "",
+                "agent_operator_strategy_scenario_rejected_reason": "",
             }
 
         cancel_all_summary: dict[str, object] | None = None
@@ -1192,6 +1411,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         freshness_skipped_event_ids = 0
         freshness_committed_event_ids: list[str] = []
+        state_refresh_applied = False
+        state_refresh_event_count = 0
+        state_refresh_market_ids: list[str] = []
+        state_refresh_streak_snapshot: dict[str, int] = {}
+        state_refresh_max_streak = 0
+        stale_open_position_market_ids: list[str] = []
+        no_new_events_since_last_cycle = False
 
         if args.ingestion_mode == "historical_jsonl":
             scenario_name_in_use = selected_scenario_name
@@ -1259,6 +1485,53 @@ def main(argv: list[str] | None = None) -> int:
                             "seen_event_ids_before_cycle": len(seen_live_event_ids),
                         },
                     )
+            no_new_events_since_last_cycle = (
+                freshness_filter_enabled
+                and not events_for_run
+                and bool(cycle_ingestion.events)
+            )
+            if (
+                no_new_events_since_last_cycle
+                and open_positions_state
+            ):
+                open_position_market_ids = set(open_positions_state.keys())
+                state_refresh_events: list[MarketEvent] = []
+                for event in cycle_ingestion.events:
+                    if event.market_id not in open_position_market_ids:
+                        continue
+                    event_payload = event.to_dict()
+                    event_metadata = dict(event_payload.get("metadata", {}))
+                    event_metadata["state_refresh_event"] = True
+                    event_metadata["state_refresh_reason"] = (
+                        "no_new_events_since_last_cycle"
+                    )
+                    event_metadata["suppress_new_entries"] = True
+                    event_payload["metadata"] = event_metadata
+                    state_refresh_events.append(MarketEvent.from_dict(event_payload))
+                if state_refresh_events:
+                    events_for_run = state_refresh_events
+                    state_refresh_applied = True
+                    state_refresh_event_count = len(state_refresh_events)
+                    state_refresh_market_ids = sorted(
+                        {
+                            event.market_id
+                            for event in state_refresh_events
+                        }
+                    )
+                    heartbeat(
+                        "live_state_refresh_applied",
+                        {
+                            "cycle_index": cycle_index,
+                            "state_refresh_event_count": state_refresh_event_count,
+                            "open_position_market_count": len(
+                                open_position_market_ids
+                            ),
+                            "state_refresh_market_ids": state_refresh_market_ids,
+                            "seen_event_ids_before_cycle": len(
+                                seen_live_event_ids
+                            ),
+                        },
+                    )
             events_hash = hash_events(events_for_run)
             scenario_hash = stable_hash(
                 {
@@ -1276,6 +1549,36 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 }
             )
+            if args.ingestion_mode == "live_polymarket":
+                open_position_market_ids_sorted = sorted(open_positions_state.keys())
+                if state_refresh_applied and state_refresh_market_ids:
+                    refreshed_market_ids = set(state_refresh_market_ids)
+                    for market_id in open_position_market_ids_sorted:
+                        if market_id in refreshed_market_ids:
+                            state_refresh_streak_by_market[market_id] = (
+                                state_refresh_streak_by_market.get(market_id, 0) + 1
+                            )
+                        else:
+                            state_refresh_streak_by_market.pop(market_id, None)
+                else:
+                    for market_id in open_position_market_ids_sorted:
+                        state_refresh_streak_by_market.pop(market_id, None)
+                current_open_market_ids = set(open_position_market_ids_sorted)
+                for market_id in list(state_refresh_streak_by_market):
+                    if market_id not in current_open_market_ids:
+                        state_refresh_streak_by_market.pop(market_id, None)
+                state_refresh_streak_snapshot = {
+                    market_id: int(state_refresh_streak_by_market[market_id])
+                    for market_id in open_position_market_ids_sorted
+                    if state_refresh_streak_by_market.get(market_id, 0) > 0
+                }
+                if state_refresh_streak_snapshot:
+                    state_refresh_max_streak = max(state_refresh_streak_snapshot.values())
+                stale_open_position_market_ids = sorted(
+                    market_id
+                    for market_id, streak in state_refresh_streak_snapshot.items()
+                    if streak >= args.state_refresh_stale_threshold_cycles
+                )
         effective_ingestion_status = cycle_ingestion.status
         effective_ingestion_reasons = list(cycle_ingestion.reasons)
         effective_ingestion_metadata = dict(cycle_ingestion.metadata)
@@ -1292,20 +1595,75 @@ def main(argv: list[str] | None = None) -> int:
         effective_ingestion_metadata["seen_event_ids_after_cycle"] = (
             len(seen_live_event_ids) + len(freshness_committed_event_ids)
         )
+        effective_ingestion_metadata["state_refresh_applied"] = state_refresh_applied
+        effective_ingestion_metadata["state_refresh_event_count"] = (
+            state_refresh_event_count
+        )
+        effective_ingestion_metadata["state_refresh_market_ids"] = (
+            state_refresh_market_ids
+        )
+        effective_ingestion_metadata["state_refresh_streak_by_market"] = (
+            state_refresh_streak_snapshot
+        )
+        effective_ingestion_metadata["state_refresh_max_streak"] = (
+            state_refresh_max_streak
+        )
+        effective_ingestion_metadata["state_refresh_stale_threshold_cycles"] = (
+            args.state_refresh_stale_threshold_cycles
+        )
+        effective_ingestion_metadata["stale_open_position_market_ids"] = (
+            stale_open_position_market_ids
+        )
         if freshness_filter_enabled and freshness_skipped_event_ids > 0:
             effective_ingestion_reasons.append("seen_event_ids_skipped")
             if effective_ingestion_status == "OK":
                 effective_ingestion_status = "DEGRADED"
-        if (
-            freshness_filter_enabled
-            and args.ingestion_mode == "live_polymarket"
-            and not events_for_run
-            and cycle_ingestion.events
-        ):
+        if state_refresh_applied:
+            effective_ingestion_reasons.append("state_refresh_from_seen_events")
+            if effective_ingestion_status == "OK":
+                effective_ingestion_status = "DEGRADED"
+        if no_new_events_since_last_cycle:
             effective_ingestion_reasons.append("no_new_events_since_last_cycle")
             if effective_ingestion_status == "OK":
                 effective_ingestion_status = "DEGRADED"
+        if stale_open_position_market_ids:
+            effective_ingestion_reasons.append("stale_open_positions_under_state_refresh")
+            if effective_ingestion_status == "OK":
+                effective_ingestion_status = "DEGRADED"
         effective_ingestion_reasons = list(dict.fromkeys(effective_ingestion_reasons))
+        if effective_ingestion_status == "DEGRADED":
+            ingestion_degraded_streak += 1
+        else:
+            ingestion_degraded_streak = 0
+        ingestion_degraded_entry_suppressed = (
+            ingestion_degraded_streak
+            >= args.ingestion_degraded_entry_suppress_threshold_cycles
+        )
+        if ingestion_degraded_entry_suppressed:
+            effective_ingestion_reasons.append(
+                "entry_suppressed_due_consecutive_ingestion_degraded"
+            )
+            heartbeat(
+                "ingestion_degraded_entry_suppression_applied",
+                {
+                    "cycle_index": cycle_index,
+                    "ingestion_degraded_streak": ingestion_degraded_streak,
+                    "ingestion_degraded_entry_suppress_threshold_cycles": (
+                        args.ingestion_degraded_entry_suppress_threshold_cycles
+                    ),
+                    "ingestion_status": effective_ingestion_status,
+                },
+            )
+        effective_ingestion_reasons = list(dict.fromkeys(effective_ingestion_reasons))
+        effective_ingestion_metadata["ingestion_degraded_streak"] = (
+            ingestion_degraded_streak
+        )
+        effective_ingestion_metadata[
+            "ingestion_degraded_entry_suppress_threshold_cycles"
+        ] = args.ingestion_degraded_entry_suppress_threshold_cycles
+        effective_ingestion_metadata["ingestion_degraded_entry_suppressed"] = (
+            ingestion_degraded_entry_suppressed
+        )
 
         execution_scope = f"cycle:{cycle_index}"
         scoped_events: list[MarketEvent] = []
@@ -1316,6 +1674,12 @@ def main(argv: list[str] | None = None) -> int:
             event_metadata["cycle_index"] = cycle_index
             event_metadata["kill_switch_active"] = kill_switch_active
             event_metadata["cancel_all_requested"] = cancel_all_requested
+            event_metadata["ingestion_degraded_streak"] = ingestion_degraded_streak
+            event_metadata[
+                "ingestion_degraded_entry_suppressed"
+            ] = ingestion_degraded_entry_suppressed
+            if ingestion_degraded_entry_suppressed:
+                event_metadata["suppress_new_entries"] = True
             if cancel_all_summary is not None:
                 event_metadata["cancel_all_summary"] = cancel_all_summary
             event_payload["metadata"] = event_metadata
@@ -1329,6 +1693,127 @@ def main(argv: list[str] | None = None) -> int:
             portfolio_state,
             initial_open_positions=open_positions_state,
         )
+        available_scenarios = (
+            sorted(scenario_pack.scenarios.keys()) if scenario_pack is not None else []
+        )
+        strategy_scenario_hint = ""
+        strategy_scenario_applied = False
+        strategy_scenario_rejected_reason = ""
+        agent_operator_result = _agent_operator_skipped_result(
+            "agent_operator_disabled_by_control",
+            mode=agent_operator_mode,
+        )
+        if agent_operator_enabled:
+            active_agent_operator = agent_operators_by_mode.get(agent_operator_mode)
+            if active_agent_operator is None:
+                agent_operator_result = _agent_operator_skipped_result(
+                    "agent_operator_mode_not_configured",
+                    mode=agent_operator_mode,
+                )
+            else:
+                agent_operator_result = active_agent_operator.infer(
+                    cycle_context={
+                        "cycle_index": cycle_index,
+                        "scenario_name": run_scenario_name,
+                        "ingestion_mode": args.ingestion_mode,
+                        "ingestion_status": effective_ingestion_status,
+                        "ingestion_reasons": effective_ingestion_reasons,
+                        "ingestion_degraded_streak": ingestion_degraded_streak,
+                        "risk_allowed_count": run.risk_allowed_count,
+                        "filled_trade_count": run.filled_trade_count,
+                        "partial_fill_count": run.partial_fill_count,
+                        "exit_candidate_count": run.exit_candidate_count,
+                        "confirmed_exit_count": run.confirmed_exit_count,
+                        "forced_exit_count": run.forced_exit_count,
+                        "expected_gross_edge_value": run.expected_gross_edge_value,
+                        "expected_net_edge_value": run.expected_net_edge_value,
+                        "expected_net_edge_value_on_fills": (
+                            run.expected_net_edge_value_on_fills
+                        ),
+                        "expected_value_after_execution_cost": (
+                            run.expected_value_after_execution_cost
+                        ),
+                        "total_execution_cost": run.total_execution_cost,
+                        "total_fees_paid": run.total_fees_paid,
+                        "total_slippage_cost": run.total_slippage_cost,
+                        "execution_cost_to_expected_net_ratio": (
+                            run.execution_cost_to_expected_net_ratio
+                        ),
+                        "portfolio": {
+                            "bankroll": run.final_portfolio.bankroll,
+                            "day_start_equity": run.final_portfolio.day_start_equity,
+                            "current_equity": run.final_portfolio.current_equity,
+                            "net_pnl": (
+                                run.final_portfolio.current_equity
+                                - run.final_portfolio.day_start_equity
+                            ),
+                            "open_notional": run.final_portfolio.open_notional,
+                            "open_positions": run.final_portfolio.open_positions,
+                            "total_exposure_fraction": (
+                                run.final_portfolio.total_exposure_fraction
+                            ),
+                            "daily_drawdown_fraction": (
+                                run.final_portfolio.daily_drawdown_fraction
+                            ),
+                        },
+                        "operator_controls": {
+                            "kill_switch_active": kill_switch_active,
+                            "cancel_all_requested": cancel_all_requested,
+                            "cancel_all_acknowledged": cancel_all_acknowledged,
+                        },
+                        "agent_operator_mode": agent_operator_mode,
+                        "available_scenarios": available_scenarios,
+                    }
+                )
+
+        strategy_scenario_hint = str(agent_operator_result.get("scenario_hint", "")).strip()
+        if (
+            agent_operator_enabled
+            and agent_operator_mode == "strategy"
+            and agent_operator_result.get("status") == "OK"
+            and strategy_scenario_hint
+        ):
+            if args.ingestion_mode != "historical_jsonl":
+                strategy_scenario_rejected_reason = (
+                    "strategy_scenario_hint_unsupported_for_live_mode"
+                )
+            else:
+                try:
+                    _resolve_scenario_run_inputs(strategy_scenario_hint)
+                except ValueError:
+                    strategy_scenario_rejected_reason = (
+                        "invalid_strategy_scenario_hint"
+                    )
+                else:
+                    if strategy_scenario_hint != selected_scenario_name:
+                        if args.ignore_operator_controls:
+                            strategy_scenario_rejected_reason = (
+                                "operator_controls_ignored"
+                            )
+                        else:
+                            control_manager.set_scenario(
+                                actor=args.operator_control_actor,
+                                scenario_name=strategy_scenario_hint,
+                            )
+                            strategy_scenario_applied = True
+                            heartbeat(
+                                "agent_operator_strategy_scenario_applied",
+                                {
+                                    "cycle_index": cycle_index,
+                                    "selected_scenario": selected_scenario_name,
+                                    "strategy_scenario_hint": strategy_scenario_hint,
+                                },
+                            )
+        if strategy_scenario_rejected_reason:
+            heartbeat(
+                "agent_operator_strategy_scenario_rejected",
+                {
+                    "cycle_index": cycle_index,
+                    "selected_scenario": selected_scenario_name,
+                    "strategy_scenario_hint": strategy_scenario_hint,
+                    "reason": strategy_scenario_rejected_reason,
+                },
+            )
         input_fingerprint = stable_hash(
             {
                 "events_hash": events_hash,
@@ -1384,6 +1869,18 @@ def main(argv: list[str] | None = None) -> int:
                     "stale_price_change_threshold": float(
                         parameters["exit.stale_price_change_threshold"]
                     ),
+                    "inventory_aging_derisk_hours": float(
+                        parameters.get(
+                            "exit.inventory_aging_derisk_hours",
+                            float(parameters["exit.stale_hours"]) * 0.75,
+                        )
+                    ),
+                    "max_holding_hours": float(
+                        parameters.get(
+                            "exit.max_holding_hours",
+                            float(parameters["exit.stale_hours"]),
+                        )
+                    ),
                     "confirmation_threshold": 2,
                 },
                 "ingestion_status": effective_ingestion_status,
@@ -1400,6 +1897,15 @@ def main(argv: list[str] | None = None) -> int:
                     "cancel_all_acknowledged": cancel_all_acknowledged,
                     "cancel_all_summary": cancel_all_summary,
                 },
+                "agent_operator": agent_operator_result,
+                "agent_operator_mode": agent_operator_mode,
+                "agent_operator_strategy_scenario_applied": (
+                    strategy_scenario_applied
+                ),
+                "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+                "agent_operator_strategy_scenario_rejected_reason": (
+                    strategy_scenario_rejected_reason
+                ),
                 "execution": dict(execution_context),
                 "stateful_cycle": {
                     "execution_scope": execution_scope,
@@ -1417,6 +1923,31 @@ def main(argv: list[str] | None = None) -> int:
                 "partial_fill_count": result_payload["partial_fill_count"],
                 "exit_candidate_count": result_payload["exit_candidate_count"],
                 "confirmed_exit_count": result_payload["confirmed_exit_count"],
+                "forced_exit_count": result_payload["forced_exit_count"],
+                "confirmed_exit_ratio": result_payload["confirmed_exit_ratio"],
+                "confirmed_exit_latency_hours": result_payload[
+                    "confirmed_exit_latency_hours"
+                ],
+                "median_position_age_hours": result_payload["median_position_age_hours"],
+                "stale_position_count": result_payload["stale_position_count"],
+                "stale_position_ratio": result_payload["stale_position_ratio"],
+                "raw_probability_mean": result_payload["raw_probability_mean"],
+                "calibrated_probability_mean": result_payload[
+                    "calibrated_probability_mean"
+                ],
+                "probability_drift_mean": result_payload["probability_drift_mean"],
+                "probability_drift_abs_mean": result_payload[
+                    "probability_drift_abs_mean"
+                ],
+                "probability_drift_max_abs": result_payload[
+                    "probability_drift_max_abs"
+                ],
+                "weighted_check_agreement_mean": result_payload[
+                    "weighted_check_agreement_mean"
+                ],
+                "calibration_applied_ratio": result_payload[
+                    "calibration_applied_ratio"
+                ],
                 "total_execution_cost": result_payload["total_execution_cost"],
                 "attributed_trade_count": result_payload["attributed_trade_count"],
                 "expected_gross_edge_value": result_payload[
@@ -1484,6 +2015,19 @@ def main(argv: list[str] | None = None) -> int:
                 "filled_trade_count": run.filled_trade_count,
                 "exit_candidate_count": run.exit_candidate_count,
                 "confirmed_exit_count": run.confirmed_exit_count,
+                "forced_exit_count": run.forced_exit_count,
+                "confirmed_exit_ratio": run.confirmed_exit_ratio,
+                "confirmed_exit_latency_hours": run.confirmed_exit_latency_hours,
+                "median_position_age_hours": run.median_position_age_hours,
+                "stale_position_count": run.stale_position_count,
+                "stale_position_ratio": run.stale_position_ratio,
+                "raw_probability_mean": run.raw_probability_mean,
+                "calibrated_probability_mean": run.calibrated_probability_mean,
+                "probability_drift_mean": run.probability_drift_mean,
+                "probability_drift_abs_mean": run.probability_drift_abs_mean,
+                "probability_drift_max_abs": run.probability_drift_max_abs,
+                "weighted_check_agreement_mean": run.weighted_check_agreement_mean,
+                "calibration_applied_ratio": run.calibration_applied_ratio,
                 "total_execution_cost": run.total_execution_cost,
                 "total_fees_paid": run.total_fees_paid,
                 "total_slippage_cost": run.total_slippage_cost,
@@ -1511,10 +2055,41 @@ def main(argv: list[str] | None = None) -> int:
                 "total_exposure_fraction": total_exposure_fraction,
                 "daily_drawdown_fraction": daily_drawdown_fraction,
                 "result_hash_prefix": result_hash[:12],
+                "agent_operator_status": agent_operator_result.get("status"),
+                "agent_operator_mode": agent_operator_mode,
+                "agent_operator_provider": agent_operator_result.get("provider"),
+                "agent_operator_model": agent_operator_result.get("model"),
+                "agent_operator_risk_posture": agent_operator_result.get(
+                    "risk_posture"
+                ),
+                "agent_operator_confidence": agent_operator_result.get("confidence"),
+                "agent_operator_strategy_scenario_applied": (
+                    strategy_scenario_applied
+                ),
+                "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+                "agent_operator_strategy_scenario_rejected_reason": (
+                    strategy_scenario_rejected_reason
+                ),
+                "ingestion_status": effective_ingestion_status,
+                "ingestion_reasons": effective_ingestion_reasons,
+                "ingestion_degraded_streak": ingestion_degraded_streak,
+                "ingestion_degraded_entry_suppressed": (
+                    ingestion_degraded_entry_suppressed
+                ),
+                "state_refresh_applied": state_refresh_applied,
+                "state_refresh_event_count": state_refresh_event_count,
+                "state_refresh_market_ids": state_refresh_market_ids,
+                "state_refresh_max_streak": state_refresh_max_streak,
+                "stale_open_position_market_ids": stale_open_position_market_ids,
             },
         )
         portfolio_state = run.final_portfolio.clone()
         open_positions_state = dict(run.final_open_positions)
+        if args.ingestion_mode == "live_polymarket":
+            final_open_market_ids = set(open_positions_state.keys())
+            for market_id in list(state_refresh_streak_by_market):
+                if market_id not in final_open_market_ids:
+                    state_refresh_streak_by_market.pop(market_id, None)
         if freshness_filter_enabled and freshness_committed_event_ids:
             seen_live_event_ids.update(freshness_committed_event_ids)
         return {
@@ -1534,6 +2109,19 @@ def main(argv: list[str] | None = None) -> int:
             "partial_fill_count": run.partial_fill_count,
             "exit_candidate_count": run.exit_candidate_count,
             "confirmed_exit_count": run.confirmed_exit_count,
+            "forced_exit_count": run.forced_exit_count,
+            "confirmed_exit_ratio": run.confirmed_exit_ratio,
+            "confirmed_exit_latency_hours": run.confirmed_exit_latency_hours,
+            "median_position_age_hours": run.median_position_age_hours,
+            "stale_position_count": run.stale_position_count,
+            "stale_position_ratio": run.stale_position_ratio,
+            "raw_probability_mean": run.raw_probability_mean,
+            "calibrated_probability_mean": run.calibrated_probability_mean,
+            "probability_drift_mean": run.probability_drift_mean,
+            "probability_drift_abs_mean": run.probability_drift_abs_mean,
+            "probability_drift_max_abs": run.probability_drift_max_abs,
+            "weighted_check_agreement_mean": run.weighted_check_agreement_mean,
+            "calibration_applied_ratio": run.calibration_applied_ratio,
             "total_execution_cost": run.total_execution_cost,
             "total_fees_paid": run.total_fees_paid,
             "total_slippage_cost": run.total_slippage_cost,
@@ -1559,6 +2147,31 @@ def main(argv: list[str] | None = None) -> int:
             "total_exposure_fraction": total_exposure_fraction,
             "daily_drawdown_fraction": daily_drawdown_fraction,
             "result_hash": result_hash,
+            "agent_operator": agent_operator_result,
+            "agent_operator_status": agent_operator_result.get("status"),
+            "agent_operator_mode": agent_operator_mode,
+            "agent_operator_provider": agent_operator_result.get("provider"),
+            "agent_operator_model": agent_operator_result.get("model"),
+            "agent_operator_risk_posture": agent_operator_result.get(
+                "risk_posture"
+            ),
+            "agent_operator_confidence": agent_operator_result.get("confidence"),
+            "agent_operator_strategy_scenario_applied": strategy_scenario_applied,
+            "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+            "agent_operator_strategy_scenario_rejected_reason": (
+                strategy_scenario_rejected_reason
+            ),
+            "ingestion_status": effective_ingestion_status,
+            "ingestion_reasons": effective_ingestion_reasons,
+            "ingestion_degraded_streak": ingestion_degraded_streak,
+            "ingestion_degraded_entry_suppressed": (
+                ingestion_degraded_entry_suppressed
+            ),
+            "state_refresh_applied": state_refresh_applied,
+            "state_refresh_event_count": state_refresh_event_count,
+            "state_refresh_market_ids": state_refresh_market_ids,
+            "state_refresh_max_streak": state_refresh_max_streak,
+            "stale_open_position_market_ids": stale_open_position_market_ids,
         }
 
     worker = WorkerSpec(

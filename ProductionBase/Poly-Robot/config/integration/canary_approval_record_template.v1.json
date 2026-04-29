@@ -1,7 +1,7 @@
 {
   "config_name": "poly_robot_canary_approval_record_template",
   "config_version": "1.0.0",
-  "updated_at": "2026-04-27T16:22:00Z",
+  "updated_at": "2026-04-28T19:10:00Z",
   "schema_version": "canary_approval_record.v1",
   "record_id": "canary-stage-enable-template",
   "requested_by": "release_manager",
@@ -30,6 +30,27 @@
     "runtime_operator_on_call",
     "incident_commander"
   ],
+  "promotion_evidence": {
+    "financial_kpis": {
+      "rolling_window_cycles": 0,
+      "rolling_realized_pnl": null,
+      "edge_realization_ratio": null,
+      "ingestion_degraded_cycle_ratio": null
+    },
+    "micro_notional_canary": {
+      "sample_size": 0,
+      "max_order_notional_usd": null,
+      "modeled_execution_cost_per_fill": null,
+      "realized_execution_cost_per_fill": null,
+      "modeled_slippage_bps": null,
+      "realized_slippage_bps": null,
+      "modeled_edge_capture_ratio": null,
+      "realized_edge_capture_ratio": null
+    },
+    "evidence_notes": [
+      "Populate financial_kpis and micro_notional_canary before requesting limited_live/full_live limit increases."
+    ]
+  },
   "audit_policy": {
     "append_only_required": true,
     "audit_file_path": "runtime/canary_stage_enablement_audit.jsonl",

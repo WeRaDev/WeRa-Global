@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     image: poly-robot:local
     command:
-      - python3
+      - python
       - scripts/run_runtime_gui.py
       - --host
       - 0.0.0.0
@@ -36,7 +36,7 @@ services:
       dockerfile: Dockerfile
     image: poly-robot:local
     command:
-      - python3
+      - python
       - scripts/run_runtime_supervisor.py
       - --events
       - tests/fixtures/replay_events.jsonl
@@ -62,4 +62,54 @@ services:
       - /app/runtime/cycles
     volumes:
       - ./runtime:/app/runtime
+    restart: "no"
+
+  dev-shell:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: poly-robot:local
+    command:
+      - /bin/sh
+    working_dir: /app
+    volumes:
+      - ./:/app
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+  test-runner:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: poly-robot:local
+    command:
+      - python
+      - -m
+      - unittest
+      - discover
+      - -s
+      - tests
+      - -p
+      - test_*.py
+    working_dir: /app
+    volumes:
+      - ./:/app
+    restart: "no"
+
+  quality-gate:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: poly-robot:local
+    command:
+      - /bin/sh
+      - -c
+      - ruff check src/poly_robot tests scripts && PYTHONPATH=src python -m mypy src/poly_robot && bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105
+    working_dir: /app
+    volumes:
+      - ./:/app
     restart: "no"

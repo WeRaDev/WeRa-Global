@@ -17,9 +17,26 @@ SCRIPT_PATH = ROOT_DIR / "scripts" / "run_runtime_supervisor.py"
 
 class _LiveFeedHandler(BaseHTTPRequestHandler):
     payload: list[dict] = []
+    payload_sequence: list[list[dict]] | None = None
+    request_count: int = 0
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.payload = []
+        cls.payload_sequence = None
+        cls.request_count = 0
 
     def do_GET(self) -> None:  # noqa: N802
-        body = json.dumps(self.payload).encode("utf-8")
+        handler_cls = type(self)
+        payload = handler_cls.payload
+        if handler_cls.payload_sequence:
+            sequence_index = min(
+                handler_cls.request_count,
+                len(handler_cls.payload_sequence) - 1,
+            )
+            payload = handler_cls.payload_sequence[sequence_index]
+        handler_cls.request_count += 1
+        body = json.dumps(payload).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -71,6 +88,8 @@ def _write_live_rollout_preflight_config(
 
 
 class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _LiveFeedHandler.reset()
     @staticmethod
     def _build_live_clob_preflight_command(
         *,
@@ -507,7 +526,9 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=1.0)
 
-    def test_live_mode_skips_seen_events_and_preserves_open_positions(self) -> None:
+    def test_live_mode_applies_state_refresh_when_events_repeat_and_open_positions_exist(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             state_path = root / "runtime_state.json"
@@ -575,21 +596,334 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
                 state = _read_json(state_path)
                 metadata = state["worker_results"][0]["last_metadata"]
                 self.assertEqual(metadata["cycle_status"], "EXECUTED")
-                self.assertEqual(metadata["events"], 0)
+                self.assertEqual(metadata["events"], 1)
                 self.assertEqual(metadata["open_positions"], 1)
+                self.assertTrue(metadata["state_refresh_applied"])
+                self.assertEqual(metadata["state_refresh_event_count"], 1)
+                self.assertEqual(metadata["state_refresh_market_ids"], ["live-market-sticky"])
+                self.assertEqual(metadata["state_refresh_max_streak"], 1)
+                self.assertEqual(metadata["stale_open_position_market_ids"], [])
+                self.assertIn(
+                    "state_refresh_from_seen_events",
+                    metadata["ingestion_reasons"],
+                )
 
                 cycle_one = _read_json(cycle_output_dir / "cycle_001.json")
                 cycle_two = _read_json(cycle_output_dir / "cycle_002.json")
                 self.assertEqual(cycle_one["filled_trade_count"], 1)
                 self.assertEqual(cycle_two["filled_trade_count"], 0)
-                self.assertEqual(cycle_two["records"], [])
+                self.assertEqual(len(cycle_two["records"]), 1)
+                refreshed = cycle_two["records"][0]
+                self.assertEqual(refreshed["market_id"], "live-market-sticky")
+                refreshed_risk = refreshed["replay_record"]["risk_decision"]
+                self.assertIn(
+                    "entry_suppressed_for_state_refresh",
+                    refreshed_risk["reasons"],
+                )
+                self.assertTrue(
+                    refreshed_risk["metadata"]["state_refresh_event"]
+                )
                 self.assertIn(
                     "no_new_events_since_last_cycle",
+                    cycle_two["run_context"]["ingestion_reasons"],
+                )
+                self.assertIn(
+                    "state_refresh_from_seen_events",
                     cycle_two["run_context"]["ingestion_reasons"],
                 )
                 self.assertEqual(
                     cycle_two["run_context"]["stateful_cycle"]["starting_open_positions"],
                     1,
+                )
+                self.assertTrue(
+                    cycle_two["run_context"]["ingestion_metadata"]["state_refresh_applied"]
+                )
+                self.assertEqual(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "state_refresh_event_count"
+                    ],
+                    1,
+                )
+                self.assertEqual(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "state_refresh_market_ids"
+                    ],
+                    ["live-market-sticky"],
+                )
+                self.assertEqual(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "state_refresh_max_streak"
+                    ],
+                    1,
+                )
+                self.assertEqual(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "stale_open_position_market_ids"
+                    ],
+                    [],
+                )
+                self.assertEqual(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "state_refresh_stale_threshold_cycles"
+                    ],
+                    6,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=1.0)
+    def test_live_mode_suppresses_entries_after_consecutive_degraded_cycles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+
+            _LiveFeedHandler.payload_sequence = [
+                [
+                    {
+                        "id": "live-market-degraded-a",
+                        "question": "Will degraded streak protection activate?",
+                        "updatedAt": "2026-04-26T15:10:00Z",
+                        "endDate": "2026-05-01T00:00:00Z",
+                        "outcomePrices": "[\"0.62\", \"0.38\"]",
+                        "liquidity": "64000.0",
+                        "volume24hr": 2400.0,
+                        "oneWeekPriceChange": 0.06,
+                    },
+                    {
+                        "id": "live-market-degraded-a",
+                        "question": "Will degraded streak protection activate?",
+                        "updatedAt": "2026-04-26T15:10:00Z",
+                        "endDate": "2026-05-01T00:00:00Z",
+                        "outcomePrices": "[\"0.62\", \"0.38\"]",
+                        "liquidity": "64000.0",
+                        "volume24hr": 2400.0,
+                        "oneWeekPriceChange": 0.06,
+                    },
+                ],
+                [
+                    {
+                        "id": "live-market-degraded-b",
+                        "question": "Will ingestion suppression block new entries?",
+                        "updatedAt": "2026-04-26T15:11:00Z",
+                        "endDate": "2026-05-01T00:00:00Z",
+                        "outcomePrices": "[\"0.57\", \"0.43\"]",
+                        "liquidity": "65000.0",
+                        "volume24hr": 2600.0,
+                        "oneWeekPriceChange": 0.04,
+                    },
+                    {
+                        "id": "live-market-degraded-b",
+                        "question": "Will ingestion suppression block new entries?",
+                        "updatedAt": "2026-04-26T15:11:00Z",
+                        "endDate": "2026-05-01T00:00:00Z",
+                        "outcomePrices": "[\"0.57\", \"0.43\"]",
+                        "liquidity": "65000.0",
+                        "volume24hr": 2600.0,
+                        "oneWeekPriceChange": 0.04,
+                    },
+                ],
+            ]
+            server = ThreadingHTTPServer(("127.0.0.1", 0), _LiveFeedHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                live_source_url = f"http://127.0.0.1:{server.server_port}/markets"
+                command = [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--ingestion-mode",
+                    "live_polymarket",
+                    "--live-source-url",
+                    live_source_url,
+                    "--cycles",
+                    "2",
+                    "--cycle-interval-seconds",
+                    "0",
+                    "--ingestion-degraded-entry-suppress-threshold-cycles",
+                    "2",
+                    "--max-retries",
+                    "0",
+                    "--retry-backoff-seconds",
+                    "0",
+                    "--ingestion-max-retries",
+                    "0",
+                    "--ingestion-retry-backoff-seconds",
+                    "0",
+                    "--execution-gateway-max-retries",
+                    "0",
+                    "--execution-gateway-retry-backoff-seconds",
+                    "0",
+                    "--state-path",
+                    str(state_path),
+                    "--journal-path",
+                    str(journal_path),
+                    "--control-state-path",
+                    str(control_state_path),
+                    "--control-audit-path",
+                    str(control_audit_path),
+                    "--cycle-output-dir",
+                    str(cycle_output_dir),
+                ]
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=False
+                )
+
+                self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+                state = _read_json(state_path)
+                metadata = state["worker_results"][0]["last_metadata"]
+                self.assertEqual(metadata["cycle_status"], "EXECUTED")
+                self.assertEqual(metadata["ingestion_status"], "DEGRADED")
+                self.assertEqual(metadata["ingestion_degraded_streak"], 2)
+                self.assertTrue(metadata["ingestion_degraded_entry_suppressed"])
+                self.assertIn(
+                    "entry_suppressed_due_consecutive_ingestion_degraded",
+                    metadata["ingestion_reasons"],
+                )
+
+                cycle_two = _read_json(cycle_output_dir / "cycle_002.json")
+                self.assertEqual(cycle_two["run_context"]["ingestion_status"], "DEGRADED")
+                self.assertEqual(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "ingestion_degraded_streak"
+                    ],
+                    2,
+                )
+                self.assertTrue(
+                    cycle_two["run_context"]["ingestion_metadata"][
+                        "ingestion_degraded_entry_suppressed"
+                    ]
+                )
+                self.assertIn(
+                    "entry_suppressed_due_consecutive_ingestion_degraded",
+                    cycle_two["run_context"]["ingestion_reasons"],
+                )
+                self.assertEqual(len(cycle_two["records"]), 1)
+                cycle_two_risk = cycle_two["records"][0]["replay_record"]["risk_decision"]
+                self.assertIn(
+                    "entry_suppressed_for_ingestion_degradation",
+                    cycle_two_risk["reasons"],
+                )
+                self.assertFalse(cycle_two_risk["metadata"]["state_refresh_event"])
+                self.assertTrue(
+                    cycle_two_risk["metadata"]["ingestion_degraded_entry_suppressed"]
+                )
+                self.assertEqual(
+                    cycle_two_risk["metadata"]["ingestion_degraded_streak"],
+                    2,
+                )
+            finally:
+                _LiveFeedHandler.reset()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=1.0)
+
+    def test_live_mode_flags_stale_open_positions_after_state_refresh_streak(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+
+            _LiveFeedHandler.payload = [
+                {
+                    "id": "live-market-sticky",
+                    "question": "Will repeated state refresh be marked stale?",
+                    "updatedAt": "2026-04-26T15:03:00Z",
+                    "endDate": "2026-05-01T00:00:00Z",
+                    "outcomePrices": "[\"0.61\", \"0.39\"]",
+                    "liquidity": "64000.0",
+                    "volume24hr": 2200.0,
+                    "oneWeekPriceChange": 0.08,
+                }
+            ]
+            server = ThreadingHTTPServer(("127.0.0.1", 0), _LiveFeedHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                live_source_url = f"http://127.0.0.1:{server.server_port}/markets"
+                command = [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--ingestion-mode",
+                    "live_polymarket",
+                    "--live-source-url",
+                    live_source_url,
+                    "--state-refresh-stale-threshold-cycles",
+                    "2",
+                    "--cycles",
+                    "3",
+                    "--cycle-interval-seconds",
+                    "0",
+                    "--max-retries",
+                    "0",
+                    "--retry-backoff-seconds",
+                    "0",
+                    "--ingestion-max-retries",
+                    "0",
+                    "--ingestion-retry-backoff-seconds",
+                    "0",
+                    "--execution-gateway-max-retries",
+                    "0",
+                    "--execution-gateway-retry-backoff-seconds",
+                    "0",
+                    "--state-path",
+                    str(state_path),
+                    "--journal-path",
+                    str(journal_path),
+                    "--control-state-path",
+                    str(control_state_path),
+                    "--control-audit-path",
+                    str(control_audit_path),
+                    "--cycle-output-dir",
+                    str(cycle_output_dir),
+                ]
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=False
+                )
+
+                self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+                state = _read_json(state_path)
+                metadata = state["worker_results"][0]["last_metadata"]
+                self.assertEqual(metadata["cycle_status"], "EXECUTED")
+                self.assertTrue(metadata["state_refresh_applied"])
+                self.assertEqual(metadata["state_refresh_max_streak"], 2)
+                self.assertEqual(
+                    metadata["stale_open_position_market_ids"],
+                    ["live-market-sticky"],
+                )
+                self.assertIn(
+                    "stale_open_positions_under_state_refresh",
+                    metadata["ingestion_reasons"],
+                )
+
+                cycle_three = _read_json(cycle_output_dir / "cycle_003.json")
+                self.assertIn(
+                    "stale_open_positions_under_state_refresh",
+                    cycle_three["run_context"]["ingestion_reasons"],
+                )
+                self.assertEqual(
+                    cycle_three["run_context"]["ingestion_metadata"][
+                        "state_refresh_max_streak"
+                    ],
+                    2,
+                )
+                self.assertEqual(
+                    cycle_three["run_context"]["ingestion_metadata"][
+                        "stale_open_position_market_ids"
+                    ],
+                    ["live-market-sticky"],
+                )
+                self.assertEqual(
+                    cycle_three["run_context"]["ingestion_metadata"][
+                        "state_refresh_stale_threshold_cycles"
+                    ],
+                    2,
                 )
             finally:
                 server.shutdown()

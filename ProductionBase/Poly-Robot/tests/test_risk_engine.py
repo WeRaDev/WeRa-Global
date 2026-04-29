@@ -27,7 +27,7 @@ def _load_parameters() -> dict:
     return payload["values"]
 
 
-def _build_event() -> MarketEvent:
+def _build_event(*, metadata: dict | None = None) -> MarketEvent:
     return MarketEvent(
         event_id="evt-risk-1",
         timestamp="2026-01-01T00:00:00Z",
@@ -39,6 +39,7 @@ def _build_event() -> MarketEvent:
         asks_depth_usd=1800.0,
         liquidity_usd=90000.0,
         hours_to_resolution=24,
+        metadata=dict(metadata or {}),
     )
 
 
@@ -125,6 +126,49 @@ class RiskEngineTests(unittest.TestCase):
 
         self.assertFalse(result.allowed)
         self.assertIn("strategy_not_buy", result.reasons)
+
+    def test_denies_when_entries_are_suppressed_for_ingestion_degradation(self) -> None:
+        event = _build_event(
+            metadata={
+                "suppress_new_entries": True,
+                "ingestion_degraded_entry_suppressed": True,
+                "ingestion_degraded_streak": 3,
+            }
+        )
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("entry_suppressed_for_ingestion_degradation", result.reasons)
+        self.assertFalse(result.metadata["state_refresh_event"])
+        self.assertTrue(result.metadata["ingestion_degraded_entry_suppressed"])
+        self.assertEqual(result.metadata["ingestion_degraded_streak"], 3)
+
+    def test_denies_when_entries_are_suppressed_for_inventory_aging(self) -> None:
+        event = _build_event(
+            metadata={
+                "suppress_new_entries": True,
+                "inventory_aging_derisk_active": True,
+            }
+        )
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2)
+        result = self.engine.evaluate(event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("entry_suppressed_for_inventory_aging", result.reasons)
+        self.assertFalse(result.metadata["state_refresh_event"])
+        self.assertFalse(result.metadata["ingestion_degraded_entry_suppressed"])
+        self.assertTrue(result.metadata["inventory_aging_derisk_active"])
 
     def test_denies_when_max_concurrent_positions_reached(self) -> None:
         portfolio = PortfolioState(
@@ -241,6 +285,82 @@ class RiskEngineTests(unittest.TestCase):
         self.assertLess(
             cost_aware_result.approved_notional, low_cost_result.approved_notional
         )
+    def test_scales_size_when_domain_budget_is_low(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2, win_probability=0.78)
+        full_budget_event = _build_event(
+            metadata={
+                "domain_key": "crypto",
+                "domain_allocation_budget": 1.0,
+            }
+        )
+        low_budget_event = _build_event(
+            metadata={
+                "domain_key": "crypto",
+                "domain_allocation_budget": 0.2,
+            }
+        )
+
+        full_budget_result = self.engine.evaluate(
+            full_budget_event, decision, portfolio
+        )
+        low_budget_result = self.engine.evaluate(
+            low_budget_event, decision, portfolio
+        )
+
+        self.assertTrue(full_budget_result.allowed)
+        self.assertTrue(low_budget_result.allowed)
+        self.assertIn("domain_budget_scaled_size", low_budget_result.reasons)
+        self.assertLess(
+            low_budget_result.approved_notional, full_budget_result.approved_notional
+        )
+        self.assertLess(low_budget_result.metadata["domain_budget_scale"], 1.0)
+
+    def test_denies_when_domain_budget_is_exhausted(self) -> None:
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2)
+        event = _build_event(
+            metadata={
+                "domain_key": "sports",
+                "domain_allocation_budget": 0.0,
+            }
+        )
+        result = self.engine.evaluate(event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("domain_budget_exhausted", result.reasons)
+        self.assertEqual(result.metadata["domain_key"], "sports")
+
+    def test_denies_when_domain_exposure_limit_is_reached(self) -> None:
+        constrained_parameters = dict(self.parameters)
+        constrained_parameters["risk.max_domain_exposure_fraction"] = 0.2
+        constrained_engine = RiskEngine(constrained_parameters)
+        portfolio = PortfolioState(
+            bankroll=1000.0,
+            day_start_equity=1000.0,
+            current_equity=1000.0,
+        )
+        decision = _build_decision(consensus_votes=2)
+        event = _build_event(
+            metadata={
+                "domain_key": "politics",
+                "domain_open_notional_usd": 220.0,
+                "domain_allocation_budget": 1.0,
+            }
+        )
+        result = constrained_engine.evaluate(event, decision, portfolio)
+
+        self.assertFalse(result.allowed)
+        self.assertIn("domain_exposure_limit_reached", result.reasons)
+        self.assertEqual(result.metadata["domain_key"], "politics")
 
 
 if __name__ == "__main__":
