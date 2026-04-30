@@ -271,6 +271,55 @@ def _html_page() -> str:
         <p class="field-hint">Writes AgentOperator mode and enabled status to audited control state.</p>
       </div>
     </div>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="modeCurrent">Current Lifecycle Mode</label>
+        <select id="modeCurrent" disabled title="Current paper/test/live lifecycle mode observed from control state.">
+          <option value="paper">paper</option>
+          <option value="test">test</option>
+          <option value="live">live</option>
+        </select>
+        <p class="field-hint">Read-only value synced from control state and runtime lifecycle decisions.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="modeTarget">Target Lifecycle Mode</label>
+        <select id="modeTarget" title="Requested lifecycle mode for next transition decision.">
+          <option value="paper">paper</option>
+          <option value="test">test</option>
+          <option value="live">live</option>
+        </select>
+        <p class="field-hint">Choose desired promotion/rollback target before requesting transition evaluation.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="modeApprovalStatus">Transition Approval Status</label>
+        <select id="modeApprovalStatus" title="Manual approval status supplied to lifecycle transition policy.">
+          <option value="pending">pending</option>
+          <option value="approved">approved</option>
+          <option value="rejected">rejected</option>
+        </select>
+        <p class="field-hint">Set pending/approved/rejected to match governance approval workflow state.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="modeEvidence">Transition Evidence (JSON object)</label>
+        <input id="modeEvidence" placeholder='{"milestone_c_sequence":{"status":"PASS"}}' title="Optional JSON object merged into mode transition evidence payload." />
+        <p class="field-hint">Optional policy evidence map merged with existing control-state evidence for transition decisions.</p>
+      </div>
+    </div>
+    <div class="button-grid">
+      <div class="button-group">
+        <button onclick="sendModeTransition('request')" title="Request a mode transition decision using selected target mode, approval status, and evidence.">Request Mode Transition</button>
+        <p class="field-hint">Evaluates lifecycle policy and records decision/audit metadata without forcing unsafe bypass.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendModeTransition('approve')" title="Apply approved transition decision for selected target mode.">Approve Transition</button>
+        <p class="field-hint">Forces approval_status=approved and re-evaluates transition gate with provided evidence.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendModeTransition('reject')" title="Apply rejected transition decision for selected target mode.">Reject Transition</button>
+        <p class="field-hint">Forces approval_status=rejected and records denial evidence in lifecycle audit fields.</p>
+      </div>
+    </div>
+    <div id="modeTransitionStatus"></div>
     <div id="agentOperatorStatus"></div>
     <div id="controlResult"></div>
   </div>
@@ -482,6 +531,23 @@ def _html_page() -> str:
       return fallbackValue;
     }
 
+    function parseModeTransitionEvidence(rawValue) {
+      const trimmedValue = (rawValue || '').trim();
+      if (!trimmedValue) {
+        return {};
+      }
+      let parsedValue;
+      try {
+        parsedValue = JSON.parse(trimmedValue);
+      } catch (error) {
+        throw new Error('Transition evidence must be valid JSON.');
+      }
+      if (!parsedValue || Array.isArray(parsedValue) || typeof parsedValue !== 'object') {
+        throw new Error('Transition evidence must be a JSON object.');
+      }
+      return parsedValue;
+    }
+
     function syncQueryInputsFromState() {
       document.getElementById('recentEventsLimit').value = String(dashboardQuery.recent_events_limit);
       document.getElementById('recentAuditLimit').value = String(dashboardQuery.recent_audit_limit);
@@ -670,7 +736,67 @@ def _html_page() -> str:
       const olderCursor = incidentPaging.next_cursor ?? 'none';
       const totalIncidents = incidentPaging.total_incidents ?? 0;
       const controlState = payload.control_state || {};
+      const modeLifecycle = payload.mode_lifecycle || {};
       const loopMetrics = payload.loop_metrics || {};
+      const supportedModes = ['paper', 'test', 'live'];
+      const supportedApprovalStatuses = ['pending', 'approved', 'rejected'];
+      const modeCurrent = String(
+        modeLifecycle.current_mode || controlState.mode_current || 'paper'
+      );
+      const modeTarget = String(
+        modeLifecycle.target_mode || controlState.mode_target || modeCurrent
+      );
+      const modeApprovalStatus = String(
+        modeLifecycle.approval_status ||
+        controlState.mode_transition_approval_status ||
+        'pending'
+      );
+      const modeCurrentSelect = document.getElementById('modeCurrent');
+      const modeTargetSelect = document.getElementById('modeTarget');
+      const modeApprovalStatusSelect = document.getElementById('modeApprovalStatus');
+      const modeEvidenceInput = document.getElementById('modeEvidence');
+      modeCurrentSelect.value = supportedModes.includes(modeCurrent) ? modeCurrent : 'paper';
+      modeTargetSelect.value = supportedModes.includes(modeTarget) ? modeTarget : modeCurrentSelect.value;
+      modeApprovalStatusSelect.value = supportedApprovalStatuses.includes(modeApprovalStatus)
+        ? modeApprovalStatus
+        : 'pending';
+      const modeEvidencePayload = modeLifecycle.evidence;
+      if (document.activeElement !== modeEvidenceInput) {
+        if (modeEvidencePayload && typeof modeEvidencePayload === 'object' && !Array.isArray(modeEvidencePayload)) {
+          modeEvidenceInput.value = JSON.stringify(modeEvidencePayload);
+        } else {
+          modeEvidenceInput.value = '';
+        }
+      }
+      const lastModeDecision = modeLifecycle.last_decision || {};
+      const lastDecisionAllowed = Object.prototype.hasOwnProperty.call(lastModeDecision, 'allowed')
+        ? String(Boolean(lastModeDecision.allowed))
+        : '-';
+      const lastDecisionReasonCodes = Array.isArray(lastModeDecision.reason_codes) && lastModeDecision.reason_codes.length
+        ? lastModeDecision.reason_codes.join(',')
+        : '-';
+      const runtimeTransitionAllowed = Object.prototype.hasOwnProperty.call(
+        modeLifecycle,
+        'runtime_transition_allowed'
+      )
+        ? String(Boolean(modeLifecycle.runtime_transition_allowed))
+        : '-';
+      const runtimeTransitionReasonCodes = Array.isArray(modeLifecycle.runtime_transition_reason_codes) &&
+        modeLifecycle.runtime_transition_reason_codes.length
+        ? modeLifecycle.runtime_transition_reason_codes.join(',')
+        : '-';
+      document.getElementById('modeTransitionStatus').textContent =
+        'mode_current=' + modeCurrentSelect.value +
+        ' | mode_target=' + modeTargetSelect.value +
+        ' | approval_status=' + modeApprovalStatusSelect.value +
+        ' | last_allowed=' + lastDecisionAllowed +
+        ' | last_reason_codes=' + lastDecisionReasonCodes +
+        ' | runtime_transition_allowed=' + runtimeTransitionAllowed +
+        ' | runtime_reason_codes=' + runtimeTransitionReasonCodes +
+        ' | last_actor=' + (modeLifecycle.last_actor || '-') +
+        ' | last_action=' + (modeLifecycle.last_action || '-') +
+        ' | last_decision_at=' + (modeLifecycle.last_decision_at || '-') +
+        ' | last_transition_at=' + (modeLifecycle.last_transition_at || '-');
       if (Object.prototype.hasOwnProperty.call(controlState, 'agent_operator_enabled')) {
         document.getElementById('agentOperatorEnabled').checked = Boolean(
           controlState.agent_operator_enabled
@@ -713,6 +839,26 @@ def _html_page() -> str:
       };
     }
 
+    function modeTransitionPayload(action) {
+      const approvalStatusByAction = {
+        request: document.getElementById('modeApprovalStatus').value || 'pending',
+        approve: 'approved',
+        reject: 'rejected'
+      };
+      const approvalStatus = approvalStatusByAction[action];
+      if (!approvalStatus) {
+        throw new Error('Unsupported mode transition action: ' + action);
+      }
+      return {
+        ...controlPayload(),
+        target_mode: document.getElementById('modeTarget').value || 'paper',
+        approval_status: approvalStatus,
+        evidence: parseModeTransitionEvidence(
+          document.getElementById('modeEvidence').value || ''
+        )
+      };
+    }
+
     async function sendControl(path) {
       const response = await fetch(path, {
         method: 'POST',
@@ -724,6 +870,39 @@ def _html_page() -> str:
       });
       const text = await response.text();
       document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
+      await fetchDashboard();
+    }
+    async function sendModeTransition(action) {
+      const endpointByAction = {
+        request: '/api/control/mode-transition/request',
+        approve: '/api/control/mode-transition/approve',
+        reject: '/api/control/mode-transition/reject'
+      };
+      const endpoint = endpointByAction[action];
+      if (!endpoint) {
+        document.getElementById('modeTransitionStatus').textContent =
+          'Unsupported mode transition action: ' + action;
+        return;
+      }
+      let payload;
+      try {
+        payload = modeTransitionPayload(action);
+      } catch (error) {
+        document.getElementById('modeTransitionStatus').textContent = error.message;
+        return;
+      }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...operatorTokenHeaders()
+        },
+        body: JSON.stringify(payload)
+      });
+      const text = await response.text();
+      document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
+      document.getElementById('modeTransitionStatus').textContent =
+        'Mode transition ' + action + ' response=' + response.status;
       await fetchDashboard();
     }
     async function setAgentOperatorAndSend(enabled, mode) {
@@ -1140,6 +1319,38 @@ def _build_handler(
                         enabled=enabled,
                         mode=mode,
                         reason=reason,
+                    )
+                elif parsed.path in {
+                    "/api/control/mode-transition/request",
+                    "/api/control/mode-transition/approve",
+                    "/api/control/mode-transition/reject",
+                }:
+                    target_mode = str(payload.get("target_mode", "")).strip()
+                    if not target_mode:
+                        raise ValueError("target_mode must not be empty")
+                    approval_status_raw: str | None
+                    if parsed.path.endswith("/approve"):
+                        approval_status_raw = "approved"
+                    elif parsed.path.endswith("/reject"):
+                        approval_status_raw = "rejected"
+                    elif "approval_status" in payload:
+                        approval_status_raw = (
+                            str(payload.get("approval_status", "")).strip().lower()
+                            or None
+                        )
+                    else:
+                        approval_status_raw = None
+                    evidence_payload = payload.get("evidence", {})
+                    if evidence_payload is None:
+                        evidence_payload = {}
+                    if not isinstance(evidence_payload, dict):
+                        raise ValueError("evidence must be an object")
+                    state = control_manager.set_mode_transition(
+                        actor=actor,
+                        target_mode=target_mode,
+                        reason=reason,
+                        approval_status=approval_status_raw,
+                        evidence=evidence_payload,
                     )
                 else:
                     _send_json(self, status=404, payload={"error": "not_found"})
