@@ -31,7 +31,7 @@ A task is done only when:
 - Security static analysis:
   - `bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105`
 - Type check:
-  - `PYTHONPATH=src python3 -m mypy src/poly_robot`
+  - `python3 scripts/run_typecheck.py`
 - UX regression checks:
   - `PYTHONPATH=src python3 -m unittest tests.test_runtime_web_gui tests.test_runtime_supervisor_controls tests.test_runtime_supervisor_live`
 - D3 rollout rehearsal protocol:

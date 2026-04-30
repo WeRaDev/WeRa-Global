@@ -17,7 +17,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install static tooling
+      - name: Install dev tooling
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements-dev.txt
@@ -522,7 +522,7 @@ jobs:
           retention-days: 14
       - name: Static typing check
         run: |
-          PYTHONPATH=src python3 -m mypy src/poly_robot
+          python3 scripts/run_typecheck.py
       - name: Docker compose config check
         run: |
           docker compose config --quiet
