@@ -4,12 +4,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
+import base64
+import hashlib
+import hmac
 import json
 import math
 import os
 import socket
 import time
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from .contracts import MarketEvent, RiskDecision
@@ -1175,6 +1178,19 @@ class PolymarketClobExecutionAdapter:
         audit_log_path: Path | None = None,
         now_fn: Callable[[], datetime] | None = None,
         environment: Mapping[str, str] | None = None,
+        enforce_auth_healthcheck: bool = False,
+        enable_geoblock_check: bool = False,
+        geoblock_url: str = "https://polymarket.com/api/geoblock",
+        auth_healthcheck_timeout_seconds: float = 2.0,
+        auth_healthcheck_ttl_seconds: float = 30.0,
+        auth_healthcheck_max_time_skew_seconds: float = 30.0,
+        http_json_request_fn: (
+            Callable[
+                [str, str, dict[str, str], str | None, float],
+                tuple[int | None, Any, str | None],
+            ]
+            | None
+        ) = None,
     ) -> None:
         normalized_base_url = clob_base_url.strip()
         if not normalized_base_url:
@@ -1225,6 +1241,28 @@ class PolymarketClobExecutionAdapter:
         self.user_channel_max_staleness_seconds = float(
             user_channel_max_staleness_seconds
         )
+        if auth_healthcheck_timeout_seconds <= 0:
+            raise ValueError("auth_healthcheck_timeout_seconds must be > 0")
+        if auth_healthcheck_ttl_seconds <= 0:
+            raise ValueError("auth_healthcheck_ttl_seconds must be > 0")
+        if auth_healthcheck_max_time_skew_seconds <= 0:
+            raise ValueError("auth_healthcheck_max_time_skew_seconds must be > 0")
+        self.enforce_auth_healthcheck = bool(enforce_auth_healthcheck)
+        self.enable_geoblock_check = bool(enable_geoblock_check)
+        normalized_geoblock_url = geoblock_url.strip()
+        self.geoblock_url = (
+            normalized_geoblock_url
+            if normalized_geoblock_url
+            else "https://polymarket.com/api/geoblock"
+        )
+        self.auth_healthcheck_timeout_seconds = float(auth_healthcheck_timeout_seconds)
+        self.auth_healthcheck_ttl_seconds = float(auth_healthcheck_ttl_seconds)
+        self.auth_healthcheck_max_time_skew_seconds = float(
+            auth_healthcheck_max_time_skew_seconds
+        )
+        self._http_json_request_fn = (
+            http_json_request_fn or self._default_http_json_request
+        )
         self._user_channel_event_source = user_channel_event_source
         self.audit_log_path = audit_log_path
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
@@ -1236,6 +1274,8 @@ class PolymarketClobExecutionAdapter:
         self._daily_submitted_notional_by_day: dict[str, float] = {}
         self._order_sequence = 0
         self._last_user_channel_heartbeat_at: datetime | None = None
+        self._last_auth_healthcheck_at: datetime | None = None
+        self._cached_auth_healthcheck: tuple[list[str], dict[str, Any]] | None = None
 
     @staticmethod
     def _coerce_bool(value: Any) -> bool:
@@ -1360,6 +1400,307 @@ class PolymarketClobExecutionAdapter:
         with self.audit_log_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True))
             handle.write("\n")
+
+    @staticmethod
+    def _default_http_json_request(
+        url: str,
+        method: str,
+        headers: dict[str, str],
+        serialized_body: str | None,
+        timeout_seconds: float,
+    ) -> tuple[int | None, Any, str | None]:
+        request = Request(
+            url=url,
+            headers=headers,
+            data=(
+                serialized_body.encode("utf-8")
+                if serialized_body is not None
+                else None
+            ),
+            method=method.upper(),
+        )
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:
+                status_code = int(getattr(response, "status", response.getcode()))
+                charset = response.headers.get_content_charset() or "utf-8"
+                raw_payload = response.read().decode(charset, errors="replace")
+        except HTTPError as exc:
+            status_code = int(exc.code)
+            charset = (
+                exc.headers.get_content_charset()
+                if exc.headers is not None
+                else "utf-8"
+            ) or "utf-8"
+            raw_payload = exc.read().decode(charset, errors="replace")
+            try:
+                parsed_payload = json.loads(raw_payload)
+            except json.JSONDecodeError:
+                parsed_payload = raw_payload
+            return status_code, parsed_payload, f"http_error:{status_code}"
+        except (OSError, TimeoutError, URLError) as exc:
+            return None, None, exc.__class__.__name__
+        try:
+            parsed_payload = json.loads(raw_payload)
+        except json.JSONDecodeError:
+            parsed_payload = raw_payload
+        return status_code, parsed_payload, None
+
+    def _resolve_poly_address(self) -> str | None:
+        for env_var in (
+            "POLYMARKET_ADDRESS",
+            "POLYMARKET_SIGNER_ADDRESS",
+            "POLYMARKET_WALLET_ADDRESS",
+            "POLYMARKET_FUNDER_ADDRESS",
+        ):
+            value = str(self.environment.get(env_var, "")).strip()
+            if value:
+                return value
+        private_key = str(self.environment.get("POLYMARKET_PRIVATE_KEY", "")).strip()
+        if not private_key:
+            return None
+        try:  # pragma: no cover - optional dependency may not be installed in tests
+            from eth_account import Account  # type: ignore[import-not-found]
+        except Exception:  # pragma: no cover - defensive branch
+            return None
+        try:  # pragma: no cover - optional dependency may not be installed in tests
+            return str(Account.from_key(private_key).address)
+        except Exception:  # pragma: no cover - defensive branch
+            return None
+
+    @staticmethod
+    def _decode_polymarket_api_secret(secret: str) -> bytes:
+        normalized = secret.strip()
+        if not normalized:
+            raise ValueError("polymarket_api_secret_missing")
+        padding = "=" * (-len(normalized) % 4)
+        try:
+            return base64.urlsafe_b64decode(normalized + padding)
+        except Exception as exc:
+            raise ValueError("polymarket_api_secret_invalid_base64") from exc
+
+    def _build_l2_auth_headers(
+        self,
+        *,
+        method: str,
+        request_path: str,
+        serialized_body: str | None = None,
+    ) -> dict[str, str]:
+        poly_address = self._resolve_poly_address()
+        if not poly_address:
+            raise ValueError("polymarket_address_missing")
+        api_key = str(self.environment.get("POLYMARKET_API_KEY", "")).strip()
+        if not api_key:
+            raise ValueError("polymarket_api_key_missing")
+        api_passphrase = str(
+            self.environment.get("POLYMARKET_API_PASSPHRASE", "")
+        ).strip()
+        if not api_passphrase:
+            raise ValueError("polymarket_api_passphrase_missing")
+        api_secret = self._decode_polymarket_api_secret(
+            str(self.environment.get("POLYMARKET_API_SECRET", ""))
+        )
+        timestamp = str(int(self._now().timestamp()))
+        signature_payload = (
+            f"{timestamp}{method.upper()}{request_path}"
+            f"{serialized_body or ''}"
+        )
+        signature = base64.urlsafe_b64encode(
+            hmac.new(
+                api_secret,
+                signature_payload.encode("utf-8"),
+                hashlib.sha256,
+            ).digest()
+        ).decode("utf-8")
+        return {
+            "POLY_ADDRESS": poly_address,
+            "POLY_SIGNATURE": signature,
+            "POLY_TIMESTAMP": timestamp,
+            "POLY_API_KEY": api_key,
+            "POLY_PASSPHRASE": api_passphrase,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+    @staticmethod
+    def _extract_server_epoch_seconds(payload: Any) -> float | None:
+        if isinstance(payload, dict):
+            for key in (
+                "timestamp",
+                "serverTime",
+                "server_time",
+                "time",
+                "epoch",
+            ):
+                if key not in payload:
+                    continue
+                value = payload.get(key)
+                if isinstance(value, (int, float)):
+                    return float(value)
+                if isinstance(value, str):
+                    parsed_datetime = PolymarketClobExecutionAdapter._parse_datetime(
+                        value
+                    )
+                    if parsed_datetime is not None:
+                        return parsed_datetime.timestamp()
+                    try:
+                        return float(value)
+                    except ValueError:
+                        continue
+            return None
+        if isinstance(payload, (int, float)):
+            return float(payload)
+        if isinstance(payload, str):
+            parsed_datetime = PolymarketClobExecutionAdapter._parse_datetime(payload)
+            if parsed_datetime is not None:
+                return parsed_datetime.timestamp()
+            try:
+                return float(payload)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _is_geoblocked(payload: Any) -> bool:
+        if isinstance(payload, dict):
+            for key in (
+                "blocked",
+                "isBlocked",
+                "geoBlocked",
+                "geoblocked",
+                "restricted",
+                "isRestricted",
+            ):
+                if key in payload:
+                    return bool(payload.get(key))
+            for key in ("status", "result"):
+                marker = str(payload.get(key, "")).strip().lower()
+                if marker in {"blocked", "restricted", "denied"}:
+                    return True
+        return False
+
+    def _run_auth_healthcheck(
+        self,
+        *,
+        force: bool = False,
+    ) -> tuple[list[str], dict[str, Any]]:
+        metadata: dict[str, Any] = {
+            "required": self.enforce_auth_healthcheck,
+            "status": "skipped",
+            "timeout_seconds": self.auth_healthcheck_timeout_seconds,
+            "ttl_seconds": self.auth_healthcheck_ttl_seconds,
+            "max_time_skew_seconds": self.auth_healthcheck_max_time_skew_seconds,
+            "enable_geoblock_check": self.enable_geoblock_check,
+            "geoblock_url": self.geoblock_url,
+            "cache_hit": False,
+        }
+        if not self.enforce_auth_healthcheck:
+            metadata["skip_reason"] = "auth_healthcheck_not_required"
+            return [], metadata
+
+        now = self._now()
+        if (
+            not force
+            and self._last_auth_healthcheck_at is not None
+            and self._cached_auth_healthcheck is not None
+            and (now - self._last_auth_healthcheck_at).total_seconds()
+            <= self.auth_healthcheck_ttl_seconds
+        ):
+            cached_reasons, cached_metadata = self._cached_auth_healthcheck
+            cached_copy = dict(cached_metadata)
+            cached_copy["cache_hit"] = True
+            return list(cached_reasons), cached_copy
+
+        reasons: list[str] = []
+        if self.enable_geoblock_check:
+            geoblock_status, geoblock_payload, geoblock_error = (
+                self._http_json_request_fn(
+                    self.geoblock_url,
+                    "GET",
+                    {"Accept": "application/json"},
+                    None,
+                    self.auth_healthcheck_timeout_seconds,
+                )
+            )
+            metadata["geoblock_status_code"] = geoblock_status
+            metadata["geoblock_request_error"] = geoblock_error
+            if geoblock_error is not None:
+                reasons.append("geoblock_check_unavailable")
+            elif geoblock_status is None or geoblock_status >= 400:
+                reasons.append("geoblock_check_failed")
+            else:
+                geoblocked = self._is_geoblocked(geoblock_payload)
+                metadata["geoblocked"] = geoblocked
+                if geoblocked:
+                    reasons.append("geoblocked")
+
+        server_time_url = f"{self.clob_base_url}/time"
+        time_status, time_payload, time_error = self._http_json_request_fn(
+            server_time_url,
+            "GET",
+            {"Accept": "application/json"},
+            None,
+            self.auth_healthcheck_timeout_seconds,
+        )
+        metadata["server_time_status_code"] = time_status
+        metadata["server_time_request_error"] = time_error
+        if time_error is not None or time_status is None or time_status >= 400:
+            reasons.append("clob_server_time_unavailable")
+        else:
+            server_epoch_seconds = self._extract_server_epoch_seconds(time_payload)
+            metadata["server_epoch_seconds"] = server_epoch_seconds
+            if server_epoch_seconds is None:
+                reasons.append("clob_server_time_invalid")
+            else:
+                skew_seconds = abs(now.timestamp() - server_epoch_seconds)
+                metadata["server_time_skew_seconds"] = round(skew_seconds, 6)
+                if skew_seconds > self.auth_healthcheck_max_time_skew_seconds:
+                    reasons.append("clob_server_time_skew_exceeded")
+
+        auth_request_path = "/auth/api-keys"
+        auth_url = f"{self.clob_base_url}{auth_request_path}"
+        try:
+            auth_headers = self._build_l2_auth_headers(
+                method="GET",
+                request_path=auth_request_path,
+            )
+        except ValueError as exc:
+            metadata["l2_auth_header_error"] = str(exc)
+            reasons.append(str(exc))
+        else:
+            auth_status, auth_payload, auth_error = self._http_json_request_fn(
+                auth_url,
+                "GET",
+                auth_headers,
+                None,
+                self.auth_healthcheck_timeout_seconds,
+            )
+            metadata["l2_auth_status_code"] = auth_status
+            metadata["l2_auth_request_error"] = auth_error
+            if auth_error is not None:
+                reasons.append("clob_l2_auth_request_failed")
+            elif auth_status != 200:
+                reasons.append("clob_l2_auth_failed")
+            elif isinstance(auth_payload, list):
+                metadata["l2_api_key_count"] = len(auth_payload)
+            elif isinstance(auth_payload, dict):
+                data_rows = auth_payload.get("data")
+                if isinstance(data_rows, list):
+                    metadata["l2_api_key_count"] = len(data_rows)
+
+        deduped_reasons = list(dict.fromkeys(reasons))
+        metadata["status"] = "passed" if not deduped_reasons else "failed"
+        metadata["reasons"] = deduped_reasons
+        metadata["checked_at"] = _utc_now_iso()
+        self._last_auth_healthcheck_at = now
+        self._cached_auth_healthcheck = (deduped_reasons, dict(metadata))
+        return deduped_reasons, metadata
+
+    def run_auth_healthcheck(
+        self,
+        *,
+        force: bool = False,
+    ) -> tuple[list[str], dict[str, Any]]:
+        return self._run_auth_healthcheck(force=force)
 
     def _missing_required_env_vars(self) -> list[str]:
         missing: list[str] = []
@@ -1823,6 +2164,13 @@ class PolymarketClobExecutionAdapter:
             "stage_enabled": self.stage_enabled,
             "real_order_submission": self.real_order_submission,
             "allow_real_trading": self.allow_real_trading,
+            "enforce_auth_healthcheck": self.enforce_auth_healthcheck,
+            "enable_geoblock_check": self.enable_geoblock_check,
+            "auth_healthcheck_timeout_seconds": self.auth_healthcheck_timeout_seconds,
+            "auth_healthcheck_ttl_seconds": self.auth_healthcheck_ttl_seconds,
+            "auth_healthcheck_max_time_skew_seconds": (
+                self.auth_healthcheck_max_time_skew_seconds
+            ),
             "required_env_vars": list(self.required_env_vars),
             "required_market_metadata": list(self.required_market_metadata),
             "require_pretrade_balance_checks": self.require_pretrade_balance_checks,
@@ -1939,6 +2287,22 @@ class PolymarketClobExecutionAdapter:
                 reason=secret_reasons[0],
                 metadata=metadata_with_secret_controls,
             )
+        auth_reasons, auth_metadata = self._run_auth_healthcheck(force=False)
+        metadata_with_auth = dict(metadata)
+        metadata_with_auth["auth_healthcheck"] = auth_metadata
+        if auth_reasons:
+            self._append_lifecycle(
+                lifecycle,
+                "REJECTED",
+                reason=auth_reasons[0],
+                auth_healthcheck=auth_metadata,
+            )
+            return self._rejected_result(
+                intent=intent,
+                reason=auth_reasons[0],
+                metadata=metadata_with_auth,
+            )
+        metadata = metadata_with_auth
         token_id = str(event.metadata.get("token_id", "")).strip()
         if not token_id:
             self._append_lifecycle(

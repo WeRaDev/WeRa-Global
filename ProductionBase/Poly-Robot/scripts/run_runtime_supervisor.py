@@ -232,6 +232,12 @@ def _run_live_credential_preflight(
         "required_env_vars": list(execution_adapter.required_env_vars),
         "max_secret_age_days": execution_adapter.max_secret_age_days,
         "preferred_secret_sources": list(execution_adapter.preferred_secret_sources),
+        "enforce_auth_healthcheck": execution_adapter.enforce_auth_healthcheck,
+        "auth_healthcheck": {
+            "required": execution_adapter.enforce_auth_healthcheck,
+            "status": "skipped",
+            "reason": "auth_healthcheck_not_required",
+        },
         "status": "skipped",
     }
     if not preflight_required:
@@ -273,6 +279,17 @@ def _run_live_credential_preflight(
             "Live credential preflight failed: "
             f"reasons={secret_reasons} details={preflight_details}"
         )
+    if execution_adapter.enforce_auth_healthcheck:
+        auth_reasons, auth_metadata = execution_adapter.run_auth_healthcheck(
+            force=True
+        )
+        preflight_summary["auth_healthcheck"] = auth_metadata
+        if auth_reasons:
+            raise ValueError(
+                "Live credential preflight failed: "
+                "reasons=['auth_healthcheck_failed'] "
+                f"auth_reasons={auth_reasons} details={auth_metadata}"
+            )
 
     preflight_summary["status"] = "passed"
     return preflight_summary
@@ -1034,6 +1051,33 @@ def main(argv: list[str] | None = None) -> int:
         require_kill_switch = bool(
             rollout_stage_payload.get("require_kill_switch", False)
         )
+        enforce_auth_healthcheck = bool(
+            rollout_stage_payload.get("enforce_auth_healthcheck", False)
+        )
+        enable_geoblock_check = bool(
+            rollout_stage_payload.get("enable_geoblock_check", False)
+        )
+        geoblock_url = str(rollout_stage_payload.get("geoblock_url", "")).strip()
+        auth_healthcheck_timeout_seconds = (
+            _as_optional_positive_float(
+                rollout_stage_payload.get("auth_healthcheck_timeout_seconds")
+            )
+            or 2.0
+        )
+        auth_healthcheck_ttl_seconds = (
+            _as_optional_positive_float(
+                rollout_stage_payload.get("auth_healthcheck_ttl_seconds")
+            )
+            or 30.0
+        )
+        auth_healthcheck_max_time_skew_seconds = (
+            _as_optional_positive_float(
+                rollout_stage_payload.get(
+                    "auth_healthcheck_max_time_skew_seconds"
+                )
+            )
+            or 30.0
+        )
         if isinstance(global_guards, dict):
             if bool(
                 global_guards.get("require_pretrade_balance_and_allowance_checks", False)
@@ -1043,6 +1087,46 @@ def main(argv: list[str] | None = None) -> int:
                 require_user_channel_trade_ack = True
             if bool(global_guards.get("require_kill_switch", False)):
                 require_kill_switch = True
+            if bool(global_guards.get("disable_live_trading_on_auth_failure", False)):
+                enforce_auth_healthcheck = True
+            if bool(global_guards.get("enable_geoblock_check", False)) or bool(
+                global_guards.get("require_geoblock_precheck", False)
+            ):
+                enable_geoblock_check = True
+            global_geoblock_url = str(global_guards.get("geoblock_url", "")).strip()
+            if global_geoblock_url:
+                geoblock_url = global_geoblock_url
+            parsed_global_auth_healthcheck_timeout_seconds = (
+                _as_optional_positive_float(
+                    global_guards.get("auth_healthcheck_timeout_seconds")
+                )
+            )
+            if parsed_global_auth_healthcheck_timeout_seconds is not None:
+                auth_healthcheck_timeout_seconds = (
+                    parsed_global_auth_healthcheck_timeout_seconds
+                )
+            parsed_global_auth_healthcheck_ttl_seconds = (
+                _as_optional_positive_float(
+                    global_guards.get("auth_healthcheck_ttl_seconds")
+                )
+            )
+            if parsed_global_auth_healthcheck_ttl_seconds is not None:
+                auth_healthcheck_ttl_seconds = (
+                    parsed_global_auth_healthcheck_ttl_seconds
+                )
+            parsed_global_auth_healthcheck_max_time_skew_seconds = (
+                _as_optional_positive_float(
+                    global_guards.get(
+                        "auth_healthcheck_max_time_skew_seconds"
+                    )
+                )
+            )
+            if parsed_global_auth_healthcheck_max_time_skew_seconds is not None:
+                auth_healthcheck_max_time_skew_seconds = (
+                    parsed_global_auth_healthcheck_max_time_skew_seconds
+                )
+        if not geoblock_url:
+            geoblock_url = "https://polymarket.com/api/geoblock"
         if args.pre_trade_balance_check_enabled or args.pre_trade_allowance_check_enabled:
             require_pretrade_balance_checks = True
         if args.enforce_user_channel_ack:
@@ -1142,6 +1226,14 @@ def main(argv: list[str] | None = None) -> int:
             preferred_secret_sources=preferred_secret_sources,
             max_secret_age_days=secret_max_age_days,
             user_channel_max_staleness_seconds=user_channel_max_staleness_seconds,
+            enforce_auth_healthcheck=enforce_auth_healthcheck,
+            enable_geoblock_check=enable_geoblock_check,
+            geoblock_url=geoblock_url,
+            auth_healthcheck_timeout_seconds=auth_healthcheck_timeout_seconds,
+            auth_healthcheck_ttl_seconds=auth_healthcheck_ttl_seconds,
+            auth_healthcheck_max_time_skew_seconds=(
+                auth_healthcheck_max_time_skew_seconds
+            ),
             audit_log_path=execution_adapter_audit_path,
         )
         credential_preflight = _run_live_credential_preflight(
@@ -1171,6 +1263,14 @@ def main(argv: list[str] | None = None) -> int:
             "require_pretrade_balance_checks": require_pretrade_balance_checks,
             "require_user_channel_trade_ack": require_user_channel_trade_ack,
             "require_kill_switch": require_kill_switch,
+            "enforce_auth_healthcheck": enforce_auth_healthcheck,
+            "enable_geoblock_check": enable_geoblock_check,
+            "geoblock_url": geoblock_url,
+            "auth_healthcheck_timeout_seconds": auth_healthcheck_timeout_seconds,
+            "auth_healthcheck_ttl_seconds": auth_healthcheck_ttl_seconds,
+            "auth_healthcheck_max_time_skew_seconds": (
+                auth_healthcheck_max_time_skew_seconds
+            ),
             "allow_plaintext_secrets": allow_plaintext_secrets,
             "preferred_secret_sources": list(preferred_secret_sources),
             "max_secret_age_days": secret_max_age_days,
