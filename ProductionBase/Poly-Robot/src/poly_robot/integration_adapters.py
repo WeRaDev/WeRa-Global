@@ -13,6 +13,7 @@ import os
 import socket
 import time
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .contracts import MarketEvent, RiskDecision
@@ -1154,6 +1155,12 @@ class LivePolymarketIngestionAdapter:
         )
 
 class PolymarketClobExecutionAdapter:
+    _L1_AUTH_ENDPOINT_PATHS = frozenset(
+        {
+            "/auth/api-key",
+            "/auth/derive-api-key",
+        }
+    )
     def __init__(
         self,
         *,
@@ -1184,6 +1191,7 @@ class PolymarketClobExecutionAdapter:
         auth_healthcheck_timeout_seconds: float = 2.0,
         auth_healthcheck_ttl_seconds: float = 30.0,
         auth_healthcheck_max_time_skew_seconds: float = 30.0,
+        allow_l1_auth_requests: bool = False,
         http_json_request_fn: (
             Callable[
                 [str, str, dict[str, str], str | None, float],
@@ -1260,9 +1268,11 @@ class PolymarketClobExecutionAdapter:
         self.auth_healthcheck_max_time_skew_seconds = float(
             auth_healthcheck_max_time_skew_seconds
         )
-        self._http_json_request_fn = (
+        self.allow_l1_auth_requests = bool(allow_l1_auth_requests)
+        self._raw_http_json_request_fn = (
             http_json_request_fn or self._default_http_json_request
         )
+        self._http_json_request_fn = self._guarded_http_json_request
         self._user_channel_event_source = user_channel_event_source
         self.audit_log_path = audit_log_path
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
@@ -1400,6 +1410,34 @@ class PolymarketClobExecutionAdapter:
         with self.audit_log_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True))
             handle.write("\n")
+    @staticmethod
+    def _extract_request_path(url: str) -> str:
+        try:
+            return str(urlparse(url).path or "/").strip()
+        except Exception:
+            return ""
+
+    def _guarded_http_json_request(
+        self,
+        url: str,
+        method: str,
+        headers: dict[str, str],
+        serialized_body: str | None,
+        timeout_seconds: float,
+    ) -> tuple[int | None, Any, str | None]:
+        request_path = self._extract_request_path(url)
+        if (
+            request_path in self._L1_AUTH_ENDPOINT_PATHS
+            and not self.allow_l1_auth_requests
+        ):
+            return None, None, "l1_auth_not_allowed_in_runtime_cycle"
+        return self._raw_http_json_request_fn(
+            url,
+            method,
+            headers,
+            serialized_body,
+            timeout_seconds,
+        )
 
     @staticmethod
     def _default_http_json_request(
@@ -1591,6 +1629,7 @@ class PolymarketClobExecutionAdapter:
             "max_time_skew_seconds": self.auth_healthcheck_max_time_skew_seconds,
             "enable_geoblock_check": self.enable_geoblock_check,
             "geoblock_url": self.geoblock_url,
+            "allow_l1_auth_requests": self.allow_l1_auth_requests,
             "cache_hit": False,
         }
         if not self.enforce_auth_healthcheck:
@@ -2166,6 +2205,7 @@ class PolymarketClobExecutionAdapter:
             "allow_real_trading": self.allow_real_trading,
             "enforce_auth_healthcheck": self.enforce_auth_healthcheck,
             "enable_geoblock_check": self.enable_geoblock_check,
+            "allow_l1_auth_requests": self.allow_l1_auth_requests,
             "auth_healthcheck_timeout_seconds": self.auth_healthcheck_timeout_seconds,
             "auth_healthcheck_ttl_seconds": self.auth_healthcheck_ttl_seconds,
             "auth_healthcheck_max_time_skew_seconds": (

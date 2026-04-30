@@ -549,6 +549,7 @@ class PolymarketClobExecutionAdapterTests(unittest.TestCase):
         auth_healthcheck_timeout_seconds: float = 2.0,
         auth_healthcheck_ttl_seconds: float = 30.0,
         auth_healthcheck_max_time_skew_seconds: float = 30.0,
+        allow_l1_auth_requests: bool = False,
         now_fn=None,
         http_json_request_fn=None,
         environment: dict[str, str] | None = None,
@@ -570,6 +571,7 @@ class PolymarketClobExecutionAdapterTests(unittest.TestCase):
             auth_healthcheck_timeout_seconds=auth_healthcheck_timeout_seconds,
             auth_healthcheck_ttl_seconds=auth_healthcheck_ttl_seconds,
             auth_healthcheck_max_time_skew_seconds=auth_healthcheck_max_time_skew_seconds,
+            allow_l1_auth_requests=allow_l1_auth_requests,
             now_fn=now_fn,
             http_json_request_fn=http_json_request_fn,
             environment=environment,
@@ -765,6 +767,62 @@ class PolymarketClobExecutionAdapterTests(unittest.TestCase):
         self.assertEqual(result.metadata["auth_healthcheck"]["status"], "passed")
         self.assertEqual(result.metadata["auth_healthcheck"]["l2_auth_status_code"], 200)
         self.assertEqual(result.metadata["auth_healthcheck"]["server_time_status_code"], 200)
+
+    def test_blocks_l1_auth_endpoints_when_runtime_l1_auth_is_disabled(self) -> None:
+        request_calls: list[str] = []
+
+        def request_fn(url, method, _headers, _body, _timeout):  # noqa: ANN001
+            del method
+            request_calls.append(url)
+            return 200, {"ok": True}, None
+
+        adapter = self._build_adapter(
+            allow_l1_auth_requests=False,
+            http_json_request_fn=request_fn,
+            required_env_vars=(),
+            environment={},
+        )
+        status_code, payload, error = adapter._http_json_request_fn(
+            "https://clob.polymarket.com/auth/api-key",
+            "POST",
+            {"Content-Type": "application/json"},
+            "{}",
+            1.0,
+        )
+
+        self.assertIsNone(status_code)
+        self.assertIsNone(payload)
+        self.assertEqual(error, "l1_auth_not_allowed_in_runtime_cycle")
+        self.assertEqual(request_calls, [])
+
+    def test_allows_l1_auth_endpoints_when_runtime_l1_auth_is_enabled(self) -> None:
+        request_calls: list[str] = []
+
+        def request_fn(url, method, _headers, _body, _timeout):  # noqa: ANN001
+            request_calls.append(f"{method}:{url}")
+            return 201, {"created": True}, None
+
+        adapter = self._build_adapter(
+            allow_l1_auth_requests=True,
+            http_json_request_fn=request_fn,
+            required_env_vars=(),
+            environment={},
+        )
+        status_code, payload, error = adapter._http_json_request_fn(
+            "https://clob.polymarket.com/auth/derive-api-key",
+            "POST",
+            {"Content-Type": "application/json"},
+            "{}",
+            1.0,
+        )
+
+        self.assertEqual(status_code, 201)
+        self.assertEqual(payload, {"created": True})
+        self.assertIsNone(error)
+        self.assertEqual(
+            request_calls,
+            ["POST:https://clob.polymarket.com/auth/derive-api-key"],
+        )
 
     def test_rejects_when_kill_switch_is_active(self) -> None:
         adapter = self._build_adapter(

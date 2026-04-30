@@ -208,6 +208,81 @@ def _lifecycle_mode_for_execution_mode(mode: object) -> str:
 def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
     return max(1, math.ceil(secret_max_age_seconds / 86_400))
 
+def _resolve_l1_auth_guard(
+    *,
+    operation: str,
+    context: str | None,
+    operator_actor: str,
+    control_manager: OperatorControlManager,
+    control_state_path: Path,
+    ignore_operator_controls: bool,
+) -> dict[str, object]:
+    normalized_operation = str(operation or "none").strip().lower() or "none"
+    normalized_context = str(context or "").strip().lower()
+    requested = normalized_operation != "none"
+    summary: dict[str, object] = {
+        "requested": requested,
+        "operation": normalized_operation,
+        "context": normalized_context or None,
+        "operator_actor": str(operator_actor).strip(),
+        "control_state_available": False,
+        "restart_requested": False,
+        "kill_switch_active": False,
+        "cancel_all_requested": False,
+        "allowed": False,
+        "status": "not_requested",
+        "reason_codes": [],
+    }
+    if not requested:
+        return summary
+
+    reason_codes: list[str] = []
+    if normalized_context not in {"startup", "restart", "emergency"}:
+        reason_codes.append("l1_auth_context_missing_or_invalid")
+
+    if str(operator_actor).strip().lower() != "operator":
+        reason_codes.append("l1_auth_operator_actor_not_authorized")
+
+    control_state_available = bool(
+        not ignore_operator_controls and control_state_path.exists()
+    )
+    summary["control_state_available"] = control_state_available
+    if control_state_available:
+        try:
+            control_state = control_manager.load_control_state()
+        except Exception:
+            reason_codes.append("l1_auth_control_state_unreadable")
+        else:
+            restart_requested = bool(control_state.get("restart_requested", False))
+            kill_switch_active = bool(control_state.get("kill_switch_active", False))
+            cancel_all_requested = bool(control_state.get("cancel_all_requested", False))
+            summary["restart_requested"] = restart_requested
+            summary["kill_switch_active"] = kill_switch_active
+            summary["cancel_all_requested"] = cancel_all_requested
+
+    if normalized_context == "restart":
+        if ignore_operator_controls:
+            reason_codes.append("l1_auth_restart_requires_operator_controls")
+        elif not control_state_available:
+            reason_codes.append("l1_auth_control_state_unavailable")
+        elif not bool(summary["restart_requested"]):
+            reason_codes.append("l1_auth_restart_not_requested")
+    elif normalized_context == "emergency":
+        if ignore_operator_controls:
+            reason_codes.append("l1_auth_emergency_requires_operator_controls")
+        elif not control_state_available:
+            reason_codes.append("l1_auth_control_state_unavailable")
+        elif not (
+            bool(summary["kill_switch_active"])
+            or bool(summary["cancel_all_requested"])
+        ):
+            reason_codes.append("l1_auth_emergency_not_active")
+
+    summary["reason_codes"] = reason_codes
+    summary["allowed"] = not reason_codes
+    summary["status"] = "allowed" if not reason_codes else "denied"
+    return summary
+
 
 
 def _run_live_credential_preflight(
@@ -217,6 +292,7 @@ def _run_live_credential_preflight(
     stage_enabled: bool,
     real_order_submission: bool,
     allow_real_trading: bool,
+    l1_auth_guard: dict[str, object],
 ) -> dict[str, object]:
     preflight_required = (
         stage_enabled
@@ -233,6 +309,8 @@ def _run_live_credential_preflight(
         "max_secret_age_days": execution_adapter.max_secret_age_days,
         "preferred_secret_sources": list(execution_adapter.preferred_secret_sources),
         "enforce_auth_healthcheck": execution_adapter.enforce_auth_healthcheck,
+        "allow_l1_auth_requests": execution_adapter.allow_l1_auth_requests,
+        "l1_auth_guard": dict(l1_auth_guard),
         "auth_healthcheck": {
             "required": execution_adapter.enforce_auth_healthcheck,
             "status": "skipped",
@@ -240,10 +318,20 @@ def _run_live_credential_preflight(
         },
         "status": "skipped",
     }
+    l1_auth_requested = bool(l1_auth_guard.get("requested", False))
+    l1_auth_allowed = bool(l1_auth_guard.get("allowed", False))
+    if l1_auth_requested and not l1_auth_allowed:
+        raise ValueError(
+            "Live credential preflight failed: "
+            "reasons=['l1_auth_policy_violation'] "
+            f"l1_auth_guard={l1_auth_guard}"
+        )
     if not preflight_required:
         preflight_summary["skip_reason"] = (
             "live_trading_not_enabled_for_stage_or_flags"
         )
+        if l1_auth_requested and l1_auth_allowed:
+            preflight_summary["status"] = "passed"
         return preflight_summary
 
     missing_env_vars = execution_adapter._missing_required_env_vars()
@@ -694,6 +782,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--l1-auth-operation",
+        type=str,
+        choices=["none", "derive_api_key", "create_api_key"],
+        default="none",
+        help=(
+            "Optional L1 auth operation intent. Restricted to operator-controlled "
+            "startup/restart/emergency contexts."
+        ),
+    )
+    parser.add_argument(
+        "--l1-auth-context",
+        type=str,
+        choices=["startup", "restart", "emergency"],
+        required=False,
+        help=(
+            "Context for --l1-auth-operation. restart/emergency require "
+            "operator-control state evidence."
+        ),
+    )
+    parser.add_argument(
         "--execution-gateway-max-retries",
         type=int,
         default=1,
@@ -914,6 +1022,23 @@ def main(argv: list[str] | None = None) -> int:
         resolved_lifecycle_mode = _lifecycle_mode_for_execution_mode(
             resolved_execution_mode
         )
+    l1_auth_guard = _resolve_l1_auth_guard(
+        operation=args.l1_auth_operation,
+        context=args.l1_auth_context,
+        operator_actor=args.operator_control_actor,
+        control_manager=control_manager,
+        control_state_path=args.control_state_path,
+        ignore_operator_controls=bool(args.ignore_operator_controls),
+    )
+    if bool(l1_auth_guard.get("requested", False)) and not bool(
+        l1_auth_guard.get("allowed", False)
+    ):
+        raise ValueError(
+            "L1 auth operation denied by runtime policy: "
+            f"operation={l1_auth_guard.get('operation')} "
+            f"context={l1_auth_guard.get('context')} "
+            f"reason_codes={l1_auth_guard.get('reason_codes', [])}"
+        )
 
     execution_context: dict[str, object]
     if resolved_execution_mode == "paper":
@@ -934,6 +1059,7 @@ def main(argv: list[str] | None = None) -> int:
             "test_mode_environment": None,
             "test_mode_environment_fallback_used": False,
             "test_mode_environment_reason_code": "",
+            "l1_auth_guard": dict(l1_auth_guard),
             "credential_preflight": {
                 "required": False,
                 "status": "skipped",
@@ -1234,6 +1360,7 @@ def main(argv: list[str] | None = None) -> int:
             auth_healthcheck_max_time_skew_seconds=(
                 auth_healthcheck_max_time_skew_seconds
             ),
+            allow_l1_auth_requests=bool(l1_auth_guard.get("allowed", False)),
             audit_log_path=execution_adapter_audit_path,
         )
         credential_preflight = _run_live_credential_preflight(
@@ -1242,6 +1369,7 @@ def main(argv: list[str] | None = None) -> int:
             stage_enabled=stage_enabled,
             real_order_submission=real_order_submission,
             allow_real_trading=bool(args.allow_real_trading),
+            l1_auth_guard=l1_auth_guard,
         )
         execution_context = {
             "mode": resolved_execution_mode,
@@ -1288,6 +1416,7 @@ def main(argv: list[str] | None = None) -> int:
             "test_mode_environment_fallback": test_mode_environment.get(
                 "fallback_environment"
             ),
+            "l1_auth_guard": dict(l1_auth_guard),
             "execution_adapter_audit_path": (
                 str(execution_adapter_audit_path)
                 if execution_adapter_audit_path is not None
