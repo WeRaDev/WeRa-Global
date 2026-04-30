@@ -5,6 +5,7 @@ import socket
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from urllib.error import URLError
 from pathlib import Path
 
@@ -542,6 +543,15 @@ class PolymarketClobExecutionAdapterTests(unittest.TestCase):
         require_user_channel_trade_ack: bool = False,
         require_kill_switch: bool = False,
         allow_plaintext_secrets: bool = True,
+        enforce_auth_healthcheck: bool = False,
+        enable_geoblock_check: bool = False,
+        geoblock_url: str = "https://polymarket.com/api/geoblock",
+        auth_healthcheck_timeout_seconds: float = 2.0,
+        auth_healthcheck_ttl_seconds: float = 30.0,
+        auth_healthcheck_max_time_skew_seconds: float = 30.0,
+        allow_l1_auth_requests: bool = False,
+        now_fn=None,
+        http_json_request_fn=None,
         environment: dict[str, str] | None = None,
     ) -> PolymarketClobExecutionAdapter:
         return PolymarketClobExecutionAdapter(
@@ -555,6 +565,15 @@ class PolymarketClobExecutionAdapterTests(unittest.TestCase):
             require_user_channel_trade_ack=require_user_channel_trade_ack,
             require_kill_switch=require_kill_switch,
             allow_plaintext_secrets=allow_plaintext_secrets,
+            enforce_auth_healthcheck=enforce_auth_healthcheck,
+            enable_geoblock_check=enable_geoblock_check,
+            geoblock_url=geoblock_url,
+            auth_healthcheck_timeout_seconds=auth_healthcheck_timeout_seconds,
+            auth_healthcheck_ttl_seconds=auth_healthcheck_ttl_seconds,
+            auth_healthcheck_max_time_skew_seconds=auth_healthcheck_max_time_skew_seconds,
+            allow_l1_auth_requests=allow_l1_auth_requests,
+            now_fn=now_fn,
+            http_json_request_fn=http_json_request_fn,
             environment=environment,
         )
 
@@ -632,6 +651,178 @@ class PolymarketClobExecutionAdapterTests(unittest.TestCase):
         self.assertEqual(result.reasons, ("clob_order_filled",))
         self.assertEqual(result.filled_notional, 100.0)
         self.assertEqual(result.metadata["token_id"], "9876")
+    def test_rejects_when_auth_healthcheck_l2_auth_fails(self) -> None:
+        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
+
+        def request_fn(url, method, headers, _body, _timeout):  # noqa: ANN001
+            self.assertEqual(method, "GET")
+            self.assertIn("Accept", headers)
+            if url.endswith("/time"):
+                return 200, {"timestamp": fixed_now.timestamp()}, None
+            if url.endswith("/auth/api-keys"):
+                return 401, {"error": "unauthorized"}, None
+            self.fail(f"unexpected healthcheck url: {url}")
+
+        adapter = self._build_adapter(
+            enforce_auth_healthcheck=True,
+            required_env_vars=("POLYMARKET_API_KEY",),
+            now_fn=lambda: fixed_now,
+            http_json_request_fn=request_fn,
+            environment={
+                "POLYMARKET_API_KEY": "key-present",
+                "POLYMARKET_API_KEY_SOURCE": "vault",
+                "POLYMARKET_API_KEY_LAST_ROTATED_AT": "2099-01-01T00:00:00Z",
+                "POLYMARKET_API_SECRET": "c2VjcmV0",
+                "POLYMARKET_API_PASSPHRASE": "passphrase",
+                "POLYMARKET_ADDRESS": "0x1234567890",
+            },
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "9876"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("clob_l2_auth_failed",))
+        self.assertEqual(result.metadata["auth_healthcheck"]["status"], "failed")
+        self.assertIn(
+            "clob_l2_auth_failed",
+            result.metadata["auth_healthcheck"]["reasons"],
+        )
+        self.assertEqual(result.metadata["auth_healthcheck"]["l2_auth_status_code"], 401)
+
+    def test_rejects_when_auth_healthcheck_geoblocked(self) -> None:
+        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
+
+        def request_fn(url, method, headers, _body, _timeout):  # noqa: ANN001
+            self.assertEqual(method, "GET")
+            self.assertIn("Accept", headers)
+            if "geoblock" in url:
+                return 200, {"blocked": True}, None
+            if url.endswith("/time"):
+                return 200, {"timestamp": fixed_now.timestamp()}, None
+            if url.endswith("/auth/api-keys"):
+                return 200, [{"apiKey": "key-present"}], None
+            self.fail(f"unexpected healthcheck url: {url}")
+
+        adapter = self._build_adapter(
+            enforce_auth_healthcheck=True,
+            enable_geoblock_check=True,
+            required_env_vars=("POLYMARKET_API_KEY",),
+            now_fn=lambda: fixed_now,
+            http_json_request_fn=request_fn,
+            environment={
+                "POLYMARKET_API_KEY": "key-present",
+                "POLYMARKET_API_KEY_SOURCE": "vault",
+                "POLYMARKET_API_KEY_LAST_ROTATED_AT": "2099-01-01T00:00:00Z",
+                "POLYMARKET_API_SECRET": "c2VjcmV0",
+                "POLYMARKET_API_PASSPHRASE": "passphrase",
+                "POLYMARKET_ADDRESS": "0x1234567890",
+            },
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "9876"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "REJECTED")
+        self.assertEqual(result.reasons, ("geoblocked",))
+        self.assertEqual(result.metadata["auth_healthcheck"]["status"], "failed")
+        self.assertTrue(result.metadata["auth_healthcheck"]["geoblocked"])
+        self.assertIn("geoblocked", result.metadata["auth_healthcheck"]["reasons"])
+
+    def test_fills_when_auth_healthcheck_passes(self) -> None:
+        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
+
+        def request_fn(url, method, headers, _body, _timeout):  # noqa: ANN001
+            self.assertEqual(method, "GET")
+            self.assertIn("Accept", headers)
+            if url.endswith("/time"):
+                return 200, {"timestamp": fixed_now.timestamp()}, None
+            if url.endswith("/auth/api-keys"):
+                return 200, [{"apiKey": "key-present"}], None
+            self.fail(f"unexpected healthcheck url: {url}")
+
+        adapter = self._build_adapter(
+            enforce_auth_healthcheck=True,
+            required_env_vars=("POLYMARKET_API_KEY",),
+            now_fn=lambda: fixed_now,
+            http_json_request_fn=request_fn,
+            environment={
+                "POLYMARKET_API_KEY": "key-present",
+                "POLYMARKET_API_KEY_SOURCE": "vault",
+                "POLYMARKET_API_KEY_LAST_ROTATED_AT": "2099-01-01T00:00:00Z",
+                "POLYMARKET_API_SECRET": "c2VjcmV0",
+                "POLYMARKET_API_PASSPHRASE": "passphrase",
+                "POLYMARKET_ADDRESS": "0x1234567890",
+            },
+        )
+        result = adapter.execute(
+            event=_build_event(metadata={"token_id": "9876"}),
+            intent=_build_intent(),
+        )
+
+        self.assertEqual(result.status, "FILLED")
+        self.assertEqual(result.reasons, ("clob_order_filled",))
+        self.assertEqual(result.metadata["auth_healthcheck"]["status"], "passed")
+        self.assertEqual(result.metadata["auth_healthcheck"]["l2_auth_status_code"], 200)
+        self.assertEqual(result.metadata["auth_healthcheck"]["server_time_status_code"], 200)
+
+    def test_blocks_l1_auth_endpoints_when_runtime_l1_auth_is_disabled(self) -> None:
+        request_calls: list[str] = []
+
+        def request_fn(url, method, _headers, _body, _timeout):  # noqa: ANN001
+            del method
+            request_calls.append(url)
+            return 200, {"ok": True}, None
+
+        adapter = self._build_adapter(
+            allow_l1_auth_requests=False,
+            http_json_request_fn=request_fn,
+            required_env_vars=(),
+            environment={},
+        )
+        status_code, payload, error = adapter._http_json_request_fn(
+            "https://clob.polymarket.com/auth/api-key",
+            "POST",
+            {"Content-Type": "application/json"},
+            "{}",
+            1.0,
+        )
+
+        self.assertIsNone(status_code)
+        self.assertIsNone(payload)
+        self.assertEqual(error, "l1_auth_not_allowed_in_runtime_cycle")
+        self.assertEqual(request_calls, [])
+
+    def test_allows_l1_auth_endpoints_when_runtime_l1_auth_is_enabled(self) -> None:
+        request_calls: list[str] = []
+
+        def request_fn(url, method, _headers, _body, _timeout):  # noqa: ANN001
+            request_calls.append(f"{method}:{url}")
+            return 201, {"created": True}, None
+
+        adapter = self._build_adapter(
+            allow_l1_auth_requests=True,
+            http_json_request_fn=request_fn,
+            required_env_vars=(),
+            environment={},
+        )
+        status_code, payload, error = adapter._http_json_request_fn(
+            "https://clob.polymarket.com/auth/derive-api-key",
+            "POST",
+            {"Content-Type": "application/json"},
+            "{}",
+            1.0,
+        )
+
+        self.assertEqual(status_code, 201)
+        self.assertEqual(payload, {"created": True})
+        self.assertIsNone(error)
+        self.assertEqual(
+            request_calls,
+            ["POST:https://clob.polymarket.com/auth/derive-api-key"],
+        )
 
     def test_rejects_when_kill_switch_is_active(self) -> None:
         adapter = self._build_adapter(

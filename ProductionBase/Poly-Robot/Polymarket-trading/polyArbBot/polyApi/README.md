@@ -1,0 +1,341 @@
+# Polymarket Python CLOB Client
+
+<a href='https://pypi.org/project/py-clob-client'>
+    <img src='https://img.shields.io/pypi/v/py-clob-client.svg' alt='PyPI'/>
+</a>
+
+Python client for the Polymarket Central Limit Order Book (CLOB).
+
+## Documentation
+
+## Installation
+
+```bash
+# install from PyPI (Python 3.9>)
+pip install py-clob-client
+```
+## Usage
+
+> **Note**  
+> `AsyncClobClient` is the new async-first interface. All methods are `await`-able and can be used in any async event loop (FastAPI, aiohttp, etc.).  
+> For quick blocking scripts you can still import `ClobClient` or `SyncClobClient`, which wrap the async client under the hood.
+
+The examples below are short and copy‑pasteable.
+
+- What you need:
+  - **Python 3.9+**
+  - **Private key** that owns funds on Polymarket
+  - Optional: a **proxy/funder address** if you use an email or smart‑contract wallet
+  - Tip: store secrets in environment variables (e.g., with `.env`)
+
+### Quickstart (read‑only)
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+
+
+async def main():
+    client = AsyncClobClient("https://clob.polymarket.com")  # Level 0 (no auth)
+    ok = await client.get_ok()
+    server_time = await client.get_server_time()
+    print(ok, server_time)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Start trading (EOA)
+
+**Note**: If using MetaMask or hardware wallet, you must first set token allowances. See [Token Allowances section](#important-token-allowances-for-metamaskeoa-users) below.
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+
+HOST = "https://clob.polymarket.com"
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+FUNDER = "<your-funder-address>"
+
+
+async def main():
+    client = AsyncClobClient(
+        HOST,  # The CLOB API endpoint
+        key=PRIVATE_KEY,  # Your wallet's private key
+        chain_id=CHAIN_ID,  # Polygon chain ID (137)
+        signature_type=1,  # 1 for email/Magic wallet signatures
+        funder=FUNDER,  # Address that holds your funds
+    )
+    client.set_api_creds(await client.create_or_derive_api_creds())
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Start trading (proxy wallet)
+
+For email/Magic or browser wallet proxies, you need to specify two additional parameters:
+
+#### Funder Address
+The **funder address** is the actual address that holds your funds on Polymarket. When using proxy wallets (email wallets like Magic or browser extension wallets), the signing key differs from the address holding the funds. The funder address ensures orders are properly attributed to your funded account.
+
+#### Signature Types
+The **signature_type** parameter tells the system how to verify your signatures:
+- `signature_type=0` (default): Standard EOA (Externally Owned Account) signatures - includes MetaMask, hardware wallets, and any wallet where you control the private key directly
+- `signature_type=1`: Email/Magic wallet signatures (delegated signing)
+- `signature_type=2`: Browser wallet proxy signatures (when using a proxy contract, not direct wallet connections)
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+
+HOST = "https://clob.polymarket.com"
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+PROXY_FUNDER = "<your-proxy-or-smart-wallet-address>"  # Address that holds your funds
+
+
+async def main():
+    client = AsyncClobClient(
+        HOST,
+        key=PRIVATE_KEY,
+        chain_id=CHAIN_ID,
+        signature_type=1,
+        funder=PROXY_FUNDER,
+    )
+    client.set_api_creds(await client.create_or_derive_api_creds())
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Find markets, prices, and orderbooks
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+from py_clob_client.clob_types import BookParams
+
+
+async def main():
+    client = AsyncClobClient("https://clob.polymarket.com")  # read-only
+    token_id = "<token-id>"
+    mid = await client.get_midpoint(token_id)
+    price = await client.get_price(token_id, side="BUY")
+    book = await client.get_order_book(token_id)
+    books = await client.get_order_books([BookParams(token_id=token_id)])
+    print(mid, price, book.market, len(books))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Place a market order (buy by $ amount)
+
+**Note**: EOA/MetaMask users must set token allowances before trading. See [Token Allowances section](#important-token-allowances-for-metamaskeoa-users) below.
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+from py_clob_client.clob_types import MarketOrderArgs, OrderType
+from py_clob_client.order_builder.constants import BUY
+
+HOST = "https://clob.polymarket.com"
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+FUNDER = "<your-funder-address>"
+
+
+async def main():
+    client = AsyncClobClient(
+        HOST,
+        key=PRIVATE_KEY,
+        chain_id=CHAIN_ID,
+        signature_type=1,
+        funder=FUNDER,
+    )
+    client.set_api_creds(await client.create_or_derive_api_creds())
+
+    mo = MarketOrderArgs(
+        token_id="<token-id>",
+        amount=25.0,
+        side=BUY,
+        order_type=OrderType.FOK,
+    )
+    signed = await client.create_market_order(mo)
+    resp = await client.post_order(signed, OrderType.FOK)
+    print(resp)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Place a limit order (shares at a price)
+
+**Note**: EOA/MetaMask users must set token allowances before trading. See [Token Allowances section](#important-token-allowances-for-metamaskeoa-users) below.
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+from py_clob_client.clob_types import OrderArgs, OrderType
+from py_clob_client.order_builder.constants import BUY
+
+HOST = "https://clob.polymarket.com"
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+FUNDER = "<your-funder-address>"
+
+
+async def main():
+    client = AsyncClobClient(
+        HOST,
+        key=PRIVATE_KEY,
+        chain_id=CHAIN_ID,
+        signature_type=1,
+        funder=FUNDER,
+    )
+    client.set_api_creds(await client.create_or_derive_api_creds())
+
+    order = OrderArgs(token_id="<token-id>", price=0.01, size=5.0, side=BUY)
+    signed = await client.create_order(order)
+    resp = await client.post_order(signed, OrderType.GTC)
+    print(resp)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Manage orders
+
+**Note**: EOA/MetaMask users must set token allowances before trading. See [Token Allowances section](#important-token-allowances-for-metamaskeoa-users) below.
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+from py_clob_client.clob_types import OpenOrderParams
+
+HOST = "https://clob.polymarket.com"
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+FUNDER = "<your-funder-address>"
+
+
+async def main():
+    client = AsyncClobClient(
+        HOST,
+        key=PRIVATE_KEY,
+        chain_id=CHAIN_ID,
+        signature_type=1,
+        funder=FUNDER,
+    )
+    client.set_api_creds(await client.create_or_derive_api_creds())
+
+    open_orders = await client.get_orders(OpenOrderParams())
+    order_id = open_orders[0]["id"] if open_orders else None
+    if order_id:
+        await client.cancel(order_id)
+
+    await client.cancel_all()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Markets (read‑only)
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+
+
+async def main():
+    client = AsyncClobClient("https://clob.polymarket.com")
+    markets = await client.get_simplified_markets()
+    print(markets["data"][:1])
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### User trades (requires auth)
+
+**Note**: EOA/MetaMask users must set token allowances before trading. See [Token Allowances section](#important-token-allowances-for-metamaskeoa-users) below.
+
+```python
+import asyncio
+from py_clob_client.client import AsyncClobClient
+
+HOST = "https://clob.polymarket.com"
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+FUNDER = "<your-funder-address>"
+
+
+async def main():
+    client = AsyncClobClient(
+        HOST,
+        key=PRIVATE_KEY,
+        chain_id=CHAIN_ID,
+        signature_type=1,
+        funder=FUNDER,
+    )
+    client.set_api_creds(await client.create_or_derive_api_creds())
+
+    last_trade = await client.get_last_trade_price("<token-id>")
+    trades = await client.get_trades()
+    print(last_trade, len(trades))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Important: Token Allowances for MetaMask/EOA Users
+
+### Do I need to set allowances?
+- **Using email/Magic wallet?** No action needed - allowances are set automatically.
+- **Using MetaMask or hardware wallet?** You need to set allowances before trading.
+
+### What are allowances?
+Think of allowances as permissions. Before Polymarket can move your funds to execute trades, you need to give the exchange contracts permission to access your USDC and conditional tokens.
+
+### Quick Setup
+You need to approve two types of tokens:
+1. **USDC** (for deposits and trading)
+2. **Conditional Tokens** (the outcome tokens you trade)
+
+Each needs approval for the exchange contracts to work properly.
+
+### Setting Allowances
+Here's a simple breakdown of what needs to be approved:
+
+**For USDC (your trading currency):**
+- Token: `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
+- Approve for these contracts:
+  - `0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E` (Main exchange)
+  - `0xC5d563A36AE78145C45a50134d48A1215220f80a` (Neg risk markets)
+  - `0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296` (Neg risk adapter)
+
+**For Conditional Tokens (your outcome tokens):**
+- Token: `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045`
+- Approve for the same three contracts above
+
+### Example Code
+See [this Python example](https://gist.github.com/poly-rodr/44313920481de58d5a3f6d1f8226bd5e) for setting allowances programmatically.
+
+**Pro tip**: You only need to set these once per wallet. After that, you can trade freely.
+
+## Notes
+- To discover token IDs, use the Markets API Explorer: [Get Markets](https://docs.polymarket.com/developers/gamma-markets-api/get-markets).
+- Prices are in dollars from 0.00 to 1.00. Shares are whole or fractional units of the outcome token.
+
+See [/example](/examples) for more.

@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -48,6 +49,56 @@ class _LiveFeedHandler(BaseHTTPRequestHandler):
         return
 
 
+class _PreflightAuthHandler(BaseHTTPRequestHandler):
+    time_status: int = 200
+    time_payload: object = {"timestamp": "2026-01-01T00:00:00Z"}
+    auth_status: int = 200
+    auth_payload: object = [{"apiKey": "test-key"}]
+    geoblock_status: int = 200
+    geoblock_payload: object = {"blocked": False}
+    request_paths: list[str] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.time_status = 200
+        cls.time_payload = {"timestamp": "2026-01-01T00:00:00Z"}
+        cls.auth_status = 200
+        cls.auth_payload = [{"apiKey": "test-key"}]
+        cls.geoblock_status = 200
+        cls.geoblock_payload = {"blocked": False}
+        cls.request_paths = []
+
+    def _write_json_response(self, status_code: int, payload: object) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802
+        handler_cls = type(self)
+        request_path = self.path.split("?", 1)[0]
+        handler_cls.request_paths.append(request_path)
+        if request_path == "/time":
+            self._write_json_response(handler_cls.time_status, handler_cls.time_payload)
+            return
+        if request_path == "/auth/api-keys":
+            self._write_json_response(handler_cls.auth_status, handler_cls.auth_payload)
+            return
+        if request_path == "/geoblock":
+            self._write_json_response(
+                handler_cls.geoblock_status,
+                handler_cls.geoblock_payload,
+            )
+            return
+        self._write_json_response(404, {"error": "not_found", "path": request_path})
+
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+        del format, args
+        return
+
+
 def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -60,29 +111,59 @@ def _write_live_rollout_preflight_config(
     path: Path,
     *,
     max_secret_age_days: int,
+    enforce_auth_healthcheck: bool = False,
+    disable_live_trading_on_auth_failure: bool = False,
+    enable_geoblock_check: bool = False,
+    geoblock_url: str | None = None,
 ) -> None:
+    rollout_stage: dict[str, object] = {
+        "stage": "canary_live",
+        "enabled": True,
+        "real_order_submission": True,
+        "max_order_notional_usd": 50,
+        "max_daily_notional_usd": 500,
+        "max_open_orders": 3,
+    }
+    if enforce_auth_healthcheck:
+        rollout_stage["enforce_auth_healthcheck"] = True
+    if enable_geoblock_check:
+        rollout_stage["enable_geoblock_check"] = True
+    if geoblock_url:
+        rollout_stage["geoblock_url"] = geoblock_url
+    payload: dict[str, object] = {
+        "config_name": "poly_robot_live_trade_rollout_controls_test",
+        "config_version": "1.0.0",
+        "default_execution_mode": "paper",
+        "secrets_policy": {
+            "allow_plaintext_secrets": False,
+            "required_env_vars": ["POLYMARKET_API_KEY"],
+            "preferred_secret_sources": ["vault"],
+            "max_secret_age_days": max_secret_age_days,
+        },
+        "rollout_stages": [rollout_stage],
+    }
+    if disable_live_trading_on_auth_failure:
+        payload["global_guards"] = {
+            "disable_live_trading_on_auth_failure": True
+        }
+    _write_json(
+        path,
+        payload,
+    )
+
+
+def _write_polymarket_clob_config(path: Path, *, clob_base_url: str) -> None:
     _write_json(
         path,
         {
-            "config_name": "poly_robot_live_trade_rollout_controls_test",
+            "config_name": "polymarket_clob_live_test",
             "config_version": "1.0.0",
-            "default_execution_mode": "paper",
-            "secrets_policy": {
-                "allow_plaintext_secrets": False,
-                "required_env_vars": ["POLYMARKET_API_KEY"],
-                "preferred_secret_sources": ["vault"],
-                "max_secret_age_days": max_secret_age_days,
+            "endpoints": {
+                "clob_rest_base_url": clob_base_url,
             },
-            "rollout_stages": [
-                {
-                    "stage": "canary_live",
-                    "enabled": True,
-                    "real_order_submission": True,
-                    "max_order_notional_usd": 50,
-                    "max_daily_notional_usd": 500,
-                    "max_open_orders": 3,
-                }
-            ],
+            "order_rules": {
+                "required_market_metadata": [],
+            },
         },
     )
 
@@ -90,6 +171,7 @@ def _write_live_rollout_preflight_config(
 class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         _LiveFeedHandler.reset()
+        _PreflightAuthHandler.reset()
     @staticmethod
     def _build_live_clob_preflight_command(
         *,
@@ -99,8 +181,9 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
         control_audit_path: Path,
         cycle_output_dir: Path,
         rollout_config_path: Path,
+        clob_config_path: Path | None = None,
     ) -> list[str]:
-        return [
+        command = [
             sys.executable,
             str(SCRIPT_PATH),
             "--events",
@@ -137,6 +220,22 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
             "--cycle-output-dir",
             str(cycle_output_dir),
         ]
+        if clob_config_path is not None:
+            command.extend(
+                [
+                    "--polymarket-clob-config",
+                    str(clob_config_path),
+                ]
+            )
+        return command
+
+    @staticmethod
+    def _build_valid_preflight_env() -> dict[str, str]:
+        env = dict(os.environ)
+        env["POLYMARKET_API_KEY"] = "test-key"
+        env["POLYMARKET_API_KEY_SOURCE"] = "vault"
+        env["POLYMARKET_API_KEY_LAST_ROTATED_AT"] = "2099-01-01T00:00:00Z"
+        return env
 
     def test_live_polymarket_mode_runs_without_replay_events_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -406,10 +505,7 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
                 cycle_output_dir=cycle_output_dir,
                 rollout_config_path=rollout_config_path,
             )
-            env = dict(os.environ)
-            env["POLYMARKET_API_KEY"] = "test-key"
-            env["POLYMARKET_API_KEY_SOURCE"] = "vault"
-            env["POLYMARKET_API_KEY_LAST_ROTATED_AT"] = "2099-01-01T00:00:00Z"
+            env = self._build_valid_preflight_env()
 
             result = subprocess.run(
                 command,
@@ -427,6 +523,359 @@ class RuntimeSupervisorLiveIngestionIntegrationTests(unittest.TestCase):
                 execution_context["credential_preflight"]["status"],
                 "passed",
             )
+
+    def test_live_clob_preflight_rejects_l1_auth_when_actor_is_not_operator(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            command.extend(
+                [
+                    "--l1-auth-operation",
+                    "derive_api_key",
+                    "--l1-auth-context",
+                    "startup",
+                ]
+            )
+            env = self._build_valid_preflight_env()
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            output = f"{result.stdout}\n{result.stderr}"
+            self.assertIn("L1 auth operation denied by runtime policy", output)
+            self.assertIn("l1_auth_operator_actor_not_authorized", output)
+
+    def test_live_clob_preflight_rejects_l1_auth_restart_without_control_signal(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            command.extend(
+                [
+                    "--operator-control-actor",
+                    "operator",
+                    "--l1-auth-operation",
+                    "derive_api_key",
+                    "--l1-auth-context",
+                    "restart",
+                ]
+            )
+            env = self._build_valid_preflight_env()
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            output = f"{result.stdout}\n{result.stderr}"
+            self.assertIn("L1 auth operation denied by runtime policy", output)
+            self.assertIn("l1_auth_control_state_unavailable", output)
+
+    def test_live_clob_preflight_allows_l1_auth_startup_for_operator(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            command.extend(
+                [
+                    "--operator-control-actor",
+                    "operator",
+                    "--l1-auth-operation",
+                    "derive_api_key",
+                    "--l1-auth-context",
+                    "startup",
+                ]
+            )
+            env = self._build_valid_preflight_env()
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            cycle_report = _read_json(cycle_output_dir / "cycle_001.json")
+            execution_context = cycle_report["run_context"]["execution"]
+            self.assertTrue(execution_context["l1_auth_guard"]["allowed"])
+            self.assertEqual(
+                execution_context["l1_auth_guard"]["context"],
+                "startup",
+            )
+            self.assertEqual(
+                execution_context["credential_preflight"]["status"],
+                "passed",
+            )
+
+    def test_live_clob_preflight_allows_l1_auth_restart_when_control_requested(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+            )
+            _write_json(
+                control_state_path,
+                {
+                    "schema_version": "runtime_operator_control_state.v1",
+                    "restart_requested": True,
+                },
+            )
+            command = self._build_live_clob_preflight_command(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_state_path=control_state_path,
+                control_audit_path=control_audit_path,
+                cycle_output_dir=cycle_output_dir,
+                rollout_config_path=rollout_config_path,
+            )
+            command.extend(
+                [
+                    "--operator-control-actor",
+                    "operator",
+                    "--l1-auth-operation",
+                    "derive_api_key",
+                    "--l1-auth-context",
+                    "restart",
+                ]
+            )
+            env = self._build_valid_preflight_env()
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            output = f"{result.stdout}\n{result.stderr}"
+            self.assertNotIn("L1 auth operation denied by runtime policy", output)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertEqual(metadata["cycle_status"], "RESTART_REQUESTED")
+
+    def test_live_clob_preflight_fails_when_global_auth_guard_healthcheck_fails(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight_auth.json"
+            clob_config_path = root / "polymarket_clob_test.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+                disable_live_trading_on_auth_failure=True,
+            )
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), _PreflightAuthHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                clob_base_url = f"http://127.0.0.1:{server.server_port}"
+                _write_polymarket_clob_config(
+                    clob_config_path,
+                    clob_base_url=clob_base_url,
+                )
+                _PreflightAuthHandler.time_status = 200
+                _PreflightAuthHandler.time_payload = {
+                    "timestamp": time.time()
+                }
+                _PreflightAuthHandler.auth_status = 401
+                _PreflightAuthHandler.auth_payload = {"error": "unauthorized"}
+
+                command = self._build_live_clob_preflight_command(
+                    state_path=state_path,
+                    journal_path=journal_path,
+                    control_state_path=control_state_path,
+                    control_audit_path=control_audit_path,
+                    cycle_output_dir=cycle_output_dir,
+                    rollout_config_path=rollout_config_path,
+                    clob_config_path=clob_config_path,
+                )
+                env = dict(os.environ)
+                env["POLYMARKET_API_KEY"] = "test-key"
+                env["POLYMARKET_API_KEY_SOURCE"] = "vault"
+                env["POLYMARKET_API_KEY_LAST_ROTATED_AT"] = "2099-01-01T00:00:00Z"
+                env["POLYMARKET_API_SECRET"] = "c2VjcmV0"
+                env["POLYMARKET_API_PASSPHRASE"] = "test-passphrase"
+                env["POLYMARKET_ADDRESS"] = "0x1234567890"
+
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env=env,
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                output = f"{result.stdout}\n{result.stderr}"
+                self.assertIn("auth_healthcheck_failed", output)
+                self.assertIn("clob_l2_auth_request_failed", output)
+                self.assertIn("/time", _PreflightAuthHandler.request_paths)
+                self.assertIn("/auth/api-keys", _PreflightAuthHandler.request_paths)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=1.0)
+
+    def test_live_clob_preflight_passes_when_global_auth_guard_healthcheck_passes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_control_state.json"
+            control_audit_path = root / "operator_action_audit.jsonl"
+            cycle_output_dir = root / "cycles"
+            rollout_config_path = root / "rollout_preflight_auth.json"
+            clob_config_path = root / "polymarket_clob_test.json"
+            _write_live_rollout_preflight_config(
+                rollout_config_path,
+                max_secret_age_days=30,
+                disable_live_trading_on_auth_failure=True,
+            )
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), _PreflightAuthHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                clob_base_url = f"http://127.0.0.1:{server.server_port}"
+                _write_polymarket_clob_config(
+                    clob_config_path,
+                    clob_base_url=clob_base_url,
+                )
+                _PreflightAuthHandler.time_status = 200
+                _PreflightAuthHandler.time_payload = {
+                    "timestamp": time.time()
+                }
+                _PreflightAuthHandler.auth_status = 200
+                _PreflightAuthHandler.auth_payload = [{"apiKey": "test-key"}]
+
+                command = self._build_live_clob_preflight_command(
+                    state_path=state_path,
+                    journal_path=journal_path,
+                    control_state_path=control_state_path,
+                    control_audit_path=control_audit_path,
+                    cycle_output_dir=cycle_output_dir,
+                    rollout_config_path=rollout_config_path,
+                    clob_config_path=clob_config_path,
+                )
+                env = dict(os.environ)
+                env["POLYMARKET_API_KEY"] = "test-key"
+                env["POLYMARKET_API_KEY_SOURCE"] = "vault"
+                env["POLYMARKET_API_KEY_LAST_ROTATED_AT"] = "2099-01-01T00:00:00Z"
+                env["POLYMARKET_API_SECRET"] = "c2VjcmV0"
+                env["POLYMARKET_API_PASSPHRASE"] = "test-passphrase"
+                env["POLYMARKET_ADDRESS"] = "0x1234567890"
+
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env=env,
+                )
+
+                self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+                cycle_report = _read_json(cycle_output_dir / "cycle_001.json")
+                execution_context = cycle_report["run_context"]["execution"]
+                credential_preflight = execution_context["credential_preflight"]
+                self.assertEqual(credential_preflight["status"], "passed")
+                self.assertTrue(execution_context["enforce_auth_healthcheck"])
+                self.assertEqual(
+                    credential_preflight["auth_healthcheck"]["status"],
+                    "passed",
+                )
+                self.assertEqual(
+                    credential_preflight["auth_healthcheck"]["l2_auth_status_code"],
+                    200,
+                )
+                self.assertIn("/time", _PreflightAuthHandler.request_paths)
+                self.assertIn("/auth/api-keys", _PreflightAuthHandler.request_paths)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=1.0)
 
     def test_live_mode_uses_wallet_convergence_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

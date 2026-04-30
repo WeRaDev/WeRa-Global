@@ -9,7 +9,13 @@ import json
 import os
 import tempfile
 import threading
+from .agent_operator_learning import AgentOperatorLearningStore
 
+from .mode_lifecycle import (
+    build_mode_transition_decision,
+    normalize_mode,
+    resolve_mode_lifecycle_policy,
+)
 from .schemas import (
     RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
     RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
@@ -91,6 +97,22 @@ def _default_control_state() -> dict[str, Any]:
         "selected_scenario": "baseline",
         "agent_operator_enabled": False,
         "agent_operator_mode": "advisory",
+        "agent_operator_strategy_auto_apply": True,
+        "agent_operator_active_candidate_id": "",
+        "agent_operator_active_candidate_scenario": "",
+        "agent_operator_candidate_previous_scenario": "",
+        "agent_operator_candidate_last_action": "",
+        "agent_operator_candidate_last_action_at": "",
+        "mode_current": "paper",
+        "mode_target": "paper",
+        "mode_transition_approval_status": "pending",
+        "mode_transition_evidence": {},
+        "mode_transition_last_decision": {},
+        "mode_transition_last_decision_at": "",
+        "mode_transition_last_transition_at": "",
+        "mode_transition_last_actor": "",
+        "mode_transition_last_reason": "",
+        "mode_transition_last_action": "",
         "last_annotation": "",
     }
 
@@ -271,13 +293,36 @@ def _default_kpi_shadow_policy() -> dict[str, Any]:
 
 
 class OperatorControlManager:
-    def __init__(self, *, control_state_path: Path, audit_path: Path) -> None:
+    def __init__(
+        self,
+        *,
+        control_state_path: Path,
+        audit_path: Path,
+        mode_lifecycle_policy_path: Path | None = None,
+        agent_operator_learning_state_path: Path | None = None,
+        agent_operator_learning_audit_path: Path | None = None,
+    ) -> None:
         self.control_state_path = control_state_path
         self.audit_path = audit_path
+        self.mode_lifecycle_policy_path = mode_lifecycle_policy_path
         self.lock_path = self.control_state_path.with_name(
             f"{self.control_state_path.name}.lock"
         )
         self._mutation_lock = threading.RLock()
+        resolved_learning_state_path = (
+            agent_operator_learning_state_path
+            if agent_operator_learning_state_path is not None
+            else self.control_state_path.with_name("agent_operator_learning_state.json")
+        )
+        resolved_learning_audit_path = (
+            agent_operator_learning_audit_path
+            if agent_operator_learning_audit_path is not None
+            else self.control_state_path.with_name("agent_operator_learning_audit.jsonl")
+        )
+        self.agent_operator_learning_store = AgentOperatorLearningStore(
+            state_path=resolved_learning_state_path,
+            event_log_path=resolved_learning_audit_path,
+        )
 
     @contextmanager
     def _interprocess_lock(self) -> Iterator[None]:
@@ -303,6 +348,16 @@ class OperatorControlManager:
         with self._mutation_lock:
             with self._interprocess_lock():
                 return self._load_control_state_unlocked()
+
+    def _load_mode_lifecycle_policy(self) -> dict[str, Any]:
+        if self.mode_lifecycle_policy_path is None:
+            return resolve_mode_lifecycle_policy(None)
+        if not self.mode_lifecycle_policy_path.exists():
+            return resolve_mode_lifecycle_policy(None)
+        payload = _read_json(self.mode_lifecycle_policy_path)
+        if not isinstance(payload, dict):
+            return resolve_mode_lifecycle_policy(None)
+        return resolve_mode_lifecycle_policy(payload)
 
     def _mutate_state(
         self,
@@ -441,10 +496,11 @@ class OperatorControlManager:
         actor: str,
         enabled: bool | None = None,
         mode: str | None = None,
+        strategy_auto_apply: bool | None = None,
         reason: str = "",
     ) -> dict[str, Any]:
-        if enabled is None and mode is None:
-            raise ValueError("enabled or mode must be provided")
+        if enabled is None and mode is None and strategy_auto_apply is None:
+            raise ValueError("enabled, mode, or strategy_auto_apply must be provided")
         normalized_mode: str | None = None
         if mode is not None:
             normalized_mode = str(mode).strip().lower()
@@ -457,6 +513,10 @@ class OperatorControlManager:
                 state["agent_operator_enabled"] = bool(enabled)
             if normalized_mode is not None:
                 state["agent_operator_mode"] = normalized_mode
+            if strategy_auto_apply is not None:
+                state["agent_operator_strategy_auto_apply"] = bool(
+                    strategy_auto_apply
+                )
             if normalized_reason:
                 state["agent_operator_reason"] = normalized_reason
 
@@ -465,6 +525,8 @@ class OperatorControlManager:
             details["agent_operator_enabled"] = bool(enabled)
         if normalized_mode is not None:
             details["agent_operator_mode"] = normalized_mode
+        if strategy_auto_apply is not None:
+            details["agent_operator_strategy_auto_apply"] = bool(strategy_auto_apply)
         if normalized_reason:
             details["reason"] = normalized_reason
 
@@ -472,6 +534,209 @@ class OperatorControlManager:
             action="agent_operator_config_updated",
             actor=actor,
             details=details,
+            mutate_state=_apply,
+        )
+
+    def set_mode_transition(
+        self,
+        *,
+        actor: str,
+        target_mode: str,
+        reason: str = "",
+        approval_status: str | None = None,
+        evidence: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        normalized_target_mode = normalize_mode(target_mode)
+        normalized_reason = reason.strip()
+        normalized_approval_status: str | None = None
+        if approval_status is not None:
+            normalized_approval_status = str(approval_status).strip().lower() or None
+            if normalized_approval_status not in {"pending", "approved", "rejected"}:
+                raise ValueError("approval_status must be pending, approved, or rejected")
+        if evidence is not None and not isinstance(evidence, dict):
+            raise ValueError("evidence must be an object")
+        evidence_updates = dict(evidence or {})
+        lifecycle_policy = self._load_mode_lifecycle_policy()
+
+        def _apply(state: dict[str, Any]) -> None:
+            current_mode = normalize_mode(state.get("mode_current"))
+            existing_evidence = state.get("mode_transition_evidence")
+            merged_evidence = (
+                dict(existing_evidence) if isinstance(existing_evidence, dict) else {}
+            )
+            merged_evidence.update(evidence_updates)
+            effective_approval_status = normalized_approval_status
+            if effective_approval_status is None:
+                effective_approval_status = str(
+                    state.get("mode_transition_approval_status", "pending")
+                ).strip().lower() or "pending"
+            state["mode_target"] = normalized_target_mode
+            state["mode_transition_evidence"] = merged_evidence
+            state["mode_transition_approval_status"] = effective_approval_status
+            decision = build_mode_transition_decision(
+                current_mode=current_mode,
+                target_mode=normalized_target_mode,
+                policy=lifecycle_policy,
+                evidence=merged_evidence,
+                manual_approval_status=effective_approval_status,
+                actor=actor,
+                reason=normalized_reason or None,
+            )
+            decision_timestamp = str(decision.get("generated_at", "")).strip()
+            state["mode_transition_last_decision"] = decision
+            state["mode_transition_last_decision_at"] = decision_timestamp
+            state["mode_transition_last_actor"] = actor
+            state["mode_transition_last_action"] = (
+                "applied" if decision.get("allowed") else "blocked"
+            )
+            if normalized_reason:
+                state["mode_transition_last_reason"] = normalized_reason
+            if decision.get("allowed"):
+                state["mode_current"] = normalized_target_mode
+                state["mode_target"] = normalized_target_mode
+                state["mode_transition_last_transition_at"] = decision_timestamp
+
+        return self._mutate_state(
+            action="mode_transition_requested",
+            actor=actor,
+            details={
+                "target_mode": normalized_target_mode,
+                "reason": normalized_reason,
+                "approval_status": normalized_approval_status,
+                "evidence_keys": sorted(str(key) for key in evidence_updates.keys()),
+            },
+            mutate_state=_apply,
+        )
+
+    def record_agent_operator_recommendation(
+        self,
+        *,
+        cycle_index: int,
+        scenario_name: str,
+        mode: str,
+        recommendation: dict[str, Any],
+        baseline_net_pnl: float | None,
+        baseline_expected_value_after_execution_cost: float | None,
+    ) -> dict[str, Any]:
+        return self.agent_operator_learning_store.record_recommendation(
+            cycle_index=cycle_index,
+            scenario_name=scenario_name,
+            mode=mode,
+            recommendation=recommendation,
+            baseline_net_pnl=baseline_net_pnl,
+            baseline_expected_value_after_execution_cost=(
+                baseline_expected_value_after_execution_cost
+            ),
+        )
+
+    def attribute_agent_operator_outcomes(
+        self,
+        *,
+        current_cycle_index: int,
+        current_net_pnl: float | None,
+        current_expected_value_after_execution_cost: float | None,
+    ) -> dict[str, Any]:
+        return self.agent_operator_learning_store.attribute_outcomes(
+            current_cycle_index=current_cycle_index,
+            current_net_pnl=current_net_pnl,
+            current_expected_value_after_execution_cost=(
+                current_expected_value_after_execution_cost
+            ),
+        )
+
+    def get_agent_operator_learning_payload(
+        self,
+        *,
+        candidate_limit: int = 20,
+        recommendation_limit: int = 20,
+    ) -> dict[str, Any]:
+        return self.agent_operator_learning_store.build_dashboard_payload(
+            candidate_limit=candidate_limit,
+            recommendation_limit=recommendation_limit,
+        )
+
+    def apply_agent_operator_candidate(
+        self,
+        *,
+        actor: str,
+        candidate_id: str,
+        reason: str = "",
+    ) -> dict[str, Any]:
+        candidate = self.agent_operator_learning_store.apply_candidate(
+            candidate_id=candidate_id,
+            actor=actor,
+            reason=reason,
+        )
+        candidate_id_value = str(candidate.get("candidate_id", "")).strip()
+        scenario_name = str(candidate.get("scenario_name", "")).strip()
+        if not scenario_name:
+            raise ValueError("candidate scenario_name is empty")
+        candidate_action_at = _utc_now_iso()
+
+        def _apply(state: dict[str, Any]) -> None:
+            previous_scenario = str(state.get("selected_scenario", "")).strip()
+            state["agent_operator_candidate_previous_scenario"] = previous_scenario
+            state["selected_scenario"] = scenario_name
+            state["agent_operator_active_candidate_id"] = candidate_id_value
+            state["agent_operator_active_candidate_scenario"] = scenario_name
+            state["agent_operator_candidate_last_action"] = "applied"
+            state["agent_operator_candidate_last_action_at"] = candidate_action_at
+
+        return self._mutate_state(
+            action="agent_operator_candidate_applied",
+            actor=actor,
+            details={
+                "candidate_id": candidate_id_value,
+                "scenario_name": scenario_name,
+                "reason": reason,
+            },
+            mutate_state=_apply,
+        )
+
+    def revert_agent_operator_candidate(
+        self,
+        *,
+        actor: str,
+        candidate_id: str = "",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        current_state = self.load_control_state()
+        resolved_candidate_id = str(candidate_id or "").strip() or str(
+            current_state.get("agent_operator_active_candidate_id", "")
+        ).strip()
+        if not resolved_candidate_id:
+            raise ValueError("candidate_id must not be empty")
+        candidate = self.agent_operator_learning_store.revert_candidate(
+            candidate_id=resolved_candidate_id,
+            actor=actor,
+            reason=reason,
+        )
+        candidate_action_at = _utc_now_iso()
+        restored_scenario = str(
+            current_state.get("agent_operator_candidate_previous_scenario", "")
+        ).strip()
+
+        def _apply(state: dict[str, Any]) -> None:
+            active_candidate_id = str(
+                state.get("agent_operator_active_candidate_id", "")
+            ).strip()
+            if active_candidate_id == resolved_candidate_id:
+                if restored_scenario:
+                    state["selected_scenario"] = restored_scenario
+                state["agent_operator_active_candidate_id"] = ""
+                state["agent_operator_active_candidate_scenario"] = ""
+                state["agent_operator_candidate_previous_scenario"] = ""
+            state["agent_operator_candidate_last_action"] = "reverted"
+            state["agent_operator_candidate_last_action_at"] = candidate_action_at
+
+        return self._mutate_state(
+            action="agent_operator_candidate_reverted",
+            actor=actor,
+            details={
+                "candidate_id": str(candidate.get("candidate_id", "")).strip(),
+                "restored_scenario": restored_scenario,
+                "reason": reason,
+            },
             mutate_state=_apply,
         )
 
@@ -729,6 +994,21 @@ class RuntimeDashboardService:
             ),
             "agent_operator_strategy_scenario_rejected_reason": last_metadata.get(
                 "agent_operator_strategy_scenario_rejected_reason"
+            ),
+            "mode_lifecycle_current_mode": last_metadata.get(
+                "mode_lifecycle_current_mode"
+            ),
+            "mode_lifecycle_target_mode": last_metadata.get(
+                "mode_lifecycle_target_mode"
+            ),
+            "mode_lifecycle_transition_allowed": last_metadata.get(
+                "mode_lifecycle_transition_allowed"
+            ),
+            "mode_lifecycle_transition_reason_codes": last_metadata.get(
+                "mode_lifecycle_transition_reason_codes"
+            ),
+            "mode_lifecycle_decision_hash": last_metadata.get(
+                "mode_lifecycle_decision_hash"
             ),
             "result_hash": last_metadata.get("result_hash"),
         }
@@ -2021,6 +2301,7 @@ class RuntimeDashboardService:
         event_counts = self._summarize_event_counts(journal_rows)
         worker_activity = self._summarize_worker_activity(journal_rows)
         control_state = self.control_manager.load_control_state()
+        agent_operator_learning = self.control_manager.get_agent_operator_learning_payload()
         audit_events = self.control_manager.list_audit_events(
             limit=audit_limit,
             action=audit_action,
@@ -2052,16 +2333,41 @@ class RuntimeDashboardService:
             kpi_domain=kpi_domain_value,
             kpi_status=kpi_status_value,
         )
+        mode_lifecycle = {
+            "current_mode": control_state.get("mode_current"),
+            "target_mode": control_state.get("mode_target"),
+            "approval_status": control_state.get("mode_transition_approval_status"),
+            "evidence": control_state.get("mode_transition_evidence"),
+            "last_decision": control_state.get("mode_transition_last_decision"),
+            "last_decision_at": control_state.get("mode_transition_last_decision_at"),
+            "last_transition_at": control_state.get(
+                "mode_transition_last_transition_at"
+            ),
+            "last_actor": control_state.get("mode_transition_last_actor"),
+            "last_action": control_state.get("mode_transition_last_action"),
+            "last_reason": control_state.get("mode_transition_last_reason"),
+            "runtime_current_mode": loop_metrics.get("mode_lifecycle_current_mode"),
+            "runtime_target_mode": loop_metrics.get("mode_lifecycle_target_mode"),
+            "runtime_transition_allowed": loop_metrics.get(
+                "mode_lifecycle_transition_allowed"
+            ),
+            "runtime_transition_reason_codes": loop_metrics.get(
+                "mode_lifecycle_transition_reason_codes"
+            ),
+            "runtime_decision_hash": loop_metrics.get("mode_lifecycle_decision_hash"),
+        }
 
         return {
             "schema_version": RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION,
             "generated_at": _utc_now_iso(),
             "supervisor_state": supervisor_state,
             "control_state": control_state,
+            "mode_lifecycle": mode_lifecycle,
             "event_counts": event_counts,
             "worker_activity": worker_activity,
             "loop_metrics": loop_metrics,
             "financial_metrics": financial_metrics,
+            "agent_operator_learning": agent_operator_learning,
             "recent_journal_events": journal_rows[-events_limit:],
             "recent_operator_actions": audit_events,
             "incident_feed": incident_feed,

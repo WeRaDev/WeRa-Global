@@ -15,6 +15,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `config/calibration/`: LLM calibration status and reliability threshold policy.
 - `config/replay/`: replay scenario-pack definitions for deterministic stress transforms.
 - `config/certification/`: Milestone C staged soak/certification sequence and threshold profiles (`12h`, `24h`, `48h`).
+- `config/certification/trl4_24h_profitability_gate.v1.json`: TRL4 host gate for 24-hour runtime and profitability evidence.
 - `config/integration/`: Polymarket live-integration endpoints/authentication model/rate limits and staged real-asset rollout controls.
 - `docs/requirements/`: formal MVP requirements and strategy-variable definitions.
 - `scripts/validate_parameters.py`: governance validation entrypoint.
@@ -25,6 +26,8 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_runtime_soak.py`: deterministic soak orchestration runner with drill injection and interval health snapshots.
 - `scripts/run_stress_certification.py`: stress campaign + certification artifact runner for thresholded pass/fail decisions.
 - `scripts/run_milestone_c_sequence.py`: staged Milestone C runner that chains soak + certification phases (`12h -> 24h -> 48h`) with per-phase artifacts.
+- `scripts/run_trl4_profitability_report.py`: TRL4 gate report runner that verifies 24-hour evidence + profitability metrics from runtime journal/state.
+- `scripts/run_mode_promotion_gate.py`: lifecycle mode promotion gate runner that evaluates `paper/test/live` transition evidence and appends audited ALLOW/DENY decisions.
 - `scripts/run_runtime_gui.py`: web operator console for runtime state/journal visibility, audited controls, incident navigation, and run-to-run comparison.
 - `scripts/run_canary_stage_enablement.py`: canary stage promotion gate runner that emits ALLOW/DENY decisions from certification + approval records and appends enablement audit evidence.
 - `scripts/run_canary_rollback_guard.py`: rollback enforcement runner that evaluates canary artifacts + cycle telemetry and emits machine-readable incident handoff evidence.
@@ -244,6 +247,9 @@ python3 scripts/run_runtime_supervisor.py \
    - `Resume`: removes pause gate and continues processing
    - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
    - `Set Scenario`: changes scenario used by the next cycle
+   - `AgentOperator`: set `enabled`, choose mode (`advisory` or `strategy`), and control `strategy auto-apply`
+   - `Apply Candidate`: applies a specific AgentOperator strategy candidate for upcoming cycles
+   - `Revert Candidate`: rolls back an applied AgentOperator strategy candidate to the prior scenario baseline
    - `Annotate Incident`: appends an audited operator note
 6. Use **Dashboard Views** refresh controls to tune polling:
    - `Auto Refresh Interval (seconds)`: adjusts periodic dashboard polling cadence
@@ -252,6 +258,13 @@ python3 scripts/run_runtime_supervisor.py \
 7. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
 8. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
 9. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
+10. AgentOperator control API supports backward-compatible request payload aliases:
+   - `POST /api/control/agent-operator` accepts canonical and alias keys for each control field:
+     - `agent_operator_enabled` or `enabled`
+     - `agent_operator_mode` or `mode`
+     - `agent_operator_strategy_auto_apply` or `strategy_auto_apply`
+   - `POST /api/control/agent-operator/candidate/apply` and `POST /api/control/agent-operator/candidate/revert` accept:
+     - `candidate_id` or `agent_operator_candidate_id`
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:
@@ -324,6 +337,36 @@ Stop local Docker services:
 ```bash
 docker compose down
 ```
+
+## TRL4 host run (wera-ss-pt-sn-1)
+Deploy and run Poly-Robot on the TRL4 machine:
+```bash
+scp -r /Users/mikhailananyin/Documents/WeRa\ Global/ProductionBase/Poly-Robot wera@100.82.194.96:/home/wera/poly-robot
+ssh wera@100.82.194.96 "cd /home/wera/poly-robot && POLY_ROBOT_OPERATOR_TOKEN=\$(openssl rand -hex 32) && printf 'POLY_ROBOT_OPERATOR_TOKEN=%s\n' \"\$POLY_ROBOT_OPERATOR_TOKEN\" > .env && chmod 600 .env && docker compose config --quiet && docker compose build runtime && docker compose up -d runtime"
+```
+Validate service health and dashboard access:
+```bash
+ssh wera@100.82.194.96 "cd /home/wera/poly-robot && set -a && source .env && set +a && curl -fsS http://127.0.0.1:8765/healthz && curl -fsS http://127.0.0.1:8765/api/dashboard?recent_events_limit=20&recent_audit_limit=20 -H \"X-Operator-Token: \$POLY_ROBOT_OPERATOR_TOKEN\""
+```
+After at least 24 wall-clock hours, generate the TRL4 pass/fail artifact:
+```bash
+ssh wera@100.82.194.96 "cd /home/wera/poly-robot && docker exec poly-robot-runtime python3 scripts/run_trl4_profitability_report.py --journal-path /app/runtime/runtime_journal.jsonl --state-path /app/runtime/runtime_state.json --gate-config /app/config/certification/trl4_24h_profitability_gate.v1.json --output /app/runtime/trl4_24h_report.json"
+ssh wera@100.82.194.96 "cat /home/wera/poly-robot/runtime/trl4_24h_report.json"
+
+```
+Run lifecycle mode promotion gate using generated artifacts:
+```bash
+python3 scripts/run_mode_promotion_gate.py \\
+  --current-mode paper \\
+  --target-mode test \\
+  --manual-approval-status approved \\
+  --milestone-c-sequence-report runtime/milestone_c_sequence/milestone_c_sequence_summary.json \\
+  --trl4-profitability-report runtime/trl4_24h_report.json \\
+  --output runtime/mode_promotion_gate_report.json \\
+  --audit-output runtime/mode_promotion_audit.jsonl
+```
+The gate returns exit code `0` only when transition evidence and manual approval satisfy policy.
+Pass condition: `overall_status` is `PASS` in `runtime/trl4_24h_report.json`.
 
 Run deterministic runtime soak orchestration:
 ```bash

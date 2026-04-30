@@ -278,6 +278,425 @@ class RuntimeWebGuiTests(unittest.TestCase):
                 server.server_close()
                 server_thread.join(timeout=5)
 
+    def test_runtime_gui_control_endpoint_accepts_agent_operator_alias_fields(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/agent-operator",
+                    body=json.dumps(
+                        {
+                            "actor": "alice",
+                            "reason": "strategy alias",
+                            "enabled": True,
+                            "mode": "strategy",
+                            "strategy_auto_apply": False,
+                        }
+                    ),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(payload["status"], "ok")
+                self.assertTrue(payload["control_state"]["agent_operator_enabled"])
+                self.assertEqual(
+                    payload["control_state"]["agent_operator_mode"],
+                    "strategy",
+                )
+                self.assertFalse(
+                    payload["control_state"]["agent_operator_strategy_auto_apply"]
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
+    def test_runtime_gui_candidate_endpoints_accept_alias_candidate_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            learning_record = control_manager.record_agent_operator_recommendation(
+                cycle_index=1,
+                scenario_name="baseline",
+                mode="strategy",
+                recommendation={
+                    "status": "OK",
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "summary": "candidate ready",
+                    "profitability_hypothesis": "volatility repricing",
+                    "risk_posture": "neutral",
+                    "confidence": 0.7,
+                    "recommended_actions": [],
+                    "scenario_hint": "liquidity_crunch",
+                },
+                baseline_net_pnl=0.0,
+                baseline_expected_value_after_execution_cost=0.0,
+            )
+            candidate = learning_record.get("candidate") or {}
+            candidate_id = str(candidate.get("candidate_id", "")).strip()
+            self.assertTrue(candidate_id)
+
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/agent-operator/candidate/apply",
+                    body=json.dumps(
+                        {
+                            "actor": "alice",
+                            "reason": "apply candidate",
+                            "agent_operator_candidate_id": candidate_id,
+                        }
+                    ),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                apply_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(apply_payload["status"], "ok")
+                self.assertEqual(
+                    apply_payload["control_state"]["selected_scenario"],
+                    "liquidity_crunch",
+                )
+                self.assertEqual(
+                    apply_payload["control_state"]["agent_operator_active_candidate_id"],
+                    candidate_id,
+                )
+
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/agent-operator/candidate/revert",
+                    body=json.dumps(
+                        {
+                            "actor": "alice",
+                            "reason": "revert candidate",
+                            "agent_operator_candidate_id": candidate_id,
+                        }
+                    ),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                revert_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(revert_payload["status"], "ok")
+                self.assertEqual(
+                    revert_payload["control_state"]["selected_scenario"], "baseline"
+                )
+                self.assertEqual(
+                    revert_payload["control_state"]["agent_operator_active_candidate_id"],
+                    "",
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+    def test_runtime_gui_control_endpoint_handles_mode_transition_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                transition_payload = {
+                    "actor": "alice",
+                    "reason": "promotion rehearsal",
+                    "target_mode": "test",
+                    "approval_status": "pending",
+                    "evidence": {
+                        "milestone_c_sequence": {"status": "PASS"},
+                        "trl4_profitability": {"status": "PASS"},
+                    },
+                }
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/mode-transition/request",
+                    body=json.dumps(transition_payload),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                request_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(request_payload["status"], "ok")
+                self.assertEqual(request_payload["control_state"]["mode_current"], "paper")
+                self.assertEqual(request_payload["control_state"]["mode_target"], "test")
+                self.assertEqual(
+                    request_payload["control_state"]["mode_transition_approval_status"],
+                    "pending",
+                )
+                self.assertFalse(
+                    request_payload["control_state"]["mode_transition_last_decision"][
+                        "allowed"
+                    ]
+                )
+                self.assertIn(
+                    "manual_approval_not_satisfied",
+                    request_payload["control_state"]["mode_transition_last_decision"][
+                        "reason_codes"
+                    ],
+                )
+                self.assertEqual(
+                    request_payload["control_state"]["mode_transition_last_action"],
+                    "blocked",
+                )
+
+                approve_payload = {
+                    "actor": "alice",
+                    "reason": "promotion approved",
+                    "target_mode": "test",
+                    "approval_status": "pending",
+                    "evidence": {
+                        "milestone_c_sequence": {"status": "PASS"},
+                        "trl4_profitability": {"status": "PASS"},
+                    },
+                }
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/mode-transition/approve",
+                    body=json.dumps(approve_payload),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                approve_response_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(approve_response_payload["status"], "ok")
+                self.assertEqual(
+                    approve_response_payload["control_state"]["mode_current"], "test"
+                )
+                self.assertEqual(
+                    approve_response_payload["control_state"]["mode_target"], "test"
+                )
+                self.assertEqual(
+                    approve_response_payload["control_state"][
+                        "mode_transition_approval_status"
+                    ],
+                    "approved",
+                )
+                self.assertTrue(
+                    approve_response_payload["control_state"][
+                        "mode_transition_last_decision"
+                    ]["allowed"]
+                )
+                self.assertEqual(
+                    approve_response_payload["control_state"][
+                        "mode_transition_last_action"
+                    ],
+                    "applied",
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
+    def test_runtime_gui_mode_transition_endpoint_rejects_non_object_evidence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 1,
+                    "status": "SUCCESS",
+                    "worker_count": 0,
+                    "failed_workers": [],
+                    "worker_results": [],
+                },
+            )
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            gui_module = _load_runtime_gui_script_module()
+            handler_cls = gui_module._build_handler(
+                dashboard_service=service,
+                control_manager=control_manager,
+                operator_token="secret-token",
+                recent_events_limit=10,
+                recent_audit_limit=10,
+            )
+            server = gui_module.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+
+            try:
+                host, port = server.server_address
+                connection = http.client.HTTPConnection(host, port, timeout=5)
+                connection.request(
+                    "POST",
+                    "/api/control/mode-transition/request",
+                    body=json.dumps(
+                        {
+                            "actor": "alice",
+                            "reason": "invalid evidence shape",
+                            "target_mode": "test",
+                            "approval_status": "pending",
+                            "evidence": ["bad"],
+                        }
+                    ),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Operator-Token": "secret-token",
+                    },
+                )
+                response = connection.getresponse()
+                payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                self.assertEqual(response.status, 400)
+                self.assertEqual(payload["error"], "evidence must be an object")
+            finally:
+                server.shutdown()
+                server.server_close()
+                server_thread.join(timeout=5)
+
     def test_dashboard_payload_includes_agent_operator_strategy_rejection_reason(
         self,
     ) -> None:
@@ -2082,12 +2501,23 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('id="agentOperatorEnabled"', html)
         self.assertIn('id="agentOperatorMode"', html)
         self.assertIn('id="agentOperatorStatus"', html)
+        self.assertIn('id="modeCurrent"', html)
+        self.assertIn('id="modeTarget"', html)
+        self.assertIn('id="modeApprovalStatus"', html)
+        self.assertIn('id="modeEvidence"', html)
+        self.assertIn('id="modeTransitionStatus"', html)
+        self.assertIn("onclick=\"sendModeTransition('request')\"", html)
+        self.assertIn("onclick=\"sendModeTransition('approve')\"", html)
+        self.assertIn("onclick=\"sendModeTransition('reject')\"", html)
         self.assertIn("How to Use and Control Poly-Robot", html)
         self.assertIn("Kill Switch ON", html)
         self.assertIn("Cancel All Orders", html)
         self.assertIn("Enable AgentOperator", html)
         self.assertIn("Disable AgentOperator", html)
         self.assertIn("Apply AgentOperator Config", html)
+        self.assertIn("Request Mode Transition", html)
+        self.assertIn("Approve Transition", html)
+        self.assertIn("Reject Transition", html)
         self.assertIn("KPI Shadow Mode", html)
         self.assertIn("KPI Workflow Help (default: collapsed)", html)
         for snippet in (
@@ -2109,6 +2539,13 @@ class RuntimeWebGuiTests(unittest.TestCase):
             'title="Request cancellation of all open orders through audited control channel."',
             'title="Persist selected scenario into control state for next cycle execution."',
             'title="Append incident annotation to operator audit history with actor and timestamp."',
+            'title="Current paper/test/live lifecycle mode observed from control state."',
+            'title="Requested lifecycle mode for next transition decision."',
+            'title="Manual approval status supplied to lifecycle transition policy."',
+            'title="Optional JSON object merged into mode transition evidence payload."',
+            'title="Request a mode transition decision using selected target mode, approval status, and evidence."',
+            'title="Apply approved transition decision for selected target mode."',
+            'title="Apply rejected transition decision for selected target mode."',
             'title="Maximum number of recent journal events fetched in each dashboard request."',
             'title="Maximum number of recent operator actions included in dashboard payload."',
             'title="Optional exact action filter applied to operator audit events."',

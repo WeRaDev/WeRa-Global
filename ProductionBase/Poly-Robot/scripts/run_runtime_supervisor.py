@@ -8,6 +8,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -25,6 +26,12 @@ from poly_robot.integration_adapters import (  # noqa: E402
     PolymarketClobExecutionAdapter,
 )
 from poly_robot.llm_policy import load_calibration_policy  # noqa: E402
+from poly_robot.mode_lifecycle import (  # noqa: E402
+    build_mode_transition_decision,
+    normalize_mode as normalize_lifecycle_mode,
+    resolve_mode_lifecycle_policy,
+    select_test_mode_environment,
+)
 from poly_robot.paper_execution import PaperExecutionAdapter  # noqa: E402
 from poly_robot.reproducibility import hash_events, stable_hash  # noqa: E402
 from poly_robot.risk_engine import RiskEngine  # noqa: E402
@@ -37,6 +44,14 @@ from poly_robot.scenario_pack import (  # noqa: E402
 )
 from poly_robot.strategy_baseline import BaselineStrategy  # noqa: E402
 from poly_robot.test_token_loop import TestTokenLoop, serialize_test_token_loop_run  # noqa: E402
+EXECUTION_MODE_BY_LIFECYCLE_MODE = {
+    "paper": "paper",
+    "test": "test_polymarket_clob",
+    "live": "live_polymarket_clob",
+}
+LIFECYCLE_MODE_BY_EXECUTION_MODE = {
+    value: key for key, value in EXECUTION_MODE_BY_LIFECYCLE_MODE.items()
+}
 
 
 def _load_json(path: Path) -> dict:
@@ -172,8 +187,101 @@ def _normalize_agent_operator_mode(value: object) -> str:
         return "advisory"
     return mode
 
+
+def _normalize_mode_transition_approval_status(value: object) -> str:
+    status = str(value or "pending").strip().lower()
+    if status not in {"pending", "approved", "rejected"}:
+        return "pending"
+    return status
+
+
+def _execution_mode_for_lifecycle_mode(mode: object) -> str:
+    normalized_mode = normalize_lifecycle_mode(mode)
+    return EXECUTION_MODE_BY_LIFECYCLE_MODE.get(normalized_mode, "paper")
+
+
+def _lifecycle_mode_for_execution_mode(mode: object) -> str:
+    normalized_mode = str(mode or "paper").strip().lower()
+    return LIFECYCLE_MODE_BY_EXECUTION_MODE.get(normalized_mode, "paper")
+
+
 def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
     return max(1, math.ceil(secret_max_age_seconds / 86_400))
+
+def _resolve_l1_auth_guard(
+    *,
+    operation: str,
+    context: str | None,
+    operator_actor: str,
+    control_manager: OperatorControlManager,
+    control_state_path: Path,
+    ignore_operator_controls: bool,
+) -> dict[str, object]:
+    normalized_operation = str(operation or "none").strip().lower() or "none"
+    normalized_context = str(context or "").strip().lower()
+    requested = normalized_operation != "none"
+    summary: dict[str, object] = {
+        "requested": requested,
+        "operation": normalized_operation,
+        "context": normalized_context or None,
+        "operator_actor": str(operator_actor).strip(),
+        "control_state_available": False,
+        "restart_requested": False,
+        "kill_switch_active": False,
+        "cancel_all_requested": False,
+        "allowed": False,
+        "status": "not_requested",
+        "reason_codes": [],
+    }
+    if not requested:
+        return summary
+
+    reason_codes: list[str] = []
+    if normalized_context not in {"startup", "restart", "emergency"}:
+        reason_codes.append("l1_auth_context_missing_or_invalid")
+
+    if str(operator_actor).strip().lower() != "operator":
+        reason_codes.append("l1_auth_operator_actor_not_authorized")
+
+    control_state_available = bool(
+        not ignore_operator_controls and control_state_path.exists()
+    )
+    summary["control_state_available"] = control_state_available
+    if control_state_available:
+        try:
+            control_state = control_manager.load_control_state()
+        except Exception:
+            reason_codes.append("l1_auth_control_state_unreadable")
+        else:
+            restart_requested = bool(control_state.get("restart_requested", False))
+            kill_switch_active = bool(control_state.get("kill_switch_active", False))
+            cancel_all_requested = bool(control_state.get("cancel_all_requested", False))
+            summary["restart_requested"] = restart_requested
+            summary["kill_switch_active"] = kill_switch_active
+            summary["cancel_all_requested"] = cancel_all_requested
+
+    if normalized_context == "restart":
+        if ignore_operator_controls:
+            reason_codes.append("l1_auth_restart_requires_operator_controls")
+        elif not control_state_available:
+            reason_codes.append("l1_auth_control_state_unavailable")
+        elif not bool(summary["restart_requested"]):
+            reason_codes.append("l1_auth_restart_not_requested")
+    elif normalized_context == "emergency":
+        if ignore_operator_controls:
+            reason_codes.append("l1_auth_emergency_requires_operator_controls")
+        elif not control_state_available:
+            reason_codes.append("l1_auth_control_state_unavailable")
+        elif not (
+            bool(summary["kill_switch_active"])
+            or bool(summary["cancel_all_requested"])
+        ):
+            reason_codes.append("l1_auth_emergency_not_active")
+
+    summary["reason_codes"] = reason_codes
+    summary["allowed"] = not reason_codes
+    summary["status"] = "allowed" if not reason_codes else "denied"
+    return summary
 
 
 
@@ -184,6 +292,7 @@ def _run_live_credential_preflight(
     stage_enabled: bool,
     real_order_submission: bool,
     allow_real_trading: bool,
+    l1_auth_guard: dict[str, object],
 ) -> dict[str, object]:
     preflight_required = (
         stage_enabled
@@ -199,12 +308,30 @@ def _run_live_credential_preflight(
         "required_env_vars": list(execution_adapter.required_env_vars),
         "max_secret_age_days": execution_adapter.max_secret_age_days,
         "preferred_secret_sources": list(execution_adapter.preferred_secret_sources),
+        "enforce_auth_healthcheck": execution_adapter.enforce_auth_healthcheck,
+        "allow_l1_auth_requests": execution_adapter.allow_l1_auth_requests,
+        "l1_auth_guard": dict(l1_auth_guard),
+        "auth_healthcheck": {
+            "required": execution_adapter.enforce_auth_healthcheck,
+            "status": "skipped",
+            "reason": "auth_healthcheck_not_required",
+        },
         "status": "skipped",
     }
+    l1_auth_requested = bool(l1_auth_guard.get("requested", False))
+    l1_auth_allowed = bool(l1_auth_guard.get("allowed", False))
+    if l1_auth_requested and not l1_auth_allowed:
+        raise ValueError(
+            "Live credential preflight failed: "
+            "reasons=['l1_auth_policy_violation'] "
+            f"l1_auth_guard={l1_auth_guard}"
+        )
     if not preflight_required:
         preflight_summary["skip_reason"] = (
             "live_trading_not_enabled_for_stage_or_flags"
         )
+        if l1_auth_requested and l1_auth_allowed:
+            preflight_summary["status"] = "passed"
         return preflight_summary
 
     missing_env_vars = execution_adapter._missing_required_env_vars()
@@ -240,13 +367,20 @@ def _run_live_credential_preflight(
             "Live credential preflight failed: "
             f"reasons={secret_reasons} details={preflight_details}"
         )
+    if execution_adapter.enforce_auth_healthcheck:
+        auth_reasons, auth_metadata = execution_adapter.run_auth_healthcheck(
+            force=True
+        )
+        preflight_summary["auth_healthcheck"] = auth_metadata
+        if auth_reasons:
+            raise ValueError(
+                "Live credential preflight failed: "
+                "reasons=['auth_healthcheck_failed'] "
+                f"auth_reasons={auth_reasons} details={auth_metadata}"
+            )
 
     preflight_summary["status"] = "passed"
     return preflight_summary
-
-
-def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
-    return max(1, math.ceil(secret_max_age_seconds / 86_400))
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -367,6 +501,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Path to operator action audit JSONL log.",
     )
     parser.add_argument(
+        "--agent-operator-learning-state-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional path to AgentOperator learning state JSON. "
+            "Defaults to sibling of --control-state-path when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-learning-audit-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional path to AgentOperator learning audit JSONL log. "
+            "Defaults to sibling of --control-state-path when omitted."
+        ),
+    )
+    parser.add_argument(
         "--operator-control-actor",
         type=str,
         default="runtime_supervisor",
@@ -476,11 +628,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--execution-mode",
         type=str,
-        choices=["paper", "live_polymarket_clob"],
+        choices=["paper", "test_polymarket_clob", "live_polymarket_clob"],
         required=False,
         help=(
             "Execution adapter mode; defaults to rollout config "
             "default_execution_mode when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--mode-lifecycle-policy",
+        type=Path,
+        default=ROOT_DIR
+        / "config"
+        / "integration"
+        / "mode_lifecycle_policy.v1.json",
+        help="Path to mode lifecycle policy JSON.",
+    )
+    parser.add_argument(
+        "--mode-lifecycle-mode",
+        type=str,
+        choices=["paper", "test", "live"],
+        required=False,
+        help=(
+            "Optional lifecycle mode override. When omitted, defaults to "
+            "the policy default mode or the resolved execution mode mapping."
+        ),
+    )
+    parser.add_argument(
+        "--disable-testnet-parity",
+        action="store_true",
+        help=(
+            "Force test-mode execution to use fallback environment semantics "
+            "instead of testnet parity."
         ),
     )
     parser.add_argument(
@@ -500,7 +679,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         required=False,
         help=(
-            "Optional rollout stage override for live_polymarket_clob "
+            "Optional rollout stage override for test_polymarket_clob/live_polymarket_clob "
             "execution mode."
         ),
     )
@@ -600,6 +779,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Explicitly allow live-trading execution mode after rollout and "
             "credential gates are satisfied."
+        ),
+    )
+    parser.add_argument(
+        "--l1-auth-operation",
+        type=str,
+        choices=["none", "derive_api_key", "create_api_key"],
+        default="none",
+        help=(
+            "Optional L1 auth operation intent. Restricted to operator-controlled "
+            "startup/restart/emergency contexts."
+        ),
+    )
+    parser.add_argument(
+        "--l1-auth-context",
+        type=str,
+        choices=["startup", "restart", "emergency"],
+        required=False,
+        help=(
+            "Context for --l1-auth-operation. restart/emergency require "
+            "operator-control state evidence."
         ),
     )
     parser.add_argument(
@@ -752,24 +951,93 @@ def main(argv: list[str] | None = None) -> int:
             whale_signal_wallet_threshold=args.live_wallet_convergence_threshold,
             wallet_convergence_loader=wallet_convergence_loader,
         )
+    mode_lifecycle_policy_payload = resolve_mode_lifecycle_policy(None)
+    if args.mode_lifecycle_policy.exists():
+        raw_mode_lifecycle_policy_payload = _load_json(args.mode_lifecycle_policy)
+        if not isinstance(raw_mode_lifecycle_policy_payload, dict):
+            raise ValueError(
+                "Mode lifecycle policy must be a JSON object "
+                f"({args.mode_lifecycle_policy})"
+            )
+        mode_lifecycle_policy_payload = resolve_mode_lifecycle_policy(
+            raw_mode_lifecycle_policy_payload
+        )
+    mode_lifecycle_policy_hash = stable_hash(mode_lifecycle_policy_payload)
+    mode_lifecycle_default_mode = normalize_lifecycle_mode(
+        mode_lifecycle_policy_payload.get("default_mode", "paper")
+    )
+
     control_manager = OperatorControlManager(
         control_state_path=args.control_state_path,
         audit_path=args.control_audit_path,
+        mode_lifecycle_policy_path=args.mode_lifecycle_policy,
+        agent_operator_learning_state_path=args.agent_operator_learning_state_path,
+        agent_operator_learning_audit_path=args.agent_operator_learning_audit_path,
     )
 
     strategy = BaselineStrategy(parameters, calibration_policy)
     risk = RiskEngine(parameters)
     rollout_payload = _load_json(args.live_rollout_config)
     rollout_default_execution_mode = str(
-        rollout_payload.get("default_execution_mode", "paper")
-    ).strip() or "paper"
-    resolved_execution_mode = str(
-        args.execution_mode or rollout_default_execution_mode
-    ).strip()
-    if resolved_execution_mode not in {"paper", "live_polymarket_clob"}:
+        rollout_payload.get(
+            "default_execution_mode",
+            _execution_mode_for_lifecycle_mode(mode_lifecycle_default_mode),
+        )
+    ).strip().lower() or _execution_mode_for_lifecycle_mode(mode_lifecycle_default_mode)
+    if rollout_default_execution_mode not in LIFECYCLE_MODE_BY_EXECUTION_MODE:
+        rollout_default_execution_mode = _execution_mode_for_lifecycle_mode(
+            mode_lifecycle_default_mode
+        )
+
+    execution_mode_override = str(args.execution_mode or "").strip().lower() or None
+    lifecycle_mode_override = (
+        normalize_lifecycle_mode(args.mode_lifecycle_mode)
+        if args.mode_lifecycle_mode is not None
+        else None
+    )
+    if (
+        execution_mode_override is not None
+        and lifecycle_mode_override is not None
+        and _lifecycle_mode_for_execution_mode(execution_mode_override)
+        != lifecycle_mode_override
+    ):
         raise ValueError(
-            "--execution-mode must be one of paper, live_polymarket_clob "
-            f"(resolved={resolved_execution_mode!r})"
+            "Execution mode override does not match lifecycle mode override "
+            f"(execution_mode={execution_mode_override!r}, "
+            f"lifecycle_mode={lifecycle_mode_override!r})"
+        )
+
+    if execution_mode_override is not None:
+        resolved_execution_mode = execution_mode_override
+        resolved_lifecycle_mode = _lifecycle_mode_for_execution_mode(
+            resolved_execution_mode
+        )
+    elif lifecycle_mode_override is not None:
+        resolved_lifecycle_mode = lifecycle_mode_override
+        resolved_execution_mode = _execution_mode_for_lifecycle_mode(
+            resolved_lifecycle_mode
+        )
+    else:
+        resolved_execution_mode = rollout_default_execution_mode
+        resolved_lifecycle_mode = _lifecycle_mode_for_execution_mode(
+            resolved_execution_mode
+        )
+    l1_auth_guard = _resolve_l1_auth_guard(
+        operation=args.l1_auth_operation,
+        context=args.l1_auth_context,
+        operator_actor=args.operator_control_actor,
+        control_manager=control_manager,
+        control_state_path=args.control_state_path,
+        ignore_operator_controls=bool(args.ignore_operator_controls),
+    )
+    if bool(l1_auth_guard.get("requested", False)) and not bool(
+        l1_auth_guard.get("allowed", False)
+    ):
+        raise ValueError(
+            "L1 auth operation denied by runtime policy: "
+            f"operation={l1_auth_guard.get('operation')} "
+            f"context={l1_auth_guard.get('context')} "
+            f"reason_codes={l1_auth_guard.get('reason_codes', [])}"
         )
 
     execution_context: dict[str, object]
@@ -777,6 +1045,9 @@ def main(argv: list[str] | None = None) -> int:
         execution_adapter = PaperExecutionAdapter(parameters)
         execution_context = {
             "mode": "paper",
+            "lifecycle_mode": resolved_lifecycle_mode,
+            "mode_lifecycle_policy_path": str(args.mode_lifecycle_policy),
+            "mode_lifecycle_policy_hash": mode_lifecycle_policy_hash,
             "rollout_config_path": str(args.live_rollout_config),
             "rollout_stage": "paper",
             "rollout_stage_enabled": True,
@@ -785,6 +1056,10 @@ def main(argv: list[str] | None = None) -> int:
             "required_env_vars": [],
             "clob_base_url": None,
             "clob_config_path": None,
+            "test_mode_environment": None,
+            "test_mode_environment_fallback_used": False,
+            "test_mode_environment_reason_code": "",
+            "l1_auth_guard": dict(l1_auth_guard),
             "credential_preflight": {
                 "required": False,
                 "status": "skipped",
@@ -804,9 +1079,14 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(
                 "Polymarket CLOB config must include endpoints.clob_rest_base_url"
             )
+        default_rollout_stage_override = (
+            "canary_live"
+            if resolved_execution_mode == "test_polymarket_clob"
+            else None
+        )
         rollout_stage_name, rollout_stage_payload = _resolve_rollout_stage(
             rollout_payload,
-            requested_stage=args.live_rollout_stage,
+            requested_stage=args.live_rollout_stage or default_rollout_stage_override,
         )
         global_guards = rollout_payload.get("global_guards")
         secrets_policy = rollout_payload.get("secrets_policy")
@@ -897,6 +1177,33 @@ def main(argv: list[str] | None = None) -> int:
         require_kill_switch = bool(
             rollout_stage_payload.get("require_kill_switch", False)
         )
+        enforce_auth_healthcheck = bool(
+            rollout_stage_payload.get("enforce_auth_healthcheck", False)
+        )
+        enable_geoblock_check = bool(
+            rollout_stage_payload.get("enable_geoblock_check", False)
+        )
+        geoblock_url = str(rollout_stage_payload.get("geoblock_url", "")).strip()
+        auth_healthcheck_timeout_seconds = (
+            _as_optional_positive_float(
+                rollout_stage_payload.get("auth_healthcheck_timeout_seconds")
+            )
+            or 2.0
+        )
+        auth_healthcheck_ttl_seconds = (
+            _as_optional_positive_float(
+                rollout_stage_payload.get("auth_healthcheck_ttl_seconds")
+            )
+            or 30.0
+        )
+        auth_healthcheck_max_time_skew_seconds = (
+            _as_optional_positive_float(
+                rollout_stage_payload.get(
+                    "auth_healthcheck_max_time_skew_seconds"
+                )
+            )
+            or 30.0
+        )
         if isinstance(global_guards, dict):
             if bool(
                 global_guards.get("require_pretrade_balance_and_allowance_checks", False)
@@ -906,6 +1213,46 @@ def main(argv: list[str] | None = None) -> int:
                 require_user_channel_trade_ack = True
             if bool(global_guards.get("require_kill_switch", False)):
                 require_kill_switch = True
+            if bool(global_guards.get("disable_live_trading_on_auth_failure", False)):
+                enforce_auth_healthcheck = True
+            if bool(global_guards.get("enable_geoblock_check", False)) or bool(
+                global_guards.get("require_geoblock_precheck", False)
+            ):
+                enable_geoblock_check = True
+            global_geoblock_url = str(global_guards.get("geoblock_url", "")).strip()
+            if global_geoblock_url:
+                geoblock_url = global_geoblock_url
+            parsed_global_auth_healthcheck_timeout_seconds = (
+                _as_optional_positive_float(
+                    global_guards.get("auth_healthcheck_timeout_seconds")
+                )
+            )
+            if parsed_global_auth_healthcheck_timeout_seconds is not None:
+                auth_healthcheck_timeout_seconds = (
+                    parsed_global_auth_healthcheck_timeout_seconds
+                )
+            parsed_global_auth_healthcheck_ttl_seconds = (
+                _as_optional_positive_float(
+                    global_guards.get("auth_healthcheck_ttl_seconds")
+                )
+            )
+            if parsed_global_auth_healthcheck_ttl_seconds is not None:
+                auth_healthcheck_ttl_seconds = (
+                    parsed_global_auth_healthcheck_ttl_seconds
+                )
+            parsed_global_auth_healthcheck_max_time_skew_seconds = (
+                _as_optional_positive_float(
+                    global_guards.get(
+                        "auth_healthcheck_max_time_skew_seconds"
+                    )
+                )
+            )
+            if parsed_global_auth_healthcheck_max_time_skew_seconds is not None:
+                auth_healthcheck_max_time_skew_seconds = (
+                    parsed_global_auth_healthcheck_max_time_skew_seconds
+                )
+        if not geoblock_url:
+            geoblock_url = "https://polymarket.com/api/geoblock"
         if args.pre_trade_balance_check_enabled or args.pre_trade_allowance_check_enabled:
             require_pretrade_balance_checks = True
         if args.enforce_user_channel_ack:
@@ -971,6 +1318,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             if isinstance(raw_audit_path, str) and raw_audit_path.strip():
                 execution_adapter_audit_path = Path(raw_audit_path.strip())
+
+        test_mode_environment = (
+            select_test_mode_environment(
+                policy=mode_lifecycle_policy_payload,
+                testnet_parity_supported=not bool(args.disable_testnet_parity),
+            )
+            if resolved_execution_mode == "test_polymarket_clob"
+            else {
+                "selected_environment": "",
+                "fallback_used": False,
+                "reason_code": "",
+                "primary_environment": "",
+                "fallback_environment": "",
+            }
+        )
+
         execution_adapter = PolymarketClobExecutionAdapter(
             clob_base_url=clob_base_url,
             rollout_stage=rollout_stage_name,
@@ -989,6 +1352,15 @@ def main(argv: list[str] | None = None) -> int:
             preferred_secret_sources=preferred_secret_sources,
             max_secret_age_days=secret_max_age_days,
             user_channel_max_staleness_seconds=user_channel_max_staleness_seconds,
+            enforce_auth_healthcheck=enforce_auth_healthcheck,
+            enable_geoblock_check=enable_geoblock_check,
+            geoblock_url=geoblock_url,
+            auth_healthcheck_timeout_seconds=auth_healthcheck_timeout_seconds,
+            auth_healthcheck_ttl_seconds=auth_healthcheck_ttl_seconds,
+            auth_healthcheck_max_time_skew_seconds=(
+                auth_healthcheck_max_time_skew_seconds
+            ),
+            allow_l1_auth_requests=bool(l1_auth_guard.get("allowed", False)),
             audit_log_path=execution_adapter_audit_path,
         )
         credential_preflight = _run_live_credential_preflight(
@@ -997,9 +1369,13 @@ def main(argv: list[str] | None = None) -> int:
             stage_enabled=stage_enabled,
             real_order_submission=real_order_submission,
             allow_real_trading=bool(args.allow_real_trading),
+            l1_auth_guard=l1_auth_guard,
         )
         execution_context = {
-            "mode": "live_polymarket_clob",
+            "mode": resolved_execution_mode,
+            "lifecycle_mode": resolved_lifecycle_mode,
+            "mode_lifecycle_policy_path": str(args.mode_lifecycle_policy),
+            "mode_lifecycle_policy_hash": mode_lifecycle_policy_hash,
             "rollout_config_path": str(args.live_rollout_config),
             "rollout_stage": rollout_stage_name,
             "rollout_stage_enabled": stage_enabled,
@@ -1015,10 +1391,32 @@ def main(argv: list[str] | None = None) -> int:
             "require_pretrade_balance_checks": require_pretrade_balance_checks,
             "require_user_channel_trade_ack": require_user_channel_trade_ack,
             "require_kill_switch": require_kill_switch,
+            "enforce_auth_healthcheck": enforce_auth_healthcheck,
+            "enable_geoblock_check": enable_geoblock_check,
+            "geoblock_url": geoblock_url,
+            "auth_healthcheck_timeout_seconds": auth_healthcheck_timeout_seconds,
+            "auth_healthcheck_ttl_seconds": auth_healthcheck_ttl_seconds,
+            "auth_healthcheck_max_time_skew_seconds": (
+                auth_healthcheck_max_time_skew_seconds
+            ),
             "allow_plaintext_secrets": allow_plaintext_secrets,
             "preferred_secret_sources": list(preferred_secret_sources),
             "max_secret_age_days": secret_max_age_days,
             "user_channel_max_staleness_seconds": user_channel_max_staleness_seconds,
+            "test_mode_environment": test_mode_environment.get("selected_environment"),
+            "test_mode_environment_fallback_used": bool(
+                test_mode_environment.get("fallback_used", False)
+            ),
+            "test_mode_environment_reason_code": str(
+                test_mode_environment.get("reason_code", "")
+            ),
+            "test_mode_environment_primary": test_mode_environment.get(
+                "primary_environment"
+            ),
+            "test_mode_environment_fallback": test_mode_environment.get(
+                "fallback_environment"
+            ),
+            "l1_auth_guard": dict(l1_auth_guard),
             "execution_adapter_audit_path": (
                 str(execution_adapter_audit_path)
                 if execution_adapter_audit_path is not None
@@ -1096,6 +1494,9 @@ def main(argv: list[str] | None = None) -> int:
     def _read_operator_control_state() -> dict:
         default_agent_operator_enabled = bool(args.agent_operator_enabled)
         default_agent_operator_mode = "advisory"
+        default_agent_operator_strategy_auto_apply = True
+        default_mode_current = resolved_lifecycle_mode
+        default_mode_target = resolved_lifecycle_mode
         if args.ignore_operator_controls or not args.control_state_path.exists():
             return {
                 "paused": False,
@@ -1106,6 +1507,24 @@ def main(argv: list[str] | None = None) -> int:
                 "control_version": 0,
                 "agent_operator_enabled": default_agent_operator_enabled,
                 "agent_operator_mode": default_agent_operator_mode,
+                "agent_operator_strategy_auto_apply": (
+                    default_agent_operator_strategy_auto_apply
+                ),
+                "agent_operator_active_candidate_id": "",
+                "agent_operator_active_candidate_scenario": "",
+                "agent_operator_candidate_previous_scenario": "",
+                "agent_operator_candidate_last_action": "",
+                "agent_operator_candidate_last_action_at": "",
+                "mode_current": default_mode_current,
+                "mode_target": default_mode_target,
+                "mode_transition_approval_status": "pending",
+                "mode_transition_evidence": {},
+                "mode_transition_last_decision": {},
+                "mode_transition_last_decision_at": "",
+                "mode_transition_last_transition_at": "",
+                "mode_transition_last_actor": "",
+                "mode_transition_last_reason": "",
+                "mode_transition_last_action": "",
             }
 
         control_state = control_manager.load_control_state()
@@ -1120,9 +1539,68 @@ def main(argv: list[str] | None = None) -> int:
             control_state["agent_operator_enabled"] = default_agent_operator_enabled
         if "agent_operator_mode" not in control_state:
             control_state["agent_operator_mode"] = default_agent_operator_mode
+        if "agent_operator_strategy_auto_apply" not in control_state:
+            control_state["agent_operator_strategy_auto_apply"] = (
+                default_agent_operator_strategy_auto_apply
+            )
+        if "agent_operator_active_candidate_id" not in control_state:
+            control_state["agent_operator_active_candidate_id"] = ""
+        if "agent_operator_active_candidate_scenario" not in control_state:
+            control_state["agent_operator_active_candidate_scenario"] = ""
+        if "agent_operator_candidate_previous_scenario" not in control_state:
+            control_state["agent_operator_candidate_previous_scenario"] = ""
+        if "agent_operator_candidate_last_action" not in control_state:
+            control_state["agent_operator_candidate_last_action"] = ""
+        if "agent_operator_candidate_last_action_at" not in control_state:
+            control_state["agent_operator_candidate_last_action_at"] = ""
         control_state["agent_operator_mode"] = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode")
         )
+        control_state["agent_operator_strategy_auto_apply"] = bool(
+            control_state.get("agent_operator_strategy_auto_apply", True)
+        )
+        control_state["agent_operator_active_candidate_id"] = str(
+            control_state.get("agent_operator_active_candidate_id", "")
+        ).strip()
+        control_state["agent_operator_active_candidate_scenario"] = str(
+            control_state.get("agent_operator_active_candidate_scenario", "")
+        ).strip()
+        control_state["agent_operator_candidate_previous_scenario"] = str(
+            control_state.get("agent_operator_candidate_previous_scenario", "")
+        ).strip()
+        control_state["agent_operator_candidate_last_action"] = str(
+            control_state.get("agent_operator_candidate_last_action", "")
+        ).strip()
+        control_state["agent_operator_candidate_last_action_at"] = str(
+            control_state.get("agent_operator_candidate_last_action_at", "")
+        ).strip()
+        control_state["mode_current"] = normalize_lifecycle_mode(
+            control_state.get("mode_current", default_mode_current)
+        )
+        control_state["mode_target"] = normalize_lifecycle_mode(
+            control_state.get("mode_target", control_state["mode_current"])
+        )
+        control_state["mode_transition_approval_status"] = (
+            _normalize_mode_transition_approval_status(
+                control_state.get("mode_transition_approval_status", "pending")
+            )
+        )
+        mode_transition_evidence = control_state.get("mode_transition_evidence")
+        if not isinstance(mode_transition_evidence, dict):
+            mode_transition_evidence = {}
+        control_state["mode_transition_evidence"] = mode_transition_evidence
+        if not isinstance(control_state.get("mode_transition_last_decision"), dict):
+            control_state["mode_transition_last_decision"] = {}
+        if "mode_transition_last_decision_at" not in control_state:
+            control_state["mode_transition_last_decision_at"] = ""
+        if "mode_transition_last_transition_at" not in control_state:
+            control_state["mode_transition_last_transition_at"] = ""
+        if "mode_transition_last_actor" not in control_state:
+            control_state["mode_transition_last_actor"] = ""
+        if "mode_transition_last_reason" not in control_state:
+            control_state["mode_transition_last_reason"] = ""
+        if "mode_transition_last_action" not in control_state:
+            control_state["mode_transition_last_action"] = ""
         return control_state
 
     if args.cycle_output_dir:
@@ -1179,6 +1657,68 @@ def main(argv: list[str] | None = None) -> int:
         agent_operator_mode = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode", "advisory")
         )
+        agent_operator_strategy_auto_apply = bool(
+            control_state.get("agent_operator_strategy_auto_apply", True)
+        )
+        agent_operator_active_candidate_id = str(
+            control_state.get("agent_operator_active_candidate_id", "")
+        ).strip()
+        agent_operator_active_candidate_scenario = str(
+            control_state.get("agent_operator_active_candidate_scenario", "")
+        ).strip()
+        mode_current = normalize_lifecycle_mode(
+            control_state.get("mode_current", resolved_lifecycle_mode)
+        )
+        mode_target = normalize_lifecycle_mode(
+            control_state.get("mode_target", mode_current)
+        )
+        mode_transition_approval_status = _normalize_mode_transition_approval_status(
+            control_state.get("mode_transition_approval_status", "pending")
+        )
+        raw_mode_transition_evidence = control_state.get("mode_transition_evidence")
+        mode_transition_evidence = (
+            dict(raw_mode_transition_evidence)
+            if isinstance(raw_mode_transition_evidence, dict)
+            else {}
+        )
+        mode_transition_decision = build_mode_transition_decision(
+            current_mode=mode_current,
+            target_mode=mode_target,
+            policy=mode_lifecycle_policy_payload,
+            evidence=mode_transition_evidence,
+            manual_approval_status=mode_transition_approval_status,
+            actor=args.operator_control_actor,
+            reason="runtime_supervisor_cycle_gate",
+        )
+        mode_transition_allowed = bool(mode_transition_decision.get("allowed", False))
+        mode_transition_reason_codes = [
+            str(reason_code).strip()
+            for reason_code in mode_transition_decision.get("reason_codes", [])
+            if str(reason_code).strip()
+        ]
+        mode_transition_decision_hash = str(
+            mode_transition_decision.get("decision_hash", "")
+        )
+        mode_effective = mode_target if mode_transition_allowed else mode_current
+        expected_execution_mode = _execution_mode_for_lifecycle_mode(mode_effective)
+        execution_mode_matches_lifecycle = (
+            expected_execution_mode == resolved_execution_mode
+        )
+        mode_lifecycle_metadata = {
+            "mode_lifecycle_current_mode": mode_current,
+            "mode_lifecycle_target_mode": mode_target,
+            "mode_lifecycle_transition_allowed": mode_transition_allowed,
+            "mode_lifecycle_transition_reason_codes": mode_transition_reason_codes,
+            "mode_lifecycle_decision_hash": mode_transition_decision_hash,
+            "mode_lifecycle_approval_status": mode_transition_approval_status,
+            "mode_lifecycle_effective_mode": mode_effective,
+            "mode_lifecycle_expected_execution_mode": expected_execution_mode,
+            "mode_lifecycle_execution_mode": resolved_execution_mode,
+            "mode_lifecycle_execution_mode_matches": execution_mode_matches_lifecycle,
+            "mode_lifecycle_policy_hash": mode_lifecycle_policy_hash,
+            "mode_lifecycle_policy_path": str(args.mode_lifecycle_policy),
+            "mode_lifecycle_decision": mode_transition_decision,
+        }
         heartbeat(
             "cycle_started",
             {
@@ -1191,6 +1731,25 @@ def main(argv: list[str] | None = None) -> int:
                 "cancel_all_requested": cancel_all_requested,
                 "agent_operator_enabled": agent_operator_enabled,
                 "agent_operator_mode": agent_operator_mode,
+                "agent_operator_strategy_auto_apply": (
+                    agent_operator_strategy_auto_apply
+                ),
+                "agent_operator_active_candidate_id": (
+                    agent_operator_active_candidate_id
+                ),
+                "agent_operator_active_candidate_scenario": (
+                    agent_operator_active_candidate_scenario
+                ),
+                "mode_current": mode_current,
+                "mode_target": mode_target,
+                "mode_transition_approval_status": mode_transition_approval_status,
+                "mode_transition_allowed": mode_transition_allowed,
+                "mode_transition_reason_codes": mode_transition_reason_codes,
+                "mode_transition_decision_hash": mode_transition_decision_hash,
+                "mode_effective": mode_effective,
+                "expected_execution_mode": expected_execution_mode,
+                "execution_mode": resolved_execution_mode,
+                "execution_mode_matches_lifecycle": execution_mode_matches_lifecycle,
             },
         )
 
@@ -1275,6 +1834,7 @@ def main(argv: list[str] | None = None) -> int:
                 "agent_operator_strategy_scenario_applied": False,
                 "agent_operator_strategy_scenario_hint": "",
                 "agent_operator_strategy_scenario_rejected_reason": "",
+                **mode_lifecycle_metadata,
             }
 
         if paused:
@@ -1352,6 +1912,92 @@ def main(argv: list[str] | None = None) -> int:
                 "agent_operator_strategy_scenario_applied": False,
                 "agent_operator_strategy_scenario_hint": "",
                 "agent_operator_strategy_scenario_rejected_reason": "",
+                **mode_lifecycle_metadata,
+            }
+        if not execution_mode_matches_lifecycle:
+            mismatch_reason = "mode_lifecycle_execution_mode_mismatch"
+            agent_operator_result = _agent_operator_skipped_result(
+                mismatch_reason,
+                mode=agent_operator_mode,
+            )
+            heartbeat(
+                "mode_lifecycle_execution_mode_mismatch",
+                {
+                    "cycle_index": cycle_index,
+                    "control_version": control_version,
+                    "mode_current": mode_current,
+                    "mode_target": mode_target,
+                    "mode_effective": mode_effective,
+                    "mode_transition_allowed": mode_transition_allowed,
+                    "expected_execution_mode": expected_execution_mode,
+                    "execution_mode": resolved_execution_mode,
+                    "mode_transition_reason_codes": mode_transition_reason_codes,
+                    "mode_transition_decision_hash": mode_transition_decision_hash,
+                },
+            )
+            return {
+                "cycle_index": cycle_index,
+                "cycle_status": "MODE_LIFECYCLE_EXECUTION_MODE_MISMATCH",
+                "selected_scenario": selected_scenario_name,
+                "control_version": control_version,
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
+                "events": 0,
+                "risk_allowed_count": 0,
+                "filled_trade_count": 0,
+                "partial_fill_count": 0,
+                "exit_candidate_count": 0,
+                "confirmed_exit_count": 0,
+                "forced_exit_count": 0,
+                "confirmed_exit_ratio": None,
+                "confirmed_exit_latency_hours": None,
+                "median_position_age_hours": None,
+                "stale_position_count": 0,
+                "stale_position_ratio": 0.0,
+                "raw_probability_mean": None,
+                "calibrated_probability_mean": None,
+                "probability_drift_mean": None,
+                "probability_drift_abs_mean": None,
+                "probability_drift_max_abs": None,
+                "weighted_check_agreement_mean": None,
+                "calibration_applied_ratio": 0.0,
+                "total_execution_cost": 0.0,
+                "total_fees_paid": 0.0,
+                "total_slippage_cost": 0.0,
+                "attributed_trade_count": 0,
+                "expected_gross_edge_value": 0.0,
+                "expected_net_edge_value": 0.0,
+                "expected_net_edge_value_on_fills": 0.0,
+                "expected_value_after_execution_cost": 0.0,
+                "average_expected_gross_edge_bps": None,
+                "average_expected_net_edge_bps": None,
+                "expected_edge_capture_ratio": None,
+                "execution_cost_to_expected_net_ratio": None,
+                "bankroll": portfolio_state.bankroll,
+                "day_start_equity": portfolio_state.day_start_equity,
+                "current_equity": portfolio_state.current_equity,
+                "net_pnl": round(
+                    portfolio_state.current_equity - portfolio_state.day_start_equity,
+                    4,
+                ),
+                "open_notional": portfolio_state.open_notional,
+                "open_positions": portfolio_state.open_positions,
+                "total_exposure_fraction": round(
+                    portfolio_state.total_exposure_fraction, 6
+                ),
+                "daily_drawdown_fraction": round(
+                    portfolio_state.daily_drawdown_fraction, 6
+                ),
+                "result_hash": None,
+                "agent_operator": agent_operator_result,
+                "agent_operator_status": agent_operator_result["status"],
+                "agent_operator_mode": agent_operator_mode,
+                "agent_operator_provider": agent_operator_result["provider"],
+                "agent_operator_model": agent_operator_result["model"],
+                "agent_operator_strategy_scenario_applied": False,
+                "agent_operator_strategy_scenario_hint": "",
+                "agent_operator_strategy_scenario_rejected_reason": "",
+                **mode_lifecycle_metadata,
             }
 
         cancel_all_summary: dict[str, object] | None = None
@@ -1765,8 +2411,73 @@ def main(argv: list[str] | None = None) -> int:
                         "available_scenarios": available_scenarios,
                     }
                 )
+        final_portfolio = run.final_portfolio
+        cycle_net_pnl = round(
+            final_portfolio.current_equity - final_portfolio.day_start_equity,
+            4,
+        )
+        agent_operator_learning_recommendation: dict[str, Any] | None = None
+        agent_operator_learning_candidate: dict[str, Any] | None = None
+        agent_operator_learning_record_error = ""
+        agent_operator_outcome_attribution: dict[str, Any] = {
+            "attributed_count": 0,
+            "attributed_recommendation_ids": [],
+        }
+        agent_operator_outcome_attribution_error = ""
+        strategy_scenario_candidate_id = ""
 
         strategy_scenario_hint = str(agent_operator_result.get("scenario_hint", "")).strip()
+        if agent_operator_result.get("status") == "OK":
+            try:
+                learning_record = control_manager.record_agent_operator_recommendation(
+                    cycle_index=cycle_index,
+                    scenario_name=run_scenario_name,
+                    mode=agent_operator_mode,
+                    recommendation=agent_operator_result,
+                    baseline_net_pnl=cycle_net_pnl,
+                    baseline_expected_value_after_execution_cost=(
+                        run.expected_value_after_execution_cost
+                    ),
+                )
+            except Exception as error:  # pragma: no cover - fail-open safety path
+                agent_operator_learning_record_error = str(error)
+                heartbeat(
+                    "agent_operator_learning_record_failed",
+                    {
+                        "cycle_index": cycle_index,
+                        "agent_operator_mode": agent_operator_mode,
+                        "error": agent_operator_learning_record_error,
+                    },
+                )
+            else:
+                recommendation_payload = learning_record.get("recommendation")
+                if isinstance(recommendation_payload, dict):
+                    agent_operator_learning_recommendation = recommendation_payload
+                candidate_payload = learning_record.get("candidate")
+                if isinstance(candidate_payload, dict):
+                    agent_operator_learning_candidate = candidate_payload
+                    candidate_scenario_hint = str(
+                        candidate_payload.get("scenario_name", "")
+                    ).strip()
+                    if candidate_scenario_hint:
+                        strategy_scenario_hint = candidate_scenario_hint
+                heartbeat(
+                    "agent_operator_learning_recorded",
+                    {
+                        "cycle_index": cycle_index,
+                        "agent_operator_mode": agent_operator_mode,
+                        "recommendation_id": str(
+                            (
+                                agent_operator_learning_recommendation or {}
+                            ).get("recommendation_id", "")
+                        ).strip(),
+                        "candidate_id": str(
+                            (
+                                agent_operator_learning_candidate or {}
+                            ).get("candidate_id", "")
+                        ).strip(),
+                    },
+                )
         if (
             agent_operator_enabled
             and agent_operator_mode == "strategy"
@@ -1777,33 +2488,90 @@ def main(argv: list[str] | None = None) -> int:
                 strategy_scenario_rejected_reason = (
                     "strategy_scenario_hint_unsupported_for_live_mode"
                 )
+            elif not agent_operator_strategy_auto_apply:
+                strategy_scenario_rejected_reason = "strategy_auto_apply_disabled"
             else:
+                candidate_id_to_apply = str(
+                    (agent_operator_learning_candidate or {}).get("candidate_id", "")
+                ).strip()
+                scenario_to_apply = str(
+                    (agent_operator_learning_candidate or {}).get(
+                        "scenario_name",
+                        strategy_scenario_hint,
+                    )
+                ).strip() or strategy_scenario_hint
                 try:
-                    _resolve_scenario_run_inputs(strategy_scenario_hint)
+                    _resolve_scenario_run_inputs(scenario_to_apply)
                 except ValueError:
                     strategy_scenario_rejected_reason = (
                         "invalid_strategy_scenario_hint"
                     )
                 else:
-                    if strategy_scenario_hint != selected_scenario_name:
+                    if scenario_to_apply != selected_scenario_name:
                         if args.ignore_operator_controls:
                             strategy_scenario_rejected_reason = (
                                 "operator_controls_ignored"
                             )
+                        elif not candidate_id_to_apply:
+                            strategy_scenario_rejected_reason = (
+                                "strategy_candidate_missing"
+                            )
                         else:
-                            control_manager.set_scenario(
+                            control_manager.apply_agent_operator_candidate(
                                 actor=args.operator_control_actor,
-                                scenario_name=strategy_scenario_hint,
+                                candidate_id=candidate_id_to_apply,
+                                reason=(
+                                    f"strategy_auto_apply_cycle_{cycle_index}"
+                                ),
                             )
                             strategy_scenario_applied = True
+                            strategy_scenario_candidate_id = candidate_id_to_apply
                             heartbeat(
-                                "agent_operator_strategy_scenario_applied",
+                                "agent_operator_strategy_candidate_applied",
                                 {
                                     "cycle_index": cycle_index,
                                     "selected_scenario": selected_scenario_name,
-                                    "strategy_scenario_hint": strategy_scenario_hint,
+                                    "strategy_scenario_hint": scenario_to_apply,
+                                    "candidate_id": candidate_id_to_apply,
                                 },
                             )
+        try:
+            agent_operator_outcome_attribution = (
+                control_manager.attribute_agent_operator_outcomes(
+                    current_cycle_index=cycle_index,
+                    current_net_pnl=cycle_net_pnl,
+                    current_expected_value_after_execution_cost=(
+                        run.expected_value_after_execution_cost
+                    ),
+                )
+            )
+        except Exception as error:  # pragma: no cover - fail-open safety path
+            agent_operator_outcome_attribution_error = str(error)
+            heartbeat(
+                "agent_operator_learning_outcome_attribution_failed",
+                {
+                    "cycle_index": cycle_index,
+                    "error": agent_operator_outcome_attribution_error,
+                },
+            )
+        else:
+            attributed_count = int(
+                agent_operator_outcome_attribution.get("attributed_count", 0) or 0
+            )
+            if attributed_count > 0:
+                heartbeat(
+                    "agent_operator_learning_outcomes_attributed",
+                    {
+                        "cycle_index": cycle_index,
+                        "attributed_count": attributed_count,
+                        "attributed_recommendation_ids": list(
+                            agent_operator_outcome_attribution.get(
+                                "attributed_recommendation_ids",
+                                [],
+                            )
+                        ),
+                    },
+                )
         if strategy_scenario_rejected_reason:
             heartbeat(
                 "agent_operator_strategy_scenario_rejected",
@@ -1896,17 +2664,48 @@ def main(argv: list[str] | None = None) -> int:
                     "cancel_all_requested": cancel_all_requested,
                     "cancel_all_acknowledged": cancel_all_acknowledged,
                     "cancel_all_summary": cancel_all_summary,
+                    "agent_operator_strategy_auto_apply": (
+                        agent_operator_strategy_auto_apply
+                    ),
+                    "agent_operator_active_candidate_id": (
+                        agent_operator_active_candidate_id
+                    ),
+                    "agent_operator_active_candidate_scenario": (
+                        agent_operator_active_candidate_scenario
+                    ),
                 },
                 "agent_operator": agent_operator_result,
                 "agent_operator_mode": agent_operator_mode,
+                "agent_operator_strategy_auto_apply": (
+                    agent_operator_strategy_auto_apply
+                ),
                 "agent_operator_strategy_scenario_applied": (
                     strategy_scenario_applied
                 ),
                 "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+                "agent_operator_strategy_candidate_id": (
+                    strategy_scenario_candidate_id
+                ),
                 "agent_operator_strategy_scenario_rejected_reason": (
                     strategy_scenario_rejected_reason
                 ),
+                "agent_operator_learning_recommendation": (
+                    agent_operator_learning_recommendation
+                ),
+                "agent_operator_learning_candidate": (
+                    agent_operator_learning_candidate
+                ),
+                "agent_operator_learning_record_error": (
+                    agent_operator_learning_record_error
+                ),
+                "agent_operator_learning_outcome_attribution": (
+                    agent_operator_outcome_attribution
+                ),
+                "agent_operator_learning_outcome_attribution_error": (
+                    agent_operator_outcome_attribution_error
+                ),
                 "execution": dict(execution_context),
+                "mode_lifecycle": dict(mode_lifecycle_metadata),
                 "stateful_cycle": {
                     "execution_scope": execution_scope,
                     "starting_open_notional": cycle_start_open_notional,
@@ -2010,6 +2809,16 @@ def main(argv: list[str] | None = None) -> int:
                 "cancelled_order_count": int(
                     (cancel_all_summary or {}).get("cancelled_order_count", 0)
                 ),
+                "mode_lifecycle_current_mode": mode_current,
+                "mode_lifecycle_target_mode": mode_target,
+                "mode_lifecycle_effective_mode": mode_effective,
+                "mode_lifecycle_transition_allowed": mode_transition_allowed,
+                "mode_lifecycle_transition_reason_codes": mode_transition_reason_codes,
+                "mode_lifecycle_decision_hash": mode_transition_decision_hash,
+                "mode_lifecycle_approval_status": mode_transition_approval_status,
+                "mode_lifecycle_expected_execution_mode": expected_execution_mode,
+                "mode_lifecycle_execution_mode": resolved_execution_mode,
+                "mode_lifecycle_execution_mode_matches": execution_mode_matches_lifecycle,
                 "events": len(run.records),
                 "risk_allowed_count": run.risk_allowed_count,
                 "filled_trade_count": run.filled_trade_count,
@@ -2063,12 +2872,43 @@ def main(argv: list[str] | None = None) -> int:
                     "risk_posture"
                 ),
                 "agent_operator_confidence": agent_operator_result.get("confidence"),
+                "agent_operator_strategy_auto_apply": (
+                    agent_operator_strategy_auto_apply
+                ),
+                "agent_operator_active_candidate_id": (
+                    agent_operator_active_candidate_id
+                ),
+                "agent_operator_active_candidate_scenario": (
+                    agent_operator_active_candidate_scenario
+                ),
                 "agent_operator_strategy_scenario_applied": (
                     strategy_scenario_applied
                 ),
                 "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
                 "agent_operator_strategy_scenario_rejected_reason": (
                     strategy_scenario_rejected_reason
+                ),
+                "agent_operator_learning_recommendation_id": str(
+                    (agent_operator_learning_recommendation or {}).get(
+                        "recommendation_id",
+                        "",
+                    )
+                ).strip(),
+                "agent_operator_learning_candidate_id": str(
+                    (agent_operator_learning_candidate or {}).get(
+                        "candidate_id",
+                        "",
+                    )
+                ).strip(),
+                "agent_operator_learning_record_error": (
+                    agent_operator_learning_record_error
+                ),
+                "agent_operator_learning_outcomes_attributed_count": int(
+                    agent_operator_outcome_attribution.get("attributed_count", 0)
+                    or 0
+                ),
+                "agent_operator_learning_outcome_attribution_error": (
+                    agent_operator_outcome_attribution_error
                 ),
                 "ingestion_status": effective_ingestion_status,
                 "ingestion_reasons": effective_ingestion_reasons,
@@ -2156,10 +2996,31 @@ def main(argv: list[str] | None = None) -> int:
                 "risk_posture"
             ),
             "agent_operator_confidence": agent_operator_result.get("confidence"),
+            "agent_operator_strategy_auto_apply": (
+                agent_operator_strategy_auto_apply
+            ),
+            "agent_operator_active_candidate_id": agent_operator_active_candidate_id,
+            "agent_operator_active_candidate_scenario": (
+                agent_operator_active_candidate_scenario
+            ),
             "agent_operator_strategy_scenario_applied": strategy_scenario_applied,
             "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+            "agent_operator_strategy_candidate_id": strategy_scenario_candidate_id,
             "agent_operator_strategy_scenario_rejected_reason": (
                 strategy_scenario_rejected_reason
+            ),
+            "agent_operator_learning_recommendation": (
+                agent_operator_learning_recommendation
+            ),
+            "agent_operator_learning_candidate": agent_operator_learning_candidate,
+            "agent_operator_learning_record_error": (
+                agent_operator_learning_record_error
+            ),
+            "agent_operator_learning_outcome_attribution": (
+                agent_operator_outcome_attribution
+            ),
+            "agent_operator_learning_outcome_attribution_error": (
+                agent_operator_outcome_attribution_error
             ),
             "ingestion_status": effective_ingestion_status,
             "ingestion_reasons": effective_ingestion_reasons,
@@ -2172,6 +3033,7 @@ def main(argv: list[str] | None = None) -> int:
             "state_refresh_market_ids": state_refresh_market_ids,
             "state_refresh_max_streak": state_refresh_max_streak,
             "stale_open_position_market_ids": stale_open_position_market_ids,
+            **mode_lifecycle_metadata,
         }
 
     worker = WorkerSpec(
