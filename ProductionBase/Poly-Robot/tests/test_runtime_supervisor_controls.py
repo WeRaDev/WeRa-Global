@@ -86,6 +86,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         worker.start()
         host, port = server.server_address
         return server, worker, f"http://{host}:{port}/v1/messages"
+
     def _run_supervisor(
         self,
         *,
@@ -311,6 +312,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "selected_scenario": "baseline",
                 "agent_operator_enabled": True,
                 "agent_operator_mode": "strategy",
+                "agent_operator_strategy_auto_apply": True,
                 "last_annotation": "",
             }
             response_text = json.dumps(
@@ -360,10 +362,49 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 metadata["agent_operator_strategy_scenario_rejected_reason"], ""
             )
             self.assertEqual(metadata["selected_scenario"], "baseline")
+            strategy_candidate_id = str(
+                metadata.get("agent_operator_strategy_candidate_id", "")
+            ).strip()
+            self.assertTrue(strategy_candidate_id.startswith("cand-"))
+            learning_recommendation = metadata.get("agent_operator_learning_recommendation")
+            self.assertIsInstance(learning_recommendation, dict)
+            self.assertTrue(
+                str(learning_recommendation.get("recommendation_id", "")).startswith(
+                    "rec-"
+                )
+            )
+            learning_candidate = metadata.get("agent_operator_learning_candidate")
+            self.assertIsInstance(learning_candidate, dict)
+            self.assertEqual(learning_candidate.get("candidate_id"), strategy_candidate_id)
+            outcome_attribution = metadata.get(
+                "agent_operator_learning_outcome_attribution"
+            )
+            self.assertIsInstance(outcome_attribution, dict)
+            self.assertEqual(outcome_attribution.get("attributed_count"), 0)
+            self.assertEqual(metadata.get("agent_operator_learning_record_error"), "")
+            self.assertEqual(
+                metadata.get("agent_operator_learning_outcome_attribution_error"), ""
+            )
 
             updated_control_state = _read_json(control_state_path)
             self.assertEqual(
                 updated_control_state["selected_scenario"], "liquidity_crunch"
+            )
+            self.assertEqual(
+                updated_control_state["agent_operator_active_candidate_id"],
+                strategy_candidate_id,
+            )
+            self.assertEqual(
+                updated_control_state["agent_operator_active_candidate_scenario"],
+                "liquidity_crunch",
+            )
+            self.assertEqual(
+                updated_control_state["agent_operator_candidate_previous_scenario"],
+                "baseline",
+            )
+            self.assertEqual(
+                updated_control_state["agent_operator_candidate_last_action"],
+                "applied",
             )
 
             cycle_report = _read_json(root / "cycles" / "cycle_001.json")
@@ -374,6 +415,35 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 run_context["agent_operator_strategy_scenario_hint"],
                 "liquidity_crunch",
             )
+            self.assertEqual(
+                run_context["agent_operator_strategy_candidate_id"],
+                strategy_candidate_id,
+            )
+            self.assertEqual(
+                (run_context["agent_operator_learning_recommendation"] or {}).get(
+                    "recommendation_id"
+                ),
+                learning_recommendation.get("recommendation_id"),
+            )
+            self.assertEqual(
+                (run_context["agent_operator_learning_candidate"] or {}).get(
+                    "candidate_id"
+                ),
+                strategy_candidate_id,
+            )
+            self.assertEqual(
+                (run_context["agent_operator_learning_outcome_attribution"] or {}).get(
+                    "attributed_count"
+                ),
+                0,
+            )
+
+            learning_state = _read_json(root / "agent_operator_learning_state.json")
+            self.assertEqual(learning_state["recommendation_sequence"], 1)
+            self.assertEqual(learning_state["candidate_sequence"], 1)
+            self.assertEqual(learning_state["active_candidate_id"], strategy_candidate_id)
+            self.assertEqual(learning_state["recommendations"][-1]["status"], "pending_outcome")
+            self.assertEqual(learning_state["candidates"][-1]["status"], "active")
 
     def test_strategy_mode_rejects_invalid_scenario_hint(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -389,6 +459,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 "selected_scenario": "baseline",
                 "agent_operator_enabled": True,
                 "agent_operator_mode": "strategy",
+                "agent_operator_strategy_auto_apply": True,
                 "last_annotation": "",
             }
             response_text = json.dumps(
@@ -437,8 +508,188 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 metadata["agent_operator_strategy_scenario_rejected_reason"],
                 "invalid_strategy_scenario_hint",
             )
+            self.assertEqual(metadata.get("agent_operator_strategy_candidate_id"), "")
+            learning_candidate = metadata.get("agent_operator_learning_candidate")
+            self.assertIsInstance(learning_candidate, dict)
+            self.assertEqual(
+                learning_candidate.get("scenario_name"),
+                "not_a_real_scenario",
+            )
             updated_control_state = _read_json(control_state_path)
             self.assertEqual(updated_control_state["selected_scenario"], "baseline")
+            self.assertEqual(
+                str(updated_control_state.get("agent_operator_active_candidate_id", "")),
+                "",
+            )
+
+            learning_state = _read_json(root / "agent_operator_learning_state.json")
+            self.assertEqual(learning_state["recommendation_sequence"], 1)
+            self.assertEqual(learning_state["candidate_sequence"], 1)
+            self.assertEqual(learning_state["active_candidate_id"], "")
+            self.assertEqual(learning_state["candidates"][-1]["status"], "pending")
+
+    def test_strategy_mode_respects_strategy_auto_apply_disable_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 14,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "strategy",
+                "agent_operator_strategy_auto_apply": False,
+                "last_annotation": "",
+            }
+            response_text = json.dumps(
+                {
+                    "summary": "Recommend stress scenario without auto-apply.",
+                    "profitability_hypothesis": "Volatility likely to increase.",
+                    "risk_posture": "neutral",
+                    "confidence": 0.6,
+                    "recommended_actions": [],
+                    "scenario_hint": "liquidity_crunch",
+                }
+            )
+            server, worker, endpoint = self._start_mock_claude_server(
+                response_text=response_text
+            )
+            try:
+                env = dict(os.environ)
+                env["POLY_ROBOT_TEST_AGENT_KEY"] = "test-key"
+                result, state_path, _, control_state_path, _ = self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=1,
+                    cycle_output=True,
+                    extra_args=[
+                        "--agent-operator-api-key-env",
+                        "POLY_ROBOT_TEST_AGENT_KEY",
+                        "--agent-operator-endpoint-url",
+                        endpoint,
+                    ],
+                    env=env,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=5)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertEqual(metadata["agent_operator_mode"], "strategy")
+            self.assertFalse(metadata["agent_operator_strategy_scenario_applied"])
+            self.assertEqual(
+                metadata["agent_operator_strategy_scenario_hint"],
+                "liquidity_crunch",
+            )
+            self.assertEqual(
+                metadata["agent_operator_strategy_scenario_rejected_reason"],
+                "strategy_auto_apply_disabled",
+            )
+            self.assertEqual(metadata["agent_operator_strategy_candidate_id"], "")
+            learning_candidate = metadata.get("agent_operator_learning_candidate")
+            self.assertIsInstance(learning_candidate, dict)
+            self.assertTrue(
+                str(learning_candidate.get("candidate_id", "")).startswith("cand-")
+            )
+            self.assertEqual(metadata["selected_scenario"], "baseline")
+
+            updated_control_state = _read_json(control_state_path)
+            self.assertEqual(updated_control_state["selected_scenario"], "baseline")
+            self.assertEqual(
+                str(updated_control_state.get("agent_operator_active_candidate_id", "")),
+                "",
+            )
+            self.assertFalse(updated_control_state["agent_operator_strategy_auto_apply"])
+
+            cycle_report = _read_json(root / "cycles" / "cycle_001.json")
+            run_context = cycle_report["run_context"]
+            self.assertEqual(
+                run_context["agent_operator_strategy_scenario_rejected_reason"],
+                "strategy_auto_apply_disabled",
+            )
+            self.assertEqual(run_context["agent_operator_strategy_candidate_id"], "")
+            self.assertIsInstance(
+                run_context["agent_operator_learning_candidate"],
+                dict,
+            )
+
+    def test_strategy_mode_attributes_delayed_learning_outcomes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 15,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "strategy",
+                "agent_operator_strategy_auto_apply": True,
+                "last_annotation": "",
+            }
+            response_text = json.dumps(
+                {
+                    "summary": "Sustain stress scenario for near-term risk.",
+                    "profitability_hypothesis": "Near-term volatility opportunities.",
+                    "risk_posture": "neutral",
+                    "confidence": 0.7,
+                    "recommended_actions": [],
+                    "scenario_hint": "liquidity_crunch",
+                }
+            )
+            server, worker, endpoint = self._start_mock_claude_server(
+                response_text=response_text
+            )
+            try:
+                env = dict(os.environ)
+                env["POLY_ROBOT_TEST_AGENT_KEY"] = "test-key"
+                result, _, _, _, _ = self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=2,
+                    cycle_output=True,
+                    extra_args=[
+                        "--agent-operator-api-key-env",
+                        "POLY_ROBOT_TEST_AGENT_KEY",
+                        "--agent-operator-endpoint-url",
+                        endpoint,
+                    ],
+                    env=env,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=5)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            cycle_one = _read_json(root / "cycles" / "cycle_001.json")
+            cycle_two = _read_json(root / "cycles" / "cycle_002.json")
+            cycle_one_outcomes = cycle_one["run_context"][
+                "agent_operator_learning_outcome_attribution"
+            ]
+            cycle_two_outcomes = cycle_two["run_context"][
+                "agent_operator_learning_outcome_attribution"
+            ]
+            self.assertEqual(cycle_one_outcomes["attributed_count"], 0)
+            self.assertGreaterEqual(cycle_two_outcomes["attributed_count"], 1)
+            self.assertIn(
+                "rec-000001",
+                cycle_two_outcomes.get("attributed_recommendation_ids", []),
+            )
+
+            learning_state = _read_json(root / "agent_operator_learning_state.json")
+            self.assertGreaterEqual(learning_state["metrics"]["attributed_count"], 1)
+            self.assertEqual(learning_state["recommendations"][0]["status"], "attributed")
 
     def test_supervisor_exits_non_zero_when_cycle_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

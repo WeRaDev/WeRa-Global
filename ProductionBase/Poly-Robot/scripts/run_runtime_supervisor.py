@@ -8,6 +8,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -393,6 +394,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         default=ROOT_DIR / "runtime" / "operator_action_audit.jsonl",
         help="Path to operator action audit JSONL log.",
+    )
+    parser.add_argument(
+        "--agent-operator-learning-state-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional path to AgentOperator learning state JSON. "
+            "Defaults to sibling of --control-state-path when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-learning-audit-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional path to AgentOperator learning audit JSONL log. "
+            "Defaults to sibling of --control-state-path when omitted."
+        ),
     )
     parser.add_argument(
         "--operator-control-actor",
@@ -827,6 +846,8 @@ def main(argv: list[str] | None = None) -> int:
         control_state_path=args.control_state_path,
         audit_path=args.control_audit_path,
         mode_lifecycle_policy_path=args.mode_lifecycle_policy,
+        agent_operator_learning_state_path=args.agent_operator_learning_state_path,
+        agent_operator_learning_audit_path=args.agent_operator_learning_audit_path,
     )
 
     strategy = BaselineStrategy(parameters, calibration_policy)
@@ -1244,6 +1265,7 @@ def main(argv: list[str] | None = None) -> int:
     def _read_operator_control_state() -> dict:
         default_agent_operator_enabled = bool(args.agent_operator_enabled)
         default_agent_operator_mode = "advisory"
+        default_agent_operator_strategy_auto_apply = True
         default_mode_current = resolved_lifecycle_mode
         default_mode_target = resolved_lifecycle_mode
         if args.ignore_operator_controls or not args.control_state_path.exists():
@@ -1256,6 +1278,14 @@ def main(argv: list[str] | None = None) -> int:
                 "control_version": 0,
                 "agent_operator_enabled": default_agent_operator_enabled,
                 "agent_operator_mode": default_agent_operator_mode,
+                "agent_operator_strategy_auto_apply": (
+                    default_agent_operator_strategy_auto_apply
+                ),
+                "agent_operator_active_candidate_id": "",
+                "agent_operator_active_candidate_scenario": "",
+                "agent_operator_candidate_previous_scenario": "",
+                "agent_operator_candidate_last_action": "",
+                "agent_operator_candidate_last_action_at": "",
                 "mode_current": default_mode_current,
                 "mode_target": default_mode_target,
                 "mode_transition_approval_status": "pending",
@@ -1280,9 +1310,41 @@ def main(argv: list[str] | None = None) -> int:
             control_state["agent_operator_enabled"] = default_agent_operator_enabled
         if "agent_operator_mode" not in control_state:
             control_state["agent_operator_mode"] = default_agent_operator_mode
+        if "agent_operator_strategy_auto_apply" not in control_state:
+            control_state["agent_operator_strategy_auto_apply"] = (
+                default_agent_operator_strategy_auto_apply
+            )
+        if "agent_operator_active_candidate_id" not in control_state:
+            control_state["agent_operator_active_candidate_id"] = ""
+        if "agent_operator_active_candidate_scenario" not in control_state:
+            control_state["agent_operator_active_candidate_scenario"] = ""
+        if "agent_operator_candidate_previous_scenario" not in control_state:
+            control_state["agent_operator_candidate_previous_scenario"] = ""
+        if "agent_operator_candidate_last_action" not in control_state:
+            control_state["agent_operator_candidate_last_action"] = ""
+        if "agent_operator_candidate_last_action_at" not in control_state:
+            control_state["agent_operator_candidate_last_action_at"] = ""
         control_state["agent_operator_mode"] = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode")
         )
+        control_state["agent_operator_strategy_auto_apply"] = bool(
+            control_state.get("agent_operator_strategy_auto_apply", True)
+        )
+        control_state["agent_operator_active_candidate_id"] = str(
+            control_state.get("agent_operator_active_candidate_id", "")
+        ).strip()
+        control_state["agent_operator_active_candidate_scenario"] = str(
+            control_state.get("agent_operator_active_candidate_scenario", "")
+        ).strip()
+        control_state["agent_operator_candidate_previous_scenario"] = str(
+            control_state.get("agent_operator_candidate_previous_scenario", "")
+        ).strip()
+        control_state["agent_operator_candidate_last_action"] = str(
+            control_state.get("agent_operator_candidate_last_action", "")
+        ).strip()
+        control_state["agent_operator_candidate_last_action_at"] = str(
+            control_state.get("agent_operator_candidate_last_action_at", "")
+        ).strip()
         control_state["mode_current"] = normalize_lifecycle_mode(
             control_state.get("mode_current", default_mode_current)
         )
@@ -1366,6 +1428,15 @@ def main(argv: list[str] | None = None) -> int:
         agent_operator_mode = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode", "advisory")
         )
+        agent_operator_strategy_auto_apply = bool(
+            control_state.get("agent_operator_strategy_auto_apply", True)
+        )
+        agent_operator_active_candidate_id = str(
+            control_state.get("agent_operator_active_candidate_id", "")
+        ).strip()
+        agent_operator_active_candidate_scenario = str(
+            control_state.get("agent_operator_active_candidate_scenario", "")
+        ).strip()
         mode_current = normalize_lifecycle_mode(
             control_state.get("mode_current", resolved_lifecycle_mode)
         )
@@ -1431,6 +1502,15 @@ def main(argv: list[str] | None = None) -> int:
                 "cancel_all_requested": cancel_all_requested,
                 "agent_operator_enabled": agent_operator_enabled,
                 "agent_operator_mode": agent_operator_mode,
+                "agent_operator_strategy_auto_apply": (
+                    agent_operator_strategy_auto_apply
+                ),
+                "agent_operator_active_candidate_id": (
+                    agent_operator_active_candidate_id
+                ),
+                "agent_operator_active_candidate_scenario": (
+                    agent_operator_active_candidate_scenario
+                ),
                 "mode_current": mode_current,
                 "mode_target": mode_target,
                 "mode_transition_approval_status": mode_transition_approval_status,
@@ -2102,8 +2182,73 @@ def main(argv: list[str] | None = None) -> int:
                         "available_scenarios": available_scenarios,
                     }
                 )
+        final_portfolio = run.final_portfolio
+        cycle_net_pnl = round(
+            final_portfolio.current_equity - final_portfolio.day_start_equity,
+            4,
+        )
+        agent_operator_learning_recommendation: dict[str, Any] | None = None
+        agent_operator_learning_candidate: dict[str, Any] | None = None
+        agent_operator_learning_record_error = ""
+        agent_operator_outcome_attribution: dict[str, Any] = {
+            "attributed_count": 0,
+            "attributed_recommendation_ids": [],
+        }
+        agent_operator_outcome_attribution_error = ""
+        strategy_scenario_candidate_id = ""
 
         strategy_scenario_hint = str(agent_operator_result.get("scenario_hint", "")).strip()
+        if agent_operator_result.get("status") == "OK":
+            try:
+                learning_record = control_manager.record_agent_operator_recommendation(
+                    cycle_index=cycle_index,
+                    scenario_name=run_scenario_name,
+                    mode=agent_operator_mode,
+                    recommendation=agent_operator_result,
+                    baseline_net_pnl=cycle_net_pnl,
+                    baseline_expected_value_after_execution_cost=(
+                        run.expected_value_after_execution_cost
+                    ),
+                )
+            except Exception as error:  # pragma: no cover - fail-open safety path
+                agent_operator_learning_record_error = str(error)
+                heartbeat(
+                    "agent_operator_learning_record_failed",
+                    {
+                        "cycle_index": cycle_index,
+                        "agent_operator_mode": agent_operator_mode,
+                        "error": agent_operator_learning_record_error,
+                    },
+                )
+            else:
+                recommendation_payload = learning_record.get("recommendation")
+                if isinstance(recommendation_payload, dict):
+                    agent_operator_learning_recommendation = recommendation_payload
+                candidate_payload = learning_record.get("candidate")
+                if isinstance(candidate_payload, dict):
+                    agent_operator_learning_candidate = candidate_payload
+                    candidate_scenario_hint = str(
+                        candidate_payload.get("scenario_name", "")
+                    ).strip()
+                    if candidate_scenario_hint:
+                        strategy_scenario_hint = candidate_scenario_hint
+                heartbeat(
+                    "agent_operator_learning_recorded",
+                    {
+                        "cycle_index": cycle_index,
+                        "agent_operator_mode": agent_operator_mode,
+                        "recommendation_id": str(
+                            (
+                                agent_operator_learning_recommendation or {}
+                            ).get("recommendation_id", "")
+                        ).strip(),
+                        "candidate_id": str(
+                            (
+                                agent_operator_learning_candidate or {}
+                            ).get("candidate_id", "")
+                        ).strip(),
+                    },
+                )
         if (
             agent_operator_enabled
             and agent_operator_mode == "strategy"
@@ -2114,33 +2259,90 @@ def main(argv: list[str] | None = None) -> int:
                 strategy_scenario_rejected_reason = (
                     "strategy_scenario_hint_unsupported_for_live_mode"
                 )
+            elif not agent_operator_strategy_auto_apply:
+                strategy_scenario_rejected_reason = "strategy_auto_apply_disabled"
             else:
+                candidate_id_to_apply = str(
+                    (agent_operator_learning_candidate or {}).get("candidate_id", "")
+                ).strip()
+                scenario_to_apply = str(
+                    (agent_operator_learning_candidate or {}).get(
+                        "scenario_name",
+                        strategy_scenario_hint,
+                    )
+                ).strip() or strategy_scenario_hint
                 try:
-                    _resolve_scenario_run_inputs(strategy_scenario_hint)
+                    _resolve_scenario_run_inputs(scenario_to_apply)
                 except ValueError:
                     strategy_scenario_rejected_reason = (
                         "invalid_strategy_scenario_hint"
                     )
                 else:
-                    if strategy_scenario_hint != selected_scenario_name:
+                    if scenario_to_apply != selected_scenario_name:
                         if args.ignore_operator_controls:
                             strategy_scenario_rejected_reason = (
                                 "operator_controls_ignored"
                             )
+                        elif not candidate_id_to_apply:
+                            strategy_scenario_rejected_reason = (
+                                "strategy_candidate_missing"
+                            )
                         else:
-                            control_manager.set_scenario(
+                            control_manager.apply_agent_operator_candidate(
                                 actor=args.operator_control_actor,
-                                scenario_name=strategy_scenario_hint,
+                                candidate_id=candidate_id_to_apply,
+                                reason=(
+                                    f"strategy_auto_apply_cycle_{cycle_index}"
+                                ),
                             )
                             strategy_scenario_applied = True
+                            strategy_scenario_candidate_id = candidate_id_to_apply
                             heartbeat(
-                                "agent_operator_strategy_scenario_applied",
+                                "agent_operator_strategy_candidate_applied",
                                 {
                                     "cycle_index": cycle_index,
                                     "selected_scenario": selected_scenario_name,
-                                    "strategy_scenario_hint": strategy_scenario_hint,
+                                    "strategy_scenario_hint": scenario_to_apply,
+                                    "candidate_id": candidate_id_to_apply,
                                 },
                             )
+        try:
+            agent_operator_outcome_attribution = (
+                control_manager.attribute_agent_operator_outcomes(
+                    current_cycle_index=cycle_index,
+                    current_net_pnl=cycle_net_pnl,
+                    current_expected_value_after_execution_cost=(
+                        run.expected_value_after_execution_cost
+                    ),
+                )
+            )
+        except Exception as error:  # pragma: no cover - fail-open safety path
+            agent_operator_outcome_attribution_error = str(error)
+            heartbeat(
+                "agent_operator_learning_outcome_attribution_failed",
+                {
+                    "cycle_index": cycle_index,
+                    "error": agent_operator_outcome_attribution_error,
+                },
+            )
+        else:
+            attributed_count = int(
+                agent_operator_outcome_attribution.get("attributed_count", 0) or 0
+            )
+            if attributed_count > 0:
+                heartbeat(
+                    "agent_operator_learning_outcomes_attributed",
+                    {
+                        "cycle_index": cycle_index,
+                        "attributed_count": attributed_count,
+                        "attributed_recommendation_ids": list(
+                            agent_operator_outcome_attribution.get(
+                                "attributed_recommendation_ids",
+                                [],
+                            )
+                        ),
+                    },
+                )
         if strategy_scenario_rejected_reason:
             heartbeat(
                 "agent_operator_strategy_scenario_rejected",
@@ -2233,15 +2435,45 @@ def main(argv: list[str] | None = None) -> int:
                     "cancel_all_requested": cancel_all_requested,
                     "cancel_all_acknowledged": cancel_all_acknowledged,
                     "cancel_all_summary": cancel_all_summary,
+                    "agent_operator_strategy_auto_apply": (
+                        agent_operator_strategy_auto_apply
+                    ),
+                    "agent_operator_active_candidate_id": (
+                        agent_operator_active_candidate_id
+                    ),
+                    "agent_operator_active_candidate_scenario": (
+                        agent_operator_active_candidate_scenario
+                    ),
                 },
                 "agent_operator": agent_operator_result,
                 "agent_operator_mode": agent_operator_mode,
+                "agent_operator_strategy_auto_apply": (
+                    agent_operator_strategy_auto_apply
+                ),
                 "agent_operator_strategy_scenario_applied": (
                     strategy_scenario_applied
                 ),
                 "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+                "agent_operator_strategy_candidate_id": (
+                    strategy_scenario_candidate_id
+                ),
                 "agent_operator_strategy_scenario_rejected_reason": (
                     strategy_scenario_rejected_reason
+                ),
+                "agent_operator_learning_recommendation": (
+                    agent_operator_learning_recommendation
+                ),
+                "agent_operator_learning_candidate": (
+                    agent_operator_learning_candidate
+                ),
+                "agent_operator_learning_record_error": (
+                    agent_operator_learning_record_error
+                ),
+                "agent_operator_learning_outcome_attribution": (
+                    agent_operator_outcome_attribution
+                ),
+                "agent_operator_learning_outcome_attribution_error": (
+                    agent_operator_outcome_attribution_error
                 ),
                 "execution": dict(execution_context),
                 "mode_lifecycle": dict(mode_lifecycle_metadata),
@@ -2411,12 +2643,43 @@ def main(argv: list[str] | None = None) -> int:
                     "risk_posture"
                 ),
                 "agent_operator_confidence": agent_operator_result.get("confidence"),
+                "agent_operator_strategy_auto_apply": (
+                    agent_operator_strategy_auto_apply
+                ),
+                "agent_operator_active_candidate_id": (
+                    agent_operator_active_candidate_id
+                ),
+                "agent_operator_active_candidate_scenario": (
+                    agent_operator_active_candidate_scenario
+                ),
                 "agent_operator_strategy_scenario_applied": (
                     strategy_scenario_applied
                 ),
                 "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
                 "agent_operator_strategy_scenario_rejected_reason": (
                     strategy_scenario_rejected_reason
+                ),
+                "agent_operator_learning_recommendation_id": str(
+                    (agent_operator_learning_recommendation or {}).get(
+                        "recommendation_id",
+                        "",
+                    )
+                ).strip(),
+                "agent_operator_learning_candidate_id": str(
+                    (agent_operator_learning_candidate or {}).get(
+                        "candidate_id",
+                        "",
+                    )
+                ).strip(),
+                "agent_operator_learning_record_error": (
+                    agent_operator_learning_record_error
+                ),
+                "agent_operator_learning_outcomes_attributed_count": int(
+                    agent_operator_outcome_attribution.get("attributed_count", 0)
+                    or 0
+                ),
+                "agent_operator_learning_outcome_attribution_error": (
+                    agent_operator_outcome_attribution_error
                 ),
                 "ingestion_status": effective_ingestion_status,
                 "ingestion_reasons": effective_ingestion_reasons,
@@ -2504,10 +2767,31 @@ def main(argv: list[str] | None = None) -> int:
                 "risk_posture"
             ),
             "agent_operator_confidence": agent_operator_result.get("confidence"),
+            "agent_operator_strategy_auto_apply": (
+                agent_operator_strategy_auto_apply
+            ),
+            "agent_operator_active_candidate_id": agent_operator_active_candidate_id,
+            "agent_operator_active_candidate_scenario": (
+                agent_operator_active_candidate_scenario
+            ),
             "agent_operator_strategy_scenario_applied": strategy_scenario_applied,
             "agent_operator_strategy_scenario_hint": strategy_scenario_hint,
+            "agent_operator_strategy_candidate_id": strategy_scenario_candidate_id,
             "agent_operator_strategy_scenario_rejected_reason": (
                 strategy_scenario_rejected_reason
+            ),
+            "agent_operator_learning_recommendation": (
+                agent_operator_learning_recommendation
+            ),
+            "agent_operator_learning_candidate": agent_operator_learning_candidate,
+            "agent_operator_learning_record_error": (
+                agent_operator_learning_record_error
+            ),
+            "agent_operator_learning_outcome_attribution": (
+                agent_operator_outcome_attribution
+            ),
+            "agent_operator_learning_outcome_attribution_error": (
+                agent_operator_outcome_attribution_error
             ),
             "ingestion_status": effective_ingestion_status,
             "ingestion_reasons": effective_ingestion_reasons,

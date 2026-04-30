@@ -66,6 +66,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Path to operator action audit JSONL log.",
     )
     parser.add_argument(
+        "--agent-operator-learning-state-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional path to AgentOperator learning state JSON. "
+            "Defaults to sibling of --control-state-path when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-learning-audit-path",
+        type=Path,
+        required=False,
+        help=(
+            "Optional path to AgentOperator learning audit JSONL log. "
+            "Defaults to sibling of --control-state-path when omitted."
+        ),
+    )
+    parser.add_argument(
         "--kpi-shadow-policy-path",
         type=Path,
         default=ROOT_DIR / "config" / "integration" / "kpi_shadow_policy.v1.json",
@@ -258,6 +276,11 @@ def _html_page() -> str:
         </select>
         <p class="field-hint">Advisory mode is read-only guidance; strategy mode can auto-select scenario hints for future cycles.</p>
       </div>
+      <div class="field-group">
+        <label class="field-label" for="agentOperatorStrategyAutoApply">Strategy Auto Apply</label>
+        <input id="agentOperatorStrategyAutoApply" type="checkbox" title="When enabled, valid strategy recommendations auto-apply candidate scenarios for the next cycle." />
+        <p class="field-hint">Disable to require explicit candidate apply actions via runtime controls.</p>
+      </div>
       <div class="button-group">
         <button onclick="setAgentOperatorAndSend(true, null)" title="Enable AgentOperator using the currently selected mode.">Enable AgentOperator</button>
         <p class="field-hint">Special enable action for turning AgentOperator on quickly during operations.</p>
@@ -269,6 +292,21 @@ def _html_page() -> str:
       <div class="button-group">
         <button onclick="sendControl('/api/control/agent-operator')" title="Persist AgentOperator enabled/mode configuration to control state.">Apply AgentOperator Config</button>
         <p class="field-hint">Writes AgentOperator mode and enabled status to audited control state.</p>
+      </div>
+    </div>
+    <div class="field-grid">
+      <div class="field-group">
+        <label class="field-label" for="agentOperatorCandidateId">Candidate ID</label>
+        <input id="agentOperatorCandidateId" placeholder="cand-000001" title="Candidate identifier from AgentOperator learning payload." />
+        <p class="field-hint">Use empty value on revert to target currently active candidate.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendAgentOperatorCandidateControl('apply')" title="Apply selected candidate scenario to control state and mark candidate active.">Apply Candidate</button>
+        <p class="field-hint">Moves selected candidate into active state and updates selected scenario.</p>
+      </div>
+      <div class="button-group">
+        <button onclick="sendAgentOperatorCandidateControl('revert')" title="Revert selected or active candidate and restore previous scenario when available.">Revert Candidate</button>
+        <p class="field-hint">Reverts candidate activation and clears active candidate metadata.</p>
       </div>
     </div>
     <div class="field-grid">
@@ -321,6 +359,7 @@ def _html_page() -> str:
     </div>
     <div id="modeTransitionStatus"></div>
     <div id="agentOperatorStatus"></div>
+    <div id="agentOperatorCandidateStatus"></div>
     <div id="controlResult"></div>
   </div>
   <div class="card">
@@ -476,6 +515,10 @@ def _html_page() -> str:
       <h2>KPI Shadow Payload</h2>
       <pre id="kpiPayload"></pre>
     </div>
+    <div class="card">
+      <h2>AgentOperator Learning</h2>
+      <pre id="agentOperatorLearningPayload"></pre>
+    </div>
   </div>
   <script>
     const defaultDashboardQuery = {
@@ -508,6 +551,15 @@ def _html_page() -> str:
       }
       return {
         'X-Operator-Token': token
+      };
+    }
+
+    function candidateControlPayload() {
+      const basePayload = controlPayload();
+      return {
+        actor: basePayload.actor,
+        reason: basePayload.reason,
+        candidate_id: (document.getElementById('agentOperatorCandidateId').value || '').trim(),
       };
     }
     function hasNumericValue(value) {
@@ -717,6 +769,7 @@ def _html_page() -> str:
       const kpiSummary = kpiShadow.summary || {};
       const kpiStatusCounts = kpiSummary.status_counts || {};
       const kpiFilters = kpiShadow.filters || {};
+      const agentOperatorLearning = payload.agent_operator_learning || {};
       const statusOrder = ['ok', 'warning', 'critical', 'insufficient_data'];
       const statusCounts = statusOrder.map((statusName) => {
         const count = kpiStatusCounts[statusName] ?? 0;
@@ -730,6 +783,8 @@ def _html_page() -> str:
         ' | domain=' + (kpiFilters.domain ?? 'all') +
         ' | status=' + (kpiFilters.status ?? 'all') +
         ' | ' + statusCounts;
+      document.getElementById('agentOperatorLearningPayload').textContent =
+        JSON.stringify(agentOperatorLearning, null, 2);
 
       const incidentPaging = (payload.incident_feed || {}).paging || {};
       const cursorLabel = incidentPaging.cursor ?? 'latest';
@@ -807,20 +862,47 @@ def _html_page() -> str:
           controlState.agent_operator_mode
         );
       }
+      if (Object.prototype.hasOwnProperty.call(controlState, 'agent_operator_strategy_auto_apply')) {
+        document.getElementById('agentOperatorStrategyAutoApply').checked = Boolean(
+          controlState.agent_operator_strategy_auto_apply
+        );
+      }
       const agentOperatorStatus = loopMetrics.agent_operator_status || 'UNKNOWN';
       const agentOperatorMode = controlState.agent_operator_mode || loopMetrics.agent_operator_mode || 'advisory';
       const agentOperatorModel = loopMetrics.agent_operator_model || '-';
       const strategyScenarioHint = loopMetrics.agent_operator_strategy_scenario_hint || '-';
       const strategyScenarioApplied = loopMetrics.agent_operator_strategy_scenario_applied ? 'yes' : 'no';
       const strategyScenarioRejectedReason = loopMetrics.agent_operator_strategy_scenario_rejected_reason || '-';
+      const strategyAutoApply = String(
+        Boolean(controlState.agent_operator_strategy_auto_apply)
+      );
       document.getElementById('agentOperatorStatus').textContent =
         'AgentOperator status=' + agentOperatorStatus +
         ' | enabled=' + String(Boolean(controlState.agent_operator_enabled)) +
         ' | mode=' + agentOperatorMode +
+        ' | strategy_auto_apply=' + strategyAutoApply +
         ' | model=' + agentOperatorModel +
         ' | strategy_scenario_hint=' + strategyScenarioHint +
         ' | strategy_applied=' + strategyScenarioApplied +
         ' | strategy_rejected_reason=' + strategyScenarioRejectedReason;
+      const activeCandidateId =
+        String(controlState.agent_operator_active_candidate_id || '') ||
+        String(agentOperatorLearning.active_candidate_id || '');
+      const activeCandidateScenario = String(
+        controlState.agent_operator_active_candidate_scenario || ''
+      );
+      const candidateInput = document.getElementById('agentOperatorCandidateId');
+      if (document.activeElement !== candidateInput && activeCandidateId) {
+        candidateInput.value = activeCandidateId;
+      }
+      const learningMetrics = agentOperatorLearning.metrics || {};
+      document.getElementById('agentOperatorCandidateStatus').textContent =
+        'active_candidate_id=' + (activeCandidateId || '-') +
+        ' | active_candidate_scenario=' + (activeCandidateScenario || '-') +
+        ' | last_action=' + (controlState.agent_operator_candidate_last_action || '-') +
+        ' | recommendation_count=' + (learningMetrics.recommendation_count ?? 0) +
+        ' | attributed_count=' + (learningMetrics.attributed_count ?? 0) +
+        ' | win_rate=' + (learningMetrics.outcome_win_rate ?? '-');
       document.getElementById('filterResult').textContent =
         'Incident cursor=' + cursorLabel + ' | older_cursor=' + olderCursor + ' | total=' + totalIncidents;
       updateRefreshStatus('Refresh succeeded');
@@ -835,7 +917,10 @@ def _html_page() -> str:
         agent_operator_enabled: Boolean(
           document.getElementById('agentOperatorEnabled').checked
         ),
-        agent_operator_mode: document.getElementById('agentOperatorMode').value || 'advisory'
+        agent_operator_mode: document.getElementById('agentOperatorMode').value || 'advisory',
+        agent_operator_strategy_auto_apply: Boolean(
+          document.getElementById('agentOperatorStrategyAutoApply').checked
+        ),
       };
     }
 
@@ -911,6 +996,29 @@ def _html_page() -> str:
         document.getElementById('agentOperatorMode').value = String(mode);
       }
       await sendControl('/api/control/agent-operator');
+    }
+    async function sendAgentOperatorCandidateControl(action) {
+      const endpointByAction = {
+        apply: '/api/control/agent-operator/candidate/apply',
+        revert: '/api/control/agent-operator/candidate/revert'
+      };
+      const endpoint = endpointByAction[action];
+      if (!endpoint) {
+        document.getElementById('agentOperatorCandidateStatus').textContent =
+          'Unsupported candidate action: ' + action;
+        return;
+      }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...operatorTokenHeaders()
+        },
+        body: JSON.stringify(candidateControlPayload())
+      });
+      const text = await response.text();
+      document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
+      await fetchDashboard();
     }
     async function manualRefresh() {
       await fetchDashboard();
@@ -1311,13 +1419,67 @@ def _build_handler(
                         reason=reason,
                     )
                 elif parsed.path == "/api/control/agent-operator":
-                    enabled = bool(payload.get("agent_operator_enabled", False))
-                    mode_raw = str(payload.get("agent_operator_mode", "")).strip()
-                    mode = mode_raw or None
+                    enabled_key = None
+                    if "agent_operator_enabled" in payload:
+                        enabled_key = "agent_operator_enabled"
+                    elif "enabled" in payload:
+                        enabled_key = "enabled"
+                    mode_key = None
+                    if "agent_operator_mode" in payload:
+                        mode_key = "agent_operator_mode"
+                    elif "mode" in payload:
+                        mode_key = "mode"
+                    strategy_auto_apply_key = None
+                    if "agent_operator_strategy_auto_apply" in payload:
+                        strategy_auto_apply_key = (
+                            "agent_operator_strategy_auto_apply"
+                        )
+                    elif "strategy_auto_apply" in payload:
+                        strategy_auto_apply_key = "strategy_auto_apply"
+                    enabled = (
+                        bool(payload.get(enabled_key))
+                        if enabled_key is not None
+                        else None
+                    )
+                    mode = (
+                        str(payload.get(mode_key, "")).strip() or None
+                        if mode_key is not None
+                        else None
+                    )
+                    strategy_auto_apply = (
+                        bool(payload.get(strategy_auto_apply_key))
+                        if strategy_auto_apply_key is not None
+                        else None
+                    )
                     state = control_manager.set_agent_operator_config(
                         actor=actor,
                         enabled=enabled,
                         mode=mode,
+                        strategy_auto_apply=strategy_auto_apply,
+                        reason=reason,
+                    )
+                elif parsed.path == "/api/control/agent-operator/candidate/apply":
+                    candidate_id = str(
+                        payload.get(
+                            "candidate_id",
+                            payload.get("agent_operator_candidate_id", ""),
+                        )
+                    ).strip()
+                    state = control_manager.apply_agent_operator_candidate(
+                        actor=actor,
+                        candidate_id=candidate_id,
+                        reason=reason,
+                    )
+                elif parsed.path == "/api/control/agent-operator/candidate/revert":
+                    candidate_id = str(
+                        payload.get(
+                            "candidate_id",
+                            payload.get("agent_operator_candidate_id", ""),
+                        )
+                    ).strip()
+                    state = control_manager.revert_agent_operator_candidate(
+                        actor=actor,
+                        candidate_id=candidate_id,
                         reason=reason,
                     )
                 elif parsed.path in {
@@ -1409,6 +1571,8 @@ def main(argv: list[str] | None = None) -> int:
     control_manager = OperatorControlManager(
         control_state_path=args.control_state_path,
         audit_path=args.audit_path,
+        agent_operator_learning_state_path=args.agent_operator_learning_state_path,
+        agent_operator_learning_audit_path=args.agent_operator_learning_audit_path,
     )
     dashboard_service = RuntimeDashboardService(
         state_path=args.state_path,
@@ -1442,6 +1606,8 @@ def main(argv: list[str] | None = None) -> int:
         f"journal_path={args.journal_path} "
         f"control_state_path={args.control_state_path} "
         f"audit_path={args.audit_path} "
+        f"agent_operator_learning_state_path={args.agent_operator_learning_state_path} "
+        f"agent_operator_learning_audit_path={args.agent_operator_learning_audit_path} "
         f"kpi_shadow_policy_path={args.kpi_shadow_policy_path}"
     )
     server.serve_forever()

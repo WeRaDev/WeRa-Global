@@ -247,6 +247,9 @@ python3 scripts/run_runtime_supervisor.py \
    - `Resume`: removes pause gate and continues processing
    - `Graceful Restart`: requests supervisor restart acknowledgement before next cycle
    - `Set Scenario`: changes scenario used by the next cycle
+   - `AgentOperator`: set `enabled`, choose mode (`advisory` or `strategy`), and control `strategy auto-apply`
+   - `Apply Candidate`: applies a specific AgentOperator strategy candidate for upcoming cycles
+   - `Revert Candidate`: rolls back an applied AgentOperator strategy candidate to the prior scenario baseline
    - `Annotate Incident`: appends an audited operator note
 6. Use **Dashboard Views** refresh controls to tune polling:
    - `Auto Refresh Interval (seconds)`: adjusts periodic dashboard polling cadence
@@ -255,6 +258,13 @@ python3 scripts/run_runtime_supervisor.py \
 7. If GUI is started without `--operator-token` (or without `POLY_ROBOT_OPERATOR_TOKEN`), controls are read-only and POST control actions return 403.
 8. Dashboard GET endpoints (`/api/*`) require `X-Operator-Token` when `--token-required-read-api` is set, and this protection is auto-enabled for non-loopback binds (for example `--host 0.0.0.0`).
 9. Non-loopback startup without an operator token now fails fast; provide `--operator-token` or `POLY_ROBOT_OPERATOR_TOKEN`.
+10. AgentOperator control API supports backward-compatible request payload aliases:
+   - `POST /api/control/agent-operator` accepts canonical and alias keys for each control field:
+     - `agent_operator_enabled` or `enabled`
+     - `agent_operator_mode` or `mode`
+     - `agent_operator_strategy_auto_apply` or `strategy_auto_apply`
+   - `POST /api/control/agent-operator/candidate/apply` and `POST /api/control/agent-operator/candidate/revert` accept:
+     - `candidate_id` or `agent_operator_candidate_id`
 
 Operator token configuration (Docker Compose runtime-gui):
 1. Set a strong operator token in your shell before startup:

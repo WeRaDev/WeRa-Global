@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import threading
+from .agent_operator_learning import AgentOperatorLearningStore
 
 from .mode_lifecycle import (
     build_mode_transition_decision,
@@ -96,6 +97,12 @@ def _default_control_state() -> dict[str, Any]:
         "selected_scenario": "baseline",
         "agent_operator_enabled": False,
         "agent_operator_mode": "advisory",
+        "agent_operator_strategy_auto_apply": True,
+        "agent_operator_active_candidate_id": "",
+        "agent_operator_active_candidate_scenario": "",
+        "agent_operator_candidate_previous_scenario": "",
+        "agent_operator_candidate_last_action": "",
+        "agent_operator_candidate_last_action_at": "",
         "mode_current": "paper",
         "mode_target": "paper",
         "mode_transition_approval_status": "pending",
@@ -292,6 +299,8 @@ class OperatorControlManager:
         control_state_path: Path,
         audit_path: Path,
         mode_lifecycle_policy_path: Path | None = None,
+        agent_operator_learning_state_path: Path | None = None,
+        agent_operator_learning_audit_path: Path | None = None,
     ) -> None:
         self.control_state_path = control_state_path
         self.audit_path = audit_path
@@ -300,6 +309,20 @@ class OperatorControlManager:
             f"{self.control_state_path.name}.lock"
         )
         self._mutation_lock = threading.RLock()
+        resolved_learning_state_path = (
+            agent_operator_learning_state_path
+            if agent_operator_learning_state_path is not None
+            else self.control_state_path.with_name("agent_operator_learning_state.json")
+        )
+        resolved_learning_audit_path = (
+            agent_operator_learning_audit_path
+            if agent_operator_learning_audit_path is not None
+            else self.control_state_path.with_name("agent_operator_learning_audit.jsonl")
+        )
+        self.agent_operator_learning_store = AgentOperatorLearningStore(
+            state_path=resolved_learning_state_path,
+            event_log_path=resolved_learning_audit_path,
+        )
 
     @contextmanager
     def _interprocess_lock(self) -> Iterator[None]:
@@ -473,10 +496,11 @@ class OperatorControlManager:
         actor: str,
         enabled: bool | None = None,
         mode: str | None = None,
+        strategy_auto_apply: bool | None = None,
         reason: str = "",
     ) -> dict[str, Any]:
-        if enabled is None and mode is None:
-            raise ValueError("enabled or mode must be provided")
+        if enabled is None and mode is None and strategy_auto_apply is None:
+            raise ValueError("enabled, mode, or strategy_auto_apply must be provided")
         normalized_mode: str | None = None
         if mode is not None:
             normalized_mode = str(mode).strip().lower()
@@ -489,6 +513,10 @@ class OperatorControlManager:
                 state["agent_operator_enabled"] = bool(enabled)
             if normalized_mode is not None:
                 state["agent_operator_mode"] = normalized_mode
+            if strategy_auto_apply is not None:
+                state["agent_operator_strategy_auto_apply"] = bool(
+                    strategy_auto_apply
+                )
             if normalized_reason:
                 state["agent_operator_reason"] = normalized_reason
 
@@ -497,6 +525,8 @@ class OperatorControlManager:
             details["agent_operator_enabled"] = bool(enabled)
         if normalized_mode is not None:
             details["agent_operator_mode"] = normalized_mode
+        if strategy_auto_apply is not None:
+            details["agent_operator_strategy_auto_apply"] = bool(strategy_auto_apply)
         if normalized_reason:
             details["reason"] = normalized_reason
 
@@ -574,6 +604,138 @@ class OperatorControlManager:
                 "reason": normalized_reason,
                 "approval_status": normalized_approval_status,
                 "evidence_keys": sorted(str(key) for key in evidence_updates.keys()),
+            },
+            mutate_state=_apply,
+        )
+
+    def record_agent_operator_recommendation(
+        self,
+        *,
+        cycle_index: int,
+        scenario_name: str,
+        mode: str,
+        recommendation: dict[str, Any],
+        baseline_net_pnl: float | None,
+        baseline_expected_value_after_execution_cost: float | None,
+    ) -> dict[str, Any]:
+        return self.agent_operator_learning_store.record_recommendation(
+            cycle_index=cycle_index,
+            scenario_name=scenario_name,
+            mode=mode,
+            recommendation=recommendation,
+            baseline_net_pnl=baseline_net_pnl,
+            baseline_expected_value_after_execution_cost=(
+                baseline_expected_value_after_execution_cost
+            ),
+        )
+
+    def attribute_agent_operator_outcomes(
+        self,
+        *,
+        current_cycle_index: int,
+        current_net_pnl: float | None,
+        current_expected_value_after_execution_cost: float | None,
+    ) -> dict[str, Any]:
+        return self.agent_operator_learning_store.attribute_outcomes(
+            current_cycle_index=current_cycle_index,
+            current_net_pnl=current_net_pnl,
+            current_expected_value_after_execution_cost=(
+                current_expected_value_after_execution_cost
+            ),
+        )
+
+    def get_agent_operator_learning_payload(
+        self,
+        *,
+        candidate_limit: int = 20,
+        recommendation_limit: int = 20,
+    ) -> dict[str, Any]:
+        return self.agent_operator_learning_store.build_dashboard_payload(
+            candidate_limit=candidate_limit,
+            recommendation_limit=recommendation_limit,
+        )
+
+    def apply_agent_operator_candidate(
+        self,
+        *,
+        actor: str,
+        candidate_id: str,
+        reason: str = "",
+    ) -> dict[str, Any]:
+        candidate = self.agent_operator_learning_store.apply_candidate(
+            candidate_id=candidate_id,
+            actor=actor,
+            reason=reason,
+        )
+        candidate_id_value = str(candidate.get("candidate_id", "")).strip()
+        scenario_name = str(candidate.get("scenario_name", "")).strip()
+        if not scenario_name:
+            raise ValueError("candidate scenario_name is empty")
+        candidate_action_at = _utc_now_iso()
+
+        def _apply(state: dict[str, Any]) -> None:
+            previous_scenario = str(state.get("selected_scenario", "")).strip()
+            state["agent_operator_candidate_previous_scenario"] = previous_scenario
+            state["selected_scenario"] = scenario_name
+            state["agent_operator_active_candidate_id"] = candidate_id_value
+            state["agent_operator_active_candidate_scenario"] = scenario_name
+            state["agent_operator_candidate_last_action"] = "applied"
+            state["agent_operator_candidate_last_action_at"] = candidate_action_at
+
+        return self._mutate_state(
+            action="agent_operator_candidate_applied",
+            actor=actor,
+            details={
+                "candidate_id": candidate_id_value,
+                "scenario_name": scenario_name,
+                "reason": reason,
+            },
+            mutate_state=_apply,
+        )
+
+    def revert_agent_operator_candidate(
+        self,
+        *,
+        actor: str,
+        candidate_id: str = "",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        current_state = self.load_control_state()
+        resolved_candidate_id = str(candidate_id or "").strip() or str(
+            current_state.get("agent_operator_active_candidate_id", "")
+        ).strip()
+        if not resolved_candidate_id:
+            raise ValueError("candidate_id must not be empty")
+        candidate = self.agent_operator_learning_store.revert_candidate(
+            candidate_id=resolved_candidate_id,
+            actor=actor,
+            reason=reason,
+        )
+        candidate_action_at = _utc_now_iso()
+        restored_scenario = str(
+            current_state.get("agent_operator_candidate_previous_scenario", "")
+        ).strip()
+
+        def _apply(state: dict[str, Any]) -> None:
+            active_candidate_id = str(
+                state.get("agent_operator_active_candidate_id", "")
+            ).strip()
+            if active_candidate_id == resolved_candidate_id:
+                if restored_scenario:
+                    state["selected_scenario"] = restored_scenario
+                state["agent_operator_active_candidate_id"] = ""
+                state["agent_operator_active_candidate_scenario"] = ""
+                state["agent_operator_candidate_previous_scenario"] = ""
+            state["agent_operator_candidate_last_action"] = "reverted"
+            state["agent_operator_candidate_last_action_at"] = candidate_action_at
+
+        return self._mutate_state(
+            action="agent_operator_candidate_reverted",
+            actor=actor,
+            details={
+                "candidate_id": str(candidate.get("candidate_id", "")).strip(),
+                "restored_scenario": restored_scenario,
+                "reason": reason,
             },
             mutate_state=_apply,
         )
@@ -2139,6 +2301,7 @@ class RuntimeDashboardService:
         event_counts = self._summarize_event_counts(journal_rows)
         worker_activity = self._summarize_worker_activity(journal_rows)
         control_state = self.control_manager.load_control_state()
+        agent_operator_learning = self.control_manager.get_agent_operator_learning_payload()
         audit_events = self.control_manager.list_audit_events(
             limit=audit_limit,
             action=audit_action,
@@ -2204,6 +2367,7 @@ class RuntimeDashboardService:
             "worker_activity": worker_activity,
             "loop_metrics": loop_metrics,
             "financial_metrics": financial_metrics,
+            "agent_operator_learning": agent_operator_learning,
             "recent_journal_events": journal_rows[-events_limit:],
             "recent_operator_actions": audit_events,
             "incident_feed": incident_feed,
