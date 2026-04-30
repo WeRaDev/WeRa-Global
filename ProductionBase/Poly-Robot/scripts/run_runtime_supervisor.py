@@ -25,6 +25,12 @@ from poly_robot.integration_adapters import (  # noqa: E402
     PolymarketClobExecutionAdapter,
 )
 from poly_robot.llm_policy import load_calibration_policy  # noqa: E402
+from poly_robot.mode_lifecycle import (  # noqa: E402
+    build_mode_transition_decision,
+    normalize_mode as normalize_lifecycle_mode,
+    resolve_mode_lifecycle_policy,
+    select_test_mode_environment,
+)
 from poly_robot.paper_execution import PaperExecutionAdapter  # noqa: E402
 from poly_robot.reproducibility import hash_events, stable_hash  # noqa: E402
 from poly_robot.risk_engine import RiskEngine  # noqa: E402
@@ -37,6 +43,14 @@ from poly_robot.scenario_pack import (  # noqa: E402
 )
 from poly_robot.strategy_baseline import BaselineStrategy  # noqa: E402
 from poly_robot.test_token_loop import TestTokenLoop, serialize_test_token_loop_run  # noqa: E402
+EXECUTION_MODE_BY_LIFECYCLE_MODE = {
+    "paper": "paper",
+    "test": "test_polymarket_clob",
+    "live": "live_polymarket_clob",
+}
+LIFECYCLE_MODE_BY_EXECUTION_MODE = {
+    value: key for key, value in EXECUTION_MODE_BY_LIFECYCLE_MODE.items()
+}
 
 
 def _load_json(path: Path) -> dict:
@@ -172,6 +186,24 @@ def _normalize_agent_operator_mode(value: object) -> str:
         return "advisory"
     return mode
 
+
+def _normalize_mode_transition_approval_status(value: object) -> str:
+    status = str(value or "pending").strip().lower()
+    if status not in {"pending", "approved", "rejected"}:
+        return "pending"
+    return status
+
+
+def _execution_mode_for_lifecycle_mode(mode: object) -> str:
+    normalized_mode = normalize_lifecycle_mode(mode)
+    return EXECUTION_MODE_BY_LIFECYCLE_MODE.get(normalized_mode, "paper")
+
+
+def _lifecycle_mode_for_execution_mode(mode: object) -> str:
+    normalized_mode = str(mode or "paper").strip().lower()
+    return LIFECYCLE_MODE_BY_EXECUTION_MODE.get(normalized_mode, "paper")
+
+
 def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
     return max(1, math.ceil(secret_max_age_seconds / 86_400))
 
@@ -243,10 +275,6 @@ def _run_live_credential_preflight(
 
     preflight_summary["status"] = "passed"
     return preflight_summary
-
-
-def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
-    return max(1, math.ceil(secret_max_age_seconds / 86_400))
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -476,11 +504,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--execution-mode",
         type=str,
-        choices=["paper", "live_polymarket_clob"],
+        choices=["paper", "test_polymarket_clob", "live_polymarket_clob"],
         required=False,
         help=(
             "Execution adapter mode; defaults to rollout config "
             "default_execution_mode when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--mode-lifecycle-policy",
+        type=Path,
+        default=ROOT_DIR
+        / "config"
+        / "integration"
+        / "mode_lifecycle_policy.v1.json",
+        help="Path to mode lifecycle policy JSON.",
+    )
+    parser.add_argument(
+        "--mode-lifecycle-mode",
+        type=str,
+        choices=["paper", "test", "live"],
+        required=False,
+        help=(
+            "Optional lifecycle mode override. When omitted, defaults to "
+            "the policy default mode or the resolved execution mode mapping."
+        ),
+    )
+    parser.add_argument(
+        "--disable-testnet-parity",
+        action="store_true",
+        help=(
+            "Force test-mode execution to use fallback environment semantics "
+            "instead of testnet parity."
         ),
     )
     parser.add_argument(
@@ -500,7 +555,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         required=False,
         help=(
-            "Optional rollout stage override for live_polymarket_clob "
+            "Optional rollout stage override for test_polymarket_clob/live_polymarket_clob "
             "execution mode."
         ),
     )
@@ -752,24 +807,74 @@ def main(argv: list[str] | None = None) -> int:
             whale_signal_wallet_threshold=args.live_wallet_convergence_threshold,
             wallet_convergence_loader=wallet_convergence_loader,
         )
+    mode_lifecycle_policy_payload = resolve_mode_lifecycle_policy(None)
+    if args.mode_lifecycle_policy.exists():
+        raw_mode_lifecycle_policy_payload = _load_json(args.mode_lifecycle_policy)
+        if not isinstance(raw_mode_lifecycle_policy_payload, dict):
+            raise ValueError(
+                "Mode lifecycle policy must be a JSON object "
+                f"({args.mode_lifecycle_policy})"
+            )
+        mode_lifecycle_policy_payload = resolve_mode_lifecycle_policy(
+            raw_mode_lifecycle_policy_payload
+        )
+    mode_lifecycle_policy_hash = stable_hash(mode_lifecycle_policy_payload)
+    mode_lifecycle_default_mode = normalize_lifecycle_mode(
+        mode_lifecycle_policy_payload.get("default_mode", "paper")
+    )
+
     control_manager = OperatorControlManager(
         control_state_path=args.control_state_path,
         audit_path=args.control_audit_path,
+        mode_lifecycle_policy_path=args.mode_lifecycle_policy,
     )
 
     strategy = BaselineStrategy(parameters, calibration_policy)
     risk = RiskEngine(parameters)
     rollout_payload = _load_json(args.live_rollout_config)
     rollout_default_execution_mode = str(
-        rollout_payload.get("default_execution_mode", "paper")
-    ).strip() or "paper"
-    resolved_execution_mode = str(
-        args.execution_mode or rollout_default_execution_mode
-    ).strip()
-    if resolved_execution_mode not in {"paper", "live_polymarket_clob"}:
+        rollout_payload.get(
+            "default_execution_mode",
+            _execution_mode_for_lifecycle_mode(mode_lifecycle_default_mode),
+        )
+    ).strip().lower() or _execution_mode_for_lifecycle_mode(mode_lifecycle_default_mode)
+    if rollout_default_execution_mode not in LIFECYCLE_MODE_BY_EXECUTION_MODE:
+        rollout_default_execution_mode = _execution_mode_for_lifecycle_mode(
+            mode_lifecycle_default_mode
+        )
+
+    execution_mode_override = str(args.execution_mode or "").strip().lower() or None
+    lifecycle_mode_override = (
+        normalize_lifecycle_mode(args.mode_lifecycle_mode)
+        if args.mode_lifecycle_mode is not None
+        else None
+    )
+    if (
+        execution_mode_override is not None
+        and lifecycle_mode_override is not None
+        and _lifecycle_mode_for_execution_mode(execution_mode_override)
+        != lifecycle_mode_override
+    ):
         raise ValueError(
-            "--execution-mode must be one of paper, live_polymarket_clob "
-            f"(resolved={resolved_execution_mode!r})"
+            "Execution mode override does not match lifecycle mode override "
+            f"(execution_mode={execution_mode_override!r}, "
+            f"lifecycle_mode={lifecycle_mode_override!r})"
+        )
+
+    if execution_mode_override is not None:
+        resolved_execution_mode = execution_mode_override
+        resolved_lifecycle_mode = _lifecycle_mode_for_execution_mode(
+            resolved_execution_mode
+        )
+    elif lifecycle_mode_override is not None:
+        resolved_lifecycle_mode = lifecycle_mode_override
+        resolved_execution_mode = _execution_mode_for_lifecycle_mode(
+            resolved_lifecycle_mode
+        )
+    else:
+        resolved_execution_mode = rollout_default_execution_mode
+        resolved_lifecycle_mode = _lifecycle_mode_for_execution_mode(
+            resolved_execution_mode
         )
 
     execution_context: dict[str, object]
@@ -777,6 +882,9 @@ def main(argv: list[str] | None = None) -> int:
         execution_adapter = PaperExecutionAdapter(parameters)
         execution_context = {
             "mode": "paper",
+            "lifecycle_mode": resolved_lifecycle_mode,
+            "mode_lifecycle_policy_path": str(args.mode_lifecycle_policy),
+            "mode_lifecycle_policy_hash": mode_lifecycle_policy_hash,
             "rollout_config_path": str(args.live_rollout_config),
             "rollout_stage": "paper",
             "rollout_stage_enabled": True,
@@ -785,6 +893,9 @@ def main(argv: list[str] | None = None) -> int:
             "required_env_vars": [],
             "clob_base_url": None,
             "clob_config_path": None,
+            "test_mode_environment": None,
+            "test_mode_environment_fallback_used": False,
+            "test_mode_environment_reason_code": "",
             "credential_preflight": {
                 "required": False,
                 "status": "skipped",
@@ -804,9 +915,14 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(
                 "Polymarket CLOB config must include endpoints.clob_rest_base_url"
             )
+        default_rollout_stage_override = (
+            "canary_live"
+            if resolved_execution_mode == "test_polymarket_clob"
+            else None
+        )
         rollout_stage_name, rollout_stage_payload = _resolve_rollout_stage(
             rollout_payload,
-            requested_stage=args.live_rollout_stage,
+            requested_stage=args.live_rollout_stage or default_rollout_stage_override,
         )
         global_guards = rollout_payload.get("global_guards")
         secrets_policy = rollout_payload.get("secrets_policy")
@@ -971,6 +1087,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             if isinstance(raw_audit_path, str) and raw_audit_path.strip():
                 execution_adapter_audit_path = Path(raw_audit_path.strip())
+
+        test_mode_environment = (
+            select_test_mode_environment(
+                policy=mode_lifecycle_policy_payload,
+                testnet_parity_supported=not bool(args.disable_testnet_parity),
+            )
+            if resolved_execution_mode == "test_polymarket_clob"
+            else {
+                "selected_environment": "",
+                "fallback_used": False,
+                "reason_code": "",
+                "primary_environment": "",
+                "fallback_environment": "",
+            }
+        )
+
         execution_adapter = PolymarketClobExecutionAdapter(
             clob_base_url=clob_base_url,
             rollout_stage=rollout_stage_name,
@@ -999,7 +1131,10 @@ def main(argv: list[str] | None = None) -> int:
             allow_real_trading=bool(args.allow_real_trading),
         )
         execution_context = {
-            "mode": "live_polymarket_clob",
+            "mode": resolved_execution_mode,
+            "lifecycle_mode": resolved_lifecycle_mode,
+            "mode_lifecycle_policy_path": str(args.mode_lifecycle_policy),
+            "mode_lifecycle_policy_hash": mode_lifecycle_policy_hash,
             "rollout_config_path": str(args.live_rollout_config),
             "rollout_stage": rollout_stage_name,
             "rollout_stage_enabled": stage_enabled,
@@ -1019,6 +1154,19 @@ def main(argv: list[str] | None = None) -> int:
             "preferred_secret_sources": list(preferred_secret_sources),
             "max_secret_age_days": secret_max_age_days,
             "user_channel_max_staleness_seconds": user_channel_max_staleness_seconds,
+            "test_mode_environment": test_mode_environment.get("selected_environment"),
+            "test_mode_environment_fallback_used": bool(
+                test_mode_environment.get("fallback_used", False)
+            ),
+            "test_mode_environment_reason_code": str(
+                test_mode_environment.get("reason_code", "")
+            ),
+            "test_mode_environment_primary": test_mode_environment.get(
+                "primary_environment"
+            ),
+            "test_mode_environment_fallback": test_mode_environment.get(
+                "fallback_environment"
+            ),
             "execution_adapter_audit_path": (
                 str(execution_adapter_audit_path)
                 if execution_adapter_audit_path is not None
@@ -1096,6 +1244,8 @@ def main(argv: list[str] | None = None) -> int:
     def _read_operator_control_state() -> dict:
         default_agent_operator_enabled = bool(args.agent_operator_enabled)
         default_agent_operator_mode = "advisory"
+        default_mode_current = resolved_lifecycle_mode
+        default_mode_target = resolved_lifecycle_mode
         if args.ignore_operator_controls or not args.control_state_path.exists():
             return {
                 "paused": False,
@@ -1106,6 +1256,16 @@ def main(argv: list[str] | None = None) -> int:
                 "control_version": 0,
                 "agent_operator_enabled": default_agent_operator_enabled,
                 "agent_operator_mode": default_agent_operator_mode,
+                "mode_current": default_mode_current,
+                "mode_target": default_mode_target,
+                "mode_transition_approval_status": "pending",
+                "mode_transition_evidence": {},
+                "mode_transition_last_decision": {},
+                "mode_transition_last_decision_at": "",
+                "mode_transition_last_transition_at": "",
+                "mode_transition_last_actor": "",
+                "mode_transition_last_reason": "",
+                "mode_transition_last_action": "",
             }
 
         control_state = control_manager.load_control_state()
@@ -1123,6 +1283,33 @@ def main(argv: list[str] | None = None) -> int:
         control_state["agent_operator_mode"] = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode")
         )
+        control_state["mode_current"] = normalize_lifecycle_mode(
+            control_state.get("mode_current", default_mode_current)
+        )
+        control_state["mode_target"] = normalize_lifecycle_mode(
+            control_state.get("mode_target", control_state["mode_current"])
+        )
+        control_state["mode_transition_approval_status"] = (
+            _normalize_mode_transition_approval_status(
+                control_state.get("mode_transition_approval_status", "pending")
+            )
+        )
+        mode_transition_evidence = control_state.get("mode_transition_evidence")
+        if not isinstance(mode_transition_evidence, dict):
+            mode_transition_evidence = {}
+        control_state["mode_transition_evidence"] = mode_transition_evidence
+        if not isinstance(control_state.get("mode_transition_last_decision"), dict):
+            control_state["mode_transition_last_decision"] = {}
+        if "mode_transition_last_decision_at" not in control_state:
+            control_state["mode_transition_last_decision_at"] = ""
+        if "mode_transition_last_transition_at" not in control_state:
+            control_state["mode_transition_last_transition_at"] = ""
+        if "mode_transition_last_actor" not in control_state:
+            control_state["mode_transition_last_actor"] = ""
+        if "mode_transition_last_reason" not in control_state:
+            control_state["mode_transition_last_reason"] = ""
+        if "mode_transition_last_action" not in control_state:
+            control_state["mode_transition_last_action"] = ""
         return control_state
 
     if args.cycle_output_dir:
@@ -1179,6 +1366,59 @@ def main(argv: list[str] | None = None) -> int:
         agent_operator_mode = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode", "advisory")
         )
+        mode_current = normalize_lifecycle_mode(
+            control_state.get("mode_current", resolved_lifecycle_mode)
+        )
+        mode_target = normalize_lifecycle_mode(
+            control_state.get("mode_target", mode_current)
+        )
+        mode_transition_approval_status = _normalize_mode_transition_approval_status(
+            control_state.get("mode_transition_approval_status", "pending")
+        )
+        raw_mode_transition_evidence = control_state.get("mode_transition_evidence")
+        mode_transition_evidence = (
+            dict(raw_mode_transition_evidence)
+            if isinstance(raw_mode_transition_evidence, dict)
+            else {}
+        )
+        mode_transition_decision = build_mode_transition_decision(
+            current_mode=mode_current,
+            target_mode=mode_target,
+            policy=mode_lifecycle_policy_payload,
+            evidence=mode_transition_evidence,
+            manual_approval_status=mode_transition_approval_status,
+            actor=args.operator_control_actor,
+            reason="runtime_supervisor_cycle_gate",
+        )
+        mode_transition_allowed = bool(mode_transition_decision.get("allowed", False))
+        mode_transition_reason_codes = [
+            str(reason_code).strip()
+            for reason_code in mode_transition_decision.get("reason_codes", [])
+            if str(reason_code).strip()
+        ]
+        mode_transition_decision_hash = str(
+            mode_transition_decision.get("decision_hash", "")
+        )
+        mode_effective = mode_target if mode_transition_allowed else mode_current
+        expected_execution_mode = _execution_mode_for_lifecycle_mode(mode_effective)
+        execution_mode_matches_lifecycle = (
+            expected_execution_mode == resolved_execution_mode
+        )
+        mode_lifecycle_metadata = {
+            "mode_lifecycle_current_mode": mode_current,
+            "mode_lifecycle_target_mode": mode_target,
+            "mode_lifecycle_transition_allowed": mode_transition_allowed,
+            "mode_lifecycle_transition_reason_codes": mode_transition_reason_codes,
+            "mode_lifecycle_decision_hash": mode_transition_decision_hash,
+            "mode_lifecycle_approval_status": mode_transition_approval_status,
+            "mode_lifecycle_effective_mode": mode_effective,
+            "mode_lifecycle_expected_execution_mode": expected_execution_mode,
+            "mode_lifecycle_execution_mode": resolved_execution_mode,
+            "mode_lifecycle_execution_mode_matches": execution_mode_matches_lifecycle,
+            "mode_lifecycle_policy_hash": mode_lifecycle_policy_hash,
+            "mode_lifecycle_policy_path": str(args.mode_lifecycle_policy),
+            "mode_lifecycle_decision": mode_transition_decision,
+        }
         heartbeat(
             "cycle_started",
             {
@@ -1191,6 +1431,16 @@ def main(argv: list[str] | None = None) -> int:
                 "cancel_all_requested": cancel_all_requested,
                 "agent_operator_enabled": agent_operator_enabled,
                 "agent_operator_mode": agent_operator_mode,
+                "mode_current": mode_current,
+                "mode_target": mode_target,
+                "mode_transition_approval_status": mode_transition_approval_status,
+                "mode_transition_allowed": mode_transition_allowed,
+                "mode_transition_reason_codes": mode_transition_reason_codes,
+                "mode_transition_decision_hash": mode_transition_decision_hash,
+                "mode_effective": mode_effective,
+                "expected_execution_mode": expected_execution_mode,
+                "execution_mode": resolved_execution_mode,
+                "execution_mode_matches_lifecycle": execution_mode_matches_lifecycle,
             },
         )
 
@@ -1275,6 +1525,7 @@ def main(argv: list[str] | None = None) -> int:
                 "agent_operator_strategy_scenario_applied": False,
                 "agent_operator_strategy_scenario_hint": "",
                 "agent_operator_strategy_scenario_rejected_reason": "",
+                **mode_lifecycle_metadata,
             }
 
         if paused:
@@ -1352,6 +1603,92 @@ def main(argv: list[str] | None = None) -> int:
                 "agent_operator_strategy_scenario_applied": False,
                 "agent_operator_strategy_scenario_hint": "",
                 "agent_operator_strategy_scenario_rejected_reason": "",
+                **mode_lifecycle_metadata,
+            }
+        if not execution_mode_matches_lifecycle:
+            mismatch_reason = "mode_lifecycle_execution_mode_mismatch"
+            agent_operator_result = _agent_operator_skipped_result(
+                mismatch_reason,
+                mode=agent_operator_mode,
+            )
+            heartbeat(
+                "mode_lifecycle_execution_mode_mismatch",
+                {
+                    "cycle_index": cycle_index,
+                    "control_version": control_version,
+                    "mode_current": mode_current,
+                    "mode_target": mode_target,
+                    "mode_effective": mode_effective,
+                    "mode_transition_allowed": mode_transition_allowed,
+                    "expected_execution_mode": expected_execution_mode,
+                    "execution_mode": resolved_execution_mode,
+                    "mode_transition_reason_codes": mode_transition_reason_codes,
+                    "mode_transition_decision_hash": mode_transition_decision_hash,
+                },
+            )
+            return {
+                "cycle_index": cycle_index,
+                "cycle_status": "MODE_LIFECYCLE_EXECUTION_MODE_MISMATCH",
+                "selected_scenario": selected_scenario_name,
+                "control_version": control_version,
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
+                "events": 0,
+                "risk_allowed_count": 0,
+                "filled_trade_count": 0,
+                "partial_fill_count": 0,
+                "exit_candidate_count": 0,
+                "confirmed_exit_count": 0,
+                "forced_exit_count": 0,
+                "confirmed_exit_ratio": None,
+                "confirmed_exit_latency_hours": None,
+                "median_position_age_hours": None,
+                "stale_position_count": 0,
+                "stale_position_ratio": 0.0,
+                "raw_probability_mean": None,
+                "calibrated_probability_mean": None,
+                "probability_drift_mean": None,
+                "probability_drift_abs_mean": None,
+                "probability_drift_max_abs": None,
+                "weighted_check_agreement_mean": None,
+                "calibration_applied_ratio": 0.0,
+                "total_execution_cost": 0.0,
+                "total_fees_paid": 0.0,
+                "total_slippage_cost": 0.0,
+                "attributed_trade_count": 0,
+                "expected_gross_edge_value": 0.0,
+                "expected_net_edge_value": 0.0,
+                "expected_net_edge_value_on_fills": 0.0,
+                "expected_value_after_execution_cost": 0.0,
+                "average_expected_gross_edge_bps": None,
+                "average_expected_net_edge_bps": None,
+                "expected_edge_capture_ratio": None,
+                "execution_cost_to_expected_net_ratio": None,
+                "bankroll": portfolio_state.bankroll,
+                "day_start_equity": portfolio_state.day_start_equity,
+                "current_equity": portfolio_state.current_equity,
+                "net_pnl": round(
+                    portfolio_state.current_equity - portfolio_state.day_start_equity,
+                    4,
+                ),
+                "open_notional": portfolio_state.open_notional,
+                "open_positions": portfolio_state.open_positions,
+                "total_exposure_fraction": round(
+                    portfolio_state.total_exposure_fraction, 6
+                ),
+                "daily_drawdown_fraction": round(
+                    portfolio_state.daily_drawdown_fraction, 6
+                ),
+                "result_hash": None,
+                "agent_operator": agent_operator_result,
+                "agent_operator_status": agent_operator_result["status"],
+                "agent_operator_mode": agent_operator_mode,
+                "agent_operator_provider": agent_operator_result["provider"],
+                "agent_operator_model": agent_operator_result["model"],
+                "agent_operator_strategy_scenario_applied": False,
+                "agent_operator_strategy_scenario_hint": "",
+                "agent_operator_strategy_scenario_rejected_reason": "",
+                **mode_lifecycle_metadata,
             }
 
         cancel_all_summary: dict[str, object] | None = None
@@ -1907,6 +2244,7 @@ def main(argv: list[str] | None = None) -> int:
                     strategy_scenario_rejected_reason
                 ),
                 "execution": dict(execution_context),
+                "mode_lifecycle": dict(mode_lifecycle_metadata),
                 "stateful_cycle": {
                     "execution_scope": execution_scope,
                     "starting_open_notional": cycle_start_open_notional,
@@ -2010,6 +2348,16 @@ def main(argv: list[str] | None = None) -> int:
                 "cancelled_order_count": int(
                     (cancel_all_summary or {}).get("cancelled_order_count", 0)
                 ),
+                "mode_lifecycle_current_mode": mode_current,
+                "mode_lifecycle_target_mode": mode_target,
+                "mode_lifecycle_effective_mode": mode_effective,
+                "mode_lifecycle_transition_allowed": mode_transition_allowed,
+                "mode_lifecycle_transition_reason_codes": mode_transition_reason_codes,
+                "mode_lifecycle_decision_hash": mode_transition_decision_hash,
+                "mode_lifecycle_approval_status": mode_transition_approval_status,
+                "mode_lifecycle_expected_execution_mode": expected_execution_mode,
+                "mode_lifecycle_execution_mode": resolved_execution_mode,
+                "mode_lifecycle_execution_mode_matches": execution_mode_matches_lifecycle,
                 "events": len(run.records),
                 "risk_allowed_count": run.risk_allowed_count,
                 "filled_trade_count": run.filled_trade_count,
@@ -2172,6 +2520,7 @@ def main(argv: list[str] | None = None) -> int:
             "state_refresh_market_ids": state_refresh_market_ids,
             "state_refresh_max_streak": state_refresh_max_streak,
             "stale_open_position_market_ids": stale_open_position_market_ids,
+            **mode_lifecycle_metadata,
         }
 
     worker = WorkerSpec(

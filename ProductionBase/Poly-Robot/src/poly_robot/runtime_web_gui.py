@@ -10,6 +10,11 @@ import os
 import tempfile
 import threading
 
+from .mode_lifecycle import (
+    build_mode_transition_decision,
+    normalize_mode,
+    resolve_mode_lifecycle_policy,
+)
 from .schemas import (
     RUNTIME_OPERATOR_ACTION_SCHEMA_VERSION,
     RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
@@ -91,6 +96,16 @@ def _default_control_state() -> dict[str, Any]:
         "selected_scenario": "baseline",
         "agent_operator_enabled": False,
         "agent_operator_mode": "advisory",
+        "mode_current": "paper",
+        "mode_target": "paper",
+        "mode_transition_approval_status": "pending",
+        "mode_transition_evidence": {},
+        "mode_transition_last_decision": {},
+        "mode_transition_last_decision_at": "",
+        "mode_transition_last_transition_at": "",
+        "mode_transition_last_actor": "",
+        "mode_transition_last_reason": "",
+        "mode_transition_last_action": "",
         "last_annotation": "",
     }
 
@@ -271,9 +286,16 @@ def _default_kpi_shadow_policy() -> dict[str, Any]:
 
 
 class OperatorControlManager:
-    def __init__(self, *, control_state_path: Path, audit_path: Path) -> None:
+    def __init__(
+        self,
+        *,
+        control_state_path: Path,
+        audit_path: Path,
+        mode_lifecycle_policy_path: Path | None = None,
+    ) -> None:
         self.control_state_path = control_state_path
         self.audit_path = audit_path
+        self.mode_lifecycle_policy_path = mode_lifecycle_policy_path
         self.lock_path = self.control_state_path.with_name(
             f"{self.control_state_path.name}.lock"
         )
@@ -303,6 +325,16 @@ class OperatorControlManager:
         with self._mutation_lock:
             with self._interprocess_lock():
                 return self._load_control_state_unlocked()
+
+    def _load_mode_lifecycle_policy(self) -> dict[str, Any]:
+        if self.mode_lifecycle_policy_path is None:
+            return resolve_mode_lifecycle_policy(None)
+        if not self.mode_lifecycle_policy_path.exists():
+            return resolve_mode_lifecycle_policy(None)
+        payload = _read_json(self.mode_lifecycle_policy_path)
+        if not isinstance(payload, dict):
+            return resolve_mode_lifecycle_policy(None)
+        return resolve_mode_lifecycle_policy(payload)
 
     def _mutate_state(
         self,
@@ -472,6 +504,77 @@ class OperatorControlManager:
             action="agent_operator_config_updated",
             actor=actor,
             details=details,
+            mutate_state=_apply,
+        )
+
+    def set_mode_transition(
+        self,
+        *,
+        actor: str,
+        target_mode: str,
+        reason: str = "",
+        approval_status: str | None = None,
+        evidence: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        normalized_target_mode = normalize_mode(target_mode)
+        normalized_reason = reason.strip()
+        normalized_approval_status: str | None = None
+        if approval_status is not None:
+            normalized_approval_status = str(approval_status).strip().lower() or None
+            if normalized_approval_status not in {"pending", "approved", "rejected"}:
+                raise ValueError("approval_status must be pending, approved, or rejected")
+        if evidence is not None and not isinstance(evidence, dict):
+            raise ValueError("evidence must be an object")
+        evidence_updates = dict(evidence or {})
+        lifecycle_policy = self._load_mode_lifecycle_policy()
+
+        def _apply(state: dict[str, Any]) -> None:
+            current_mode = normalize_mode(state.get("mode_current"))
+            existing_evidence = state.get("mode_transition_evidence")
+            merged_evidence = (
+                dict(existing_evidence) if isinstance(existing_evidence, dict) else {}
+            )
+            merged_evidence.update(evidence_updates)
+            effective_approval_status = normalized_approval_status
+            if effective_approval_status is None:
+                effective_approval_status = str(
+                    state.get("mode_transition_approval_status", "pending")
+                ).strip().lower() or "pending"
+            state["mode_target"] = normalized_target_mode
+            state["mode_transition_evidence"] = merged_evidence
+            state["mode_transition_approval_status"] = effective_approval_status
+            decision = build_mode_transition_decision(
+                current_mode=current_mode,
+                target_mode=normalized_target_mode,
+                policy=lifecycle_policy,
+                evidence=merged_evidence,
+                manual_approval_status=effective_approval_status,
+                actor=actor,
+                reason=normalized_reason or None,
+            )
+            decision_timestamp = str(decision.get("generated_at", "")).strip()
+            state["mode_transition_last_decision"] = decision
+            state["mode_transition_last_decision_at"] = decision_timestamp
+            state["mode_transition_last_actor"] = actor
+            state["mode_transition_last_action"] = (
+                "applied" if decision.get("allowed") else "blocked"
+            )
+            if normalized_reason:
+                state["mode_transition_last_reason"] = normalized_reason
+            if decision.get("allowed"):
+                state["mode_current"] = normalized_target_mode
+                state["mode_target"] = normalized_target_mode
+                state["mode_transition_last_transition_at"] = decision_timestamp
+
+        return self._mutate_state(
+            action="mode_transition_requested",
+            actor=actor,
+            details={
+                "target_mode": normalized_target_mode,
+                "reason": normalized_reason,
+                "approval_status": normalized_approval_status,
+                "evidence_keys": sorted(str(key) for key in evidence_updates.keys()),
+            },
             mutate_state=_apply,
         )
 
@@ -729,6 +832,21 @@ class RuntimeDashboardService:
             ),
             "agent_operator_strategy_scenario_rejected_reason": last_metadata.get(
                 "agent_operator_strategy_scenario_rejected_reason"
+            ),
+            "mode_lifecycle_current_mode": last_metadata.get(
+                "mode_lifecycle_current_mode"
+            ),
+            "mode_lifecycle_target_mode": last_metadata.get(
+                "mode_lifecycle_target_mode"
+            ),
+            "mode_lifecycle_transition_allowed": last_metadata.get(
+                "mode_lifecycle_transition_allowed"
+            ),
+            "mode_lifecycle_transition_reason_codes": last_metadata.get(
+                "mode_lifecycle_transition_reason_codes"
+            ),
+            "mode_lifecycle_decision_hash": last_metadata.get(
+                "mode_lifecycle_decision_hash"
             ),
             "result_hash": last_metadata.get("result_hash"),
         }
@@ -2052,12 +2170,36 @@ class RuntimeDashboardService:
             kpi_domain=kpi_domain_value,
             kpi_status=kpi_status_value,
         )
+        mode_lifecycle = {
+            "current_mode": control_state.get("mode_current"),
+            "target_mode": control_state.get("mode_target"),
+            "approval_status": control_state.get("mode_transition_approval_status"),
+            "evidence": control_state.get("mode_transition_evidence"),
+            "last_decision": control_state.get("mode_transition_last_decision"),
+            "last_decision_at": control_state.get("mode_transition_last_decision_at"),
+            "last_transition_at": control_state.get(
+                "mode_transition_last_transition_at"
+            ),
+            "last_actor": control_state.get("mode_transition_last_actor"),
+            "last_action": control_state.get("mode_transition_last_action"),
+            "last_reason": control_state.get("mode_transition_last_reason"),
+            "runtime_current_mode": loop_metrics.get("mode_lifecycle_current_mode"),
+            "runtime_target_mode": loop_metrics.get("mode_lifecycle_target_mode"),
+            "runtime_transition_allowed": loop_metrics.get(
+                "mode_lifecycle_transition_allowed"
+            ),
+            "runtime_transition_reason_codes": loop_metrics.get(
+                "mode_lifecycle_transition_reason_codes"
+            ),
+            "runtime_decision_hash": loop_metrics.get("mode_lifecycle_decision_hash"),
+        }
 
         return {
             "schema_version": RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION,
             "generated_at": _utc_now_iso(),
             "supervisor_state": supervisor_state,
             "control_state": control_state,
+            "mode_lifecycle": mode_lifecycle,
             "event_counts": event_counts,
             "worker_activity": worker_activity,
             "loop_metrics": loop_metrics,
