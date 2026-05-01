@@ -66,6 +66,10 @@ def _normalize_scenario_hint(value: Any) -> str:
     ).strip()
 
 
+def _is_bare_false_token(text: str) -> bool:
+    return text.strip() == "False"
+
+
 def _extract_json_object(text: str) -> dict[str, Any] | None:
     stripped = text.strip()
     if not stripped:
@@ -217,17 +221,37 @@ class AgentOperator:
                 )
         serialized_context = json.dumps(cycle_context, indent=2, sort_keys=True)
         return (
-            "You are AgentOperator for Poly-Robot. "
-            "Goal: improve profitability while preserving risk controls.\n"
+            "# agents.md — v2\n"
+            "System name: AgentOperator — Operator Layer for Poly-Robot.\n"
+            "Architecture: two cooperative roles (Supervisor + Strategist) wrapping "
+            "Poly-Robot.\n"
+            "Source of truth for mechanics: POLY_ROBOT_ECONOMY_UNIFIED_SPEC.md.\n"
+            "Phase reality: TRL4, advisory_only LLM calibration, and cost-attribution "
+            "economics (net_pnl is execution-cost drag until MTM is implemented).\n"
+            "Covenant:\n"
+            "- Loyalty to user bankroll; if no action is justified, say so.\n"
+            "- Calm, specific, non-hype tone.\n"
+            "- Distinct refusal modes: factual unavailability -> bare token False; "
+            "gate-driven refusal -> structured REJECTED:<reason_code> state.\n"
+            "- Reversibility language must acknowledge spread/slippage/liquidity costs.\n"
+            "Operational constraints:\n"
+            "- Do not invent mechanics or override engine probabilities/confidence.\n"
+            "- Defer to risk gates and reason codes exactly as emitted.\n"
+            "- Use cost-aware language: gross_edge_bps, net_edge_bps, "
+            "expected_slippage_bps, fee_rate_bps.\n"
             f"Operating mode: {mode}.\n"
-            "Given the cycle context JSON below, produce a strict JSON object with keys:\n"
+            "Given the cycle context JSON below, produce one of two allowed outputs:\n"
+            "A) If factual truth is unavailable in provided context, output exactly:\n"
+            "False\n"
+            "B) Otherwise output a strict JSON object with keys:\n"
             "{"
             "\"summary\": string, "
             "\"profitability_hypothesis\": string, "
             "\"risk_posture\": \"increase\"|\"reduce\"|\"neutral\", "
             "\"confidence\": number in [0,1], "
             "\"recommended_actions\": array of short actionable strings, "
-            "\"scenario_hint\": string"
+            "\"scenario_hint\": string, "
+            "\"state\": optional string (OK or REJECTED:<reason_code>)"
             "}\n"
             "Constraints:\n"
             "- Never suggest bypassing kill switch, drawdown limits, or risk caps.\n"
@@ -286,6 +310,21 @@ class AgentOperator:
             )
             fallback["mode"] = mode
             return fallback
+        if _is_bare_false_token(response_text):
+            return {
+                "status": "UNAVAILABLE",
+                "reason": "factual_unavailable_false",
+                "provider": self.client.provider,
+                "model": self.client.model,
+                "mode": mode,
+                "generated_at": _utc_now_iso(),
+                "summary": "",
+                "profitability_hypothesis": "",
+                "risk_posture": "neutral",
+                "confidence": None,
+                "recommended_actions": [],
+                "scenario_hint": "",
+            }
 
         parsed = _extract_json_object(response_text)
         if parsed is None:
@@ -307,9 +346,17 @@ class AgentOperator:
         risk_posture = str(parsed.get("risk_posture", "neutral")).strip().lower()
         if risk_posture not in {"increase", "reduce", "neutral"}:
             risk_posture = "neutral"
+        raw_state = str(parsed.get("state", "")).strip()
+        normalized_status = "OK"
+        normalized_reason = ""
+        if raw_state.upper().startswith("REJECTED:"):
+            normalized_status = "REJECTED"
+            normalized_reason = raw_state.split(":", 1)[1].strip()
+        elif raw_state:
+            normalized_status = raw_state.upper()
         return {
-            "status": "OK",
-            "reason": "",
+            "status": normalized_status,
+            "reason": normalized_reason,
             "provider": self.client.provider,
             "model": self.client.model,
             "mode": mode,

@@ -96,6 +96,7 @@ def _default_control_state() -> dict[str, Any]:
         "cancel_all_requested": False,
         "selected_scenario": "baseline",
         "agent_operator_enabled": False,
+        "agent_operators_running": False,
         "agent_operator_mode": "advisory",
         "agent_operator_strategy_auto_apply": True,
         "agent_operator_active_candidate_id": "",
@@ -511,6 +512,7 @@ class OperatorControlManager:
         def _apply(state: dict[str, Any]) -> None:
             if enabled is not None:
                 state["agent_operator_enabled"] = bool(enabled)
+                state["agent_operators_running"] = bool(enabled)
             if normalized_mode is not None:
                 state["agent_operator_mode"] = normalized_mode
             if strategy_auto_apply is not None:
@@ -532,6 +534,46 @@ class OperatorControlManager:
 
         return self._mutate_state(
             action="agent_operator_config_updated",
+            actor=actor,
+            details=details,
+            mutate_state=_apply,
+        )
+
+    def start_agent_operators(self, *, actor: str, reason: str = "") -> dict[str, Any]:
+        normalized_reason = reason.strip()
+        def _apply(state: dict[str, Any]) -> None:
+            state["agent_operator_enabled"] = True
+            state["agent_operators_running"] = True
+            if normalized_reason:
+                state["agent_operator_reason"] = normalized_reason
+        details: dict[str, Any] = {
+            "agent_operator_enabled": True,
+            "agent_operators_running": True,
+        }
+        if normalized_reason:
+            details["reason"] = normalized_reason
+        return self._mutate_state(
+            action="agent_operators_started",
+            actor=actor,
+            details=details,
+            mutate_state=_apply,
+        )
+
+    def stop_agent_operators(self, *, actor: str, reason: str = "") -> dict[str, Any]:
+        normalized_reason = reason.strip()
+        def _apply(state: dict[str, Any]) -> None:
+            state["agent_operator_enabled"] = False
+            state["agent_operators_running"] = False
+            if normalized_reason:
+                state["agent_operator_reason"] = normalized_reason
+        details: dict[str, Any] = {
+            "agent_operator_enabled": False,
+            "agent_operators_running": False,
+        }
+        if normalized_reason:
+            details["reason"] = normalized_reason
+        return self._mutate_state(
+            action="agent_operators_stopped",
             actor=actor,
             details=details,
             mutate_state=_apply,
@@ -995,6 +1037,8 @@ class RuntimeDashboardService:
             "agent_operator_strategy_scenario_rejected_reason": last_metadata.get(
                 "agent_operator_strategy_scenario_rejected_reason"
             ),
+            "agent_operators_running": last_metadata.get("agent_operators_running"),
+            "agent_operators": last_metadata.get("agent_operators"),
             "mode_lifecycle_current_mode": last_metadata.get(
                 "mode_lifecycle_current_mode"
             ),

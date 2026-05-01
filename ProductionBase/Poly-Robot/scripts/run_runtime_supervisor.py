@@ -1506,6 +1506,7 @@ def main(argv: list[str] | None = None) -> int:
                 "selected_scenario": control_default_scenario_name,
                 "control_version": 0,
                 "agent_operator_enabled": default_agent_operator_enabled,
+                "agent_operators_running": default_agent_operator_enabled,
                 "agent_operator_mode": default_agent_operator_mode,
                 "agent_operator_strategy_auto_apply": (
                     default_agent_operator_strategy_auto_apply
@@ -1537,6 +1538,13 @@ def main(argv: list[str] | None = None) -> int:
             control_state["cancel_all_requested"] = False
         if "agent_operator_enabled" not in control_state:
             control_state["agent_operator_enabled"] = default_agent_operator_enabled
+        if "agent_operators_running" not in control_state:
+            control_state["agent_operators_running"] = bool(
+                control_state.get(
+                    "agent_operator_enabled",
+                    default_agent_operator_enabled,
+                )
+            )
         if "agent_operator_mode" not in control_state:
             control_state["agent_operator_mode"] = default_agent_operator_mode
         if "agent_operator_strategy_auto_apply" not in control_state:
@@ -1555,6 +1563,16 @@ def main(argv: list[str] | None = None) -> int:
             control_state["agent_operator_candidate_last_action_at"] = ""
         control_state["agent_operator_mode"] = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode")
+        )
+        agent_operator_enabled_state = bool(
+            control_state.get("agent_operator_enabled", False)
+        )
+        control_state["agent_operators_running"] = bool(
+            control_state.get("agent_operators_running", False)
+            or agent_operator_enabled_state
+        )
+        control_state["agent_operator_enabled"] = bool(
+            control_state["agent_operators_running"]
         )
         control_state["agent_operator_strategy_auto_apply"] = bool(
             control_state.get("agent_operator_strategy_auto_apply", True)
@@ -1637,6 +1655,18 @@ def main(argv: list[str] | None = None) -> int:
             "scenario_hint": "",
         }
 
+    def _agent_operators_skipped(reason: str) -> dict[str, dict[str, Any]]:
+        return {
+            "supervisor": _agent_operator_skipped_result(
+                reason,
+                mode="advisory",
+            ),
+            "strategist": _agent_operator_skipped_result(
+                reason,
+                mode="strategy",
+            ),
+        }
+
     def _run_test_token_cycle(heartbeat) -> dict:
         nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
@@ -1651,9 +1681,13 @@ def main(argv: list[str] | None = None) -> int:
         restart_requested = bool(control_state.get("restart_requested", False))
         kill_switch_active = bool(control_state.get("kill_switch_active", False))
         cancel_all_requested = bool(control_state.get("cancel_all_requested", False))
-        agent_operator_enabled = bool(
-            control_state.get("agent_operator_enabled", False)
+        agent_operators_running = bool(
+            control_state.get(
+                "agent_operators_running",
+                control_state.get("agent_operator_enabled", False),
+            )
         )
+        agent_operator_enabled = agent_operators_running
         agent_operator_mode = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode", "advisory")
         )
@@ -1730,6 +1764,7 @@ def main(argv: list[str] | None = None) -> int:
                 "kill_switch_active": kill_switch_active,
                 "cancel_all_requested": cancel_all_requested,
                 "agent_operator_enabled": agent_operator_enabled,
+                "agent_operators_running": agent_operators_running,
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_strategy_auto_apply": (
                     agent_operator_strategy_auto_apply
@@ -1827,6 +1862,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "result_hash": None,
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": _agent_operators_skipped("restart_requested"),
                 "agent_operator_status": agent_operator_result["status"],
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result["provider"],
@@ -1905,6 +1942,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "result_hash": None,
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": _agent_operators_skipped("paused"),
                 "agent_operator_status": agent_operator_result["status"],
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result["provider"],
@@ -1990,6 +2029,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "result_hash": None,
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": _agent_operators_skipped(mismatch_reason),
                 "agent_operator_status": agent_operator_result["status"],
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result["provider"],
@@ -2345,72 +2386,86 @@ def main(argv: list[str] | None = None) -> int:
         strategy_scenario_hint = ""
         strategy_scenario_applied = False
         strategy_scenario_rejected_reason = ""
-        agent_operator_result = _agent_operator_skipped_result(
-            "agent_operator_disabled_by_control",
-            mode=agent_operator_mode,
+        base_agent_operator_cycle_context = {
+            "cycle_index": cycle_index,
+            "scenario_name": run_scenario_name,
+            "ingestion_mode": args.ingestion_mode,
+            "ingestion_status": effective_ingestion_status,
+            "ingestion_reasons": effective_ingestion_reasons,
+            "ingestion_degraded_streak": ingestion_degraded_streak,
+            "risk_allowed_count": run.risk_allowed_count,
+            "filled_trade_count": run.filled_trade_count,
+            "partial_fill_count": run.partial_fill_count,
+            "exit_candidate_count": run.exit_candidate_count,
+            "confirmed_exit_count": run.confirmed_exit_count,
+            "forced_exit_count": run.forced_exit_count,
+            "expected_gross_edge_value": run.expected_gross_edge_value,
+            "expected_net_edge_value": run.expected_net_edge_value,
+            "expected_net_edge_value_on_fills": run.expected_net_edge_value_on_fills,
+            "expected_value_after_execution_cost": run.expected_value_after_execution_cost,
+            "total_execution_cost": run.total_execution_cost,
+            "total_fees_paid": run.total_fees_paid,
+            "total_slippage_cost": run.total_slippage_cost,
+            "execution_cost_to_expected_net_ratio": (
+                run.execution_cost_to_expected_net_ratio
+            ),
+            "portfolio": {
+                "bankroll": run.final_portfolio.bankroll,
+                "day_start_equity": run.final_portfolio.day_start_equity,
+                "current_equity": run.final_portfolio.current_equity,
+                "net_pnl": (
+                    run.final_portfolio.current_equity
+                    - run.final_portfolio.day_start_equity
+                ),
+                "open_notional": run.final_portfolio.open_notional,
+                "open_positions": run.final_portfolio.open_positions,
+                "total_exposure_fraction": run.final_portfolio.total_exposure_fraction,
+                "daily_drawdown_fraction": run.final_portfolio.daily_drawdown_fraction,
+            },
+            "operator_controls": {
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
+                "cancel_all_acknowledged": cancel_all_acknowledged,
+            },
+            "available_scenarios": available_scenarios,
+        }
+        role_modes = {
+            "supervisor": "advisory",
+            "strategist": "strategy",
+        }
+        agent_operators = _agent_operators_skipped(
+            "agent_operators_stopped_by_control"
         )
-        if agent_operator_enabled:
-            active_agent_operator = agent_operators_by_mode.get(agent_operator_mode)
-            if active_agent_operator is None:
-                agent_operator_result = _agent_operator_skipped_result(
-                    "agent_operator_mode_not_configured",
-                    mode=agent_operator_mode,
-                )
-            else:
-                agent_operator_result = active_agent_operator.infer(
+        if agent_operators_running:
+            for role_name, role_mode in role_modes.items():
+                active_agent_operator = agent_operators_by_mode.get(role_mode)
+                if active_agent_operator is None:
+                    agent_operators[role_name] = _agent_operator_skipped_result(
+                        "agent_operator_mode_not_configured",
+                        mode=role_mode,
+                    )
+                    continue
+                agent_operators[role_name] = active_agent_operator.infer(
                     cycle_context={
-                        "cycle_index": cycle_index,
-                        "scenario_name": run_scenario_name,
-                        "ingestion_mode": args.ingestion_mode,
-                        "ingestion_status": effective_ingestion_status,
-                        "ingestion_reasons": effective_ingestion_reasons,
-                        "ingestion_degraded_streak": ingestion_degraded_streak,
-                        "risk_allowed_count": run.risk_allowed_count,
-                        "filled_trade_count": run.filled_trade_count,
-                        "partial_fill_count": run.partial_fill_count,
-                        "exit_candidate_count": run.exit_candidate_count,
-                        "confirmed_exit_count": run.confirmed_exit_count,
-                        "forced_exit_count": run.forced_exit_count,
-                        "expected_gross_edge_value": run.expected_gross_edge_value,
-                        "expected_net_edge_value": run.expected_net_edge_value,
-                        "expected_net_edge_value_on_fills": (
-                            run.expected_net_edge_value_on_fills
-                        ),
-                        "expected_value_after_execution_cost": (
-                            run.expected_value_after_execution_cost
-                        ),
-                        "total_execution_cost": run.total_execution_cost,
-                        "total_fees_paid": run.total_fees_paid,
-                        "total_slippage_cost": run.total_slippage_cost,
-                        "execution_cost_to_expected_net_ratio": (
-                            run.execution_cost_to_expected_net_ratio
-                        ),
-                        "portfolio": {
-                            "bankroll": run.final_portfolio.bankroll,
-                            "day_start_equity": run.final_portfolio.day_start_equity,
-                            "current_equity": run.final_portfolio.current_equity,
-                            "net_pnl": (
-                                run.final_portfolio.current_equity
-                                - run.final_portfolio.day_start_equity
-                            ),
-                            "open_notional": run.final_portfolio.open_notional,
-                            "open_positions": run.final_portfolio.open_positions,
-                            "total_exposure_fraction": (
-                                run.final_portfolio.total_exposure_fraction
-                            ),
-                            "daily_drawdown_fraction": (
-                                run.final_portfolio.daily_drawdown_fraction
-                            ),
-                        },
-                        "operator_controls": {
-                            "kill_switch_active": kill_switch_active,
-                            "cancel_all_requested": cancel_all_requested,
-                            "cancel_all_acknowledged": cancel_all_acknowledged,
-                        },
-                        "agent_operator_mode": agent_operator_mode,
-                        "available_scenarios": available_scenarios,
+                        **base_agent_operator_cycle_context,
+                        "agent_operator_role": role_name,
+                        "agent_operator_mode": role_mode,
                     }
                 )
+        else:
+            agent_operators = _agent_operators_skipped(
+                "agent_operators_stopped_by_control"
+            )
+        legacy_role_name = "strategist" if agent_operator_mode == "strategy" else "supervisor"
+        agent_operator_result = dict(
+            agent_operators.get(
+                legacy_role_name,
+                _agent_operator_skipped_result(
+                    "agent_operator_mode_not_configured",
+                    mode=agent_operator_mode,
+                ),
+            )
+        )
         final_portfolio = run.final_portfolio
         cycle_net_pnl = round(
             final_portfolio.current_equity - final_portfolio.day_start_equity,
@@ -2675,6 +2730,8 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 },
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": agent_operators,
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_strategy_auto_apply": (
                     agent_operator_strategy_auto_apply
@@ -2868,6 +2925,8 @@ def main(argv: list[str] | None = None) -> int:
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result.get("provider"),
                 "agent_operator_model": agent_operator_result.get("model"),
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": agent_operators,
                 "agent_operator_risk_posture": agent_operator_result.get(
                     "risk_posture"
                 ),
@@ -2988,6 +3047,8 @@ def main(argv: list[str] | None = None) -> int:
             "daily_drawdown_fraction": daily_drawdown_fraction,
             "result_hash": result_hash,
             "agent_operator": agent_operator_result,
+            "agent_operators_running": agent_operators_running,
+            "agent_operators": agent_operators,
             "agent_operator_status": agent_operator_result.get("status"),
             "agent_operator_mode": agent_operator_mode,
             "agent_operator_provider": agent_operator_result.get("provider"),

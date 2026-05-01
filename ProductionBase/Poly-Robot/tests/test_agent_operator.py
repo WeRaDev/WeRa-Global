@@ -116,6 +116,28 @@ class AgentOperatorTests(unittest.TestCase):
         self.assertEqual(result["mode"], "strategy")
         self.assertEqual(result["scenario_hint"], "liquiditycrunch....")
 
+    def test_bare_false_response_maps_to_unavailable(self) -> None:
+        operator = AgentOperator(client=_StubClient(response="False"))
+
+        result = operator.infer(cycle_context={"cycle_index": 7})
+
+        self.assertEqual(result["status"], "UNAVAILABLE")
+        self.assertEqual(result["reason"], "factual_unavailable_false")
+        self.assertEqual(result["summary"], "")
+
+    def test_structured_rejected_state_is_parsed(self) -> None:
+        operator = AgentOperator(
+            client=_StubClient(
+                response='{"state":"REJECTED:non_positive_net_edge_after_costs","summary":"rejected"}'
+            )
+        )
+
+        result = operator.infer(cycle_context={"cycle_index": 8})
+
+        self.assertEqual(result["status"], "REJECTED")
+        self.assertEqual(result["reason"], "non_positive_net_edge_after_costs")
+        self.assertEqual(result["summary"], "rejected")
+
 
 if __name__ == "__main__":
     unittest.main()
