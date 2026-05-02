@@ -187,6 +187,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "expected_net_edge_value_on_fills on the latest cycle."
         ),
     )
+    parser.add_argument(
+        "--runtime-hours-per-cycle",
+        type=float,
+        required=False,
+        help=(
+            "Optional override for simulated runtime hours represented by each "
+            "completed cycle. Effective runtime uses the larger of wall-clock "
+            "duration and cycle_count * runtime_hours_per_cycle."
+        ),
+    )
     return parser
 
 
@@ -209,6 +219,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.minimum_expected_net_edge_value_on_fills is not None
         else gate_config.get("minimum_expected_net_edge_value_on_fills", 0.0)
     )
+    runtime_hours_per_cycle = max(
+        0.0,
+        float(
+            args.runtime_hours_per_cycle
+            if args.runtime_hours_per_cycle is not None
+            else gate_config.get("runtime_hours_per_cycle", 0.0)
+        ),
+    )
     require_profitability_metrics = bool(
         gate_config.get("require_profitability_metrics", True)
     )
@@ -221,10 +239,14 @@ def main(argv: list[str] | None = None) -> int:
 
     runtime_start = cycle_rows[0]["timestamp"] if cycle_rows else None
     runtime_end = cycle_rows[-1]["timestamp"] if cycle_rows else None
-    runtime_duration_hours = (
+    runtime_duration_hours_wall_clock = (
         (runtime_end - runtime_start).total_seconds() / 3600
         if runtime_start is not None and runtime_end is not None
         else 0.0
+    )
+    runtime_duration_hours_cycle_based = len(cycle_rows) * runtime_hours_per_cycle
+    runtime_duration_hours = max(
+        runtime_duration_hours_wall_clock, runtime_duration_hours_cycle_based
     )
 
     expected_value_after_execution_cost_values = [
@@ -372,6 +394,13 @@ def main(argv: list[str] | None = None) -> int:
             ),
             "runtime_start": runtime_start.isoformat() if runtime_start else None,
             "runtime_end": runtime_end.isoformat() if runtime_end else None,
+            "runtime_duration_hours_wall_clock": round(
+                runtime_duration_hours_wall_clock, 6
+            ),
+            "runtime_duration_hours_cycle_based": round(
+                runtime_duration_hours_cycle_based, 6
+            ),
+            "runtime_hours_per_cycle": round(runtime_hours_per_cycle, 6),
             "runtime_duration_hours": round(runtime_duration_hours, 6),
             "state_cycle_index": state_cycle_index,
             "state_status": state_status,
