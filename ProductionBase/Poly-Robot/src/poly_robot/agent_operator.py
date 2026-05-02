@@ -190,6 +190,106 @@ class ClaudeApiClient:
             raise RuntimeError("claude_invalid_response_payload")
         return self._extract_text(response_payload)
 
+@dataclass(frozen=True)
+class OpenFangApiClient:
+    agent_id: str
+    base_url: str = "http://127.0.0.1:4200"
+    auth_token_env: str = ""
+    provider: str = "openfang_api"
+    model: str = "openfang_agent"
+
+    def _resolve_agent_id(self) -> str:
+        resolved = str(self.agent_id or "").strip()
+        if not resolved:
+            raise AgentOperatorUnavailableError(
+                "agent_operator_openfang_agent_id_missing"
+            )
+        return resolved
+
+    def _resolve_auth_token(self) -> str:
+        env_name = str(self.auth_token_env or "").strip()
+        if not env_name:
+            return ""
+        token = os.environ.get(env_name, "").strip()
+        if not token:
+            raise AgentOperatorUnavailableError(
+                f"agent_operator_openfang_auth_token_missing:{env_name}"
+            )
+        return token
+
+    def _build_headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        auth_token = self._resolve_auth_token()
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        return headers
+
+    def _request_json(
+        self,
+        *,
+        method: str,
+        path: str,
+        timeout_seconds: float,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        base_url = str(self.base_url or "").strip().rstrip("/")
+        if not base_url:
+            raise AgentOperatorUnavailableError(
+                "agent_operator_openfang_base_url_missing"
+            )
+        request = Request(
+            f"{base_url}{path}",
+            data=(
+                None
+                if payload is None
+                else json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            ),
+            headers=self._build_headers(),
+            method=method,
+        )
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:
+                charset = response.headers.get_content_charset() or "utf-8"
+                body = response.read().decode(charset)
+        except HTTPError as exc:
+            raise RuntimeError(f"openfang_http_error:{exc.code}") from exc
+        except URLError as exc:
+            raise RuntimeError("openfang_network_error") from exc
+        except TimeoutError as exc:
+            raise RuntimeError("openfang_timeout") from exc
+        try:
+            response_payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("openfang_invalid_json_response") from exc
+        if not isinstance(response_payload, dict):
+            raise RuntimeError("openfang_invalid_response_payload")
+        return response_payload
+
+    def complete(
+        self,
+        *,
+        prompt: str,
+        timeout_seconds: float,
+    ) -> str:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be > 0")
+        agent_id = self._resolve_agent_id()
+        self._request_json(
+            method="GET",
+            path="/api/health",
+            timeout_seconds=timeout_seconds,
+        )
+        response_payload = self._request_json(
+            method="POST",
+            path=f"/api/agents/{agent_id}/message",
+            timeout_seconds=timeout_seconds,
+            payload={"message": prompt},
+        )
+        response_text = str(response_payload.get("response", "")).strip()
+        if not response_text:
+            raise RuntimeError("openfang_response_text_empty")
+        return response_text
+
 
 class AgentOperator:
     def __init__(

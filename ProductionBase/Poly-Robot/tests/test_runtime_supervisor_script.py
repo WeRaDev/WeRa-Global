@@ -28,6 +28,17 @@ class RuntimeSupervisorScriptTests(unittest.TestCase):
         self.assertEqual(module._secret_max_age_days_from_seconds(86_401.0), 2)
         self.assertEqual(module._secret_max_age_days_from_seconds(172_800.0), 2)
 
+    def test_agent_operator_backend_defaults_to_claude_api(self) -> None:
+        module = _load_runtime_supervisor_script_module()
+        args = module.build_arg_parser().parse_args([])
+        self.assertEqual(args.agent_operator_backend, "claude_api")
+        self.assertEqual(
+            args.agent_operator_openfang_base_url,
+            "http://127.0.0.1:4200",
+        )
+        self.assertEqual(args.agent_operator_openfang_advisory_agent_id, "")
+        self.assertEqual(args.agent_operator_openfang_strategy_agent_id, "")
+
 
 if __name__ == "__main__":
     unittest.main()

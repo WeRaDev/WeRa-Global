@@ -18,7 +18,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
-from poly_robot.agent_operator import AgentOperator, ClaudeApiClient  # noqa: E402
+from poly_robot.agent_operator import (  # noqa: E402
+    AgentOperator,
+    ClaudeApiClient,
+    OpenFangApiClient,
+)
 from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
@@ -898,6 +902,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--agent-operator-backend",
+        type=str,
+        choices=["claude_api", "openfang_api"],
+        default="claude_api",
+        help="AgentOperator backend provider.",
+    )
+    parser.add_argument(
         "--agent-operator-model",
         type=str,
         default="claude-sonnet-4-6",
@@ -922,6 +933,35 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         default="ANTHROPIC_API_KEY",
         help="Environment variable name containing Claude API key.",
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-base-url",
+        type=str,
+        default="http://127.0.0.1:4200",
+        help="OpenFang daemon base URL used by AgentOperator.",
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-auth-token-env",
+        type=str,
+        default="",
+        help=(
+            "Optional environment variable name containing OpenFang bearer token."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-advisory-agent-id",
+        type=str,
+        default="",
+        help="OpenFang advisory agent ID used when backend=openfang_api.",
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-strategy-agent-id",
+        type=str,
+        default="",
+        help=(
+            "OpenFang strategy agent ID used when backend=openfang_api; "
+            "falls back to advisory agent ID when omitted."
+        ),
     )
     parser.add_argument(
         "--agent-operator-timeout-seconds",
@@ -1505,26 +1545,51 @@ def main(argv: list[str] | None = None) -> int:
     strategy_model = (
         str(args.agent_operator_strategy_model).strip() or args.agent_operator_model
     )
+    advisory_client = None
+    strategy_client = None
+    if args.agent_operator_backend == "openfang_api":
+        advisory_agent_id = str(
+            args.agent_operator_openfang_advisory_agent_id
+        ).strip()
+        strategy_agent_id = (
+            str(args.agent_operator_openfang_strategy_agent_id).strip()
+            or advisory_agent_id
+        )
+        advisory_client = OpenFangApiClient(
+            agent_id=advisory_agent_id,
+            base_url=args.agent_operator_openfang_base_url,
+            auth_token_env=args.agent_operator_openfang_auth_token_env,
+            model=f"openfang_agent:{advisory_agent_id or 'missing'}",
+        )
+        strategy_client = OpenFangApiClient(
+            agent_id=strategy_agent_id,
+            base_url=args.agent_operator_openfang_base_url,
+            auth_token_env=args.agent_operator_openfang_auth_token_env,
+            model=f"openfang_agent:{strategy_agent_id or 'missing'}",
+        )
+    else:
+        advisory_client = ClaudeApiClient(
+            model=args.agent_operator_model,
+            endpoint_url=args.agent_operator_endpoint_url,
+            api_key_env=args.agent_operator_api_key_env,
+            max_output_tokens=args.agent_operator_max_output_tokens,
+            temperature=args.agent_operator_temperature,
+        )
+        strategy_client = ClaudeApiClient(
+            model=strategy_model,
+            endpoint_url=args.agent_operator_endpoint_url,
+            api_key_env=args.agent_operator_api_key_env,
+            max_output_tokens=args.agent_operator_max_output_tokens,
+            temperature=args.agent_operator_temperature,
+        )
     agent_operators_by_mode: dict[str, AgentOperator] = {
         "advisory": AgentOperator(
-            client=ClaudeApiClient(
-                model=args.agent_operator_model,
-                endpoint_url=args.agent_operator_endpoint_url,
-                api_key_env=args.agent_operator_api_key_env,
-                max_output_tokens=args.agent_operator_max_output_tokens,
-                temperature=args.agent_operator_temperature,
-            ),
+            client=advisory_client,
             timeout_seconds=args.agent_operator_timeout_seconds,
             enabled=True,
         ),
         "strategy": AgentOperator(
-            client=ClaudeApiClient(
-                model=strategy_model,
-                endpoint_url=args.agent_operator_endpoint_url,
-                api_key_env=args.agent_operator_api_key_env,
-                max_output_tokens=args.agent_operator_max_output_tokens,
-                temperature=args.agent_operator_temperature,
-            ),
+            client=strategy_client,
             timeout_seconds=args.agent_operator_timeout_seconds,
             enabled=True,
         ),

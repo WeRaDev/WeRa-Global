@@ -86,6 +86,10 @@ P1 (Near-Term)
    - Re-tune max exposure and exit dynamics with scenario matrix runs.
 3. AgentOperator operational readiness
    - Ensure secure secret provisioning and validate operator availability path.
+4. OpenFang AgentOperator control-plane pilot
+   - Add OpenFang-backed AgentOperator backend with fail-open fallback to deterministic runtime behavior.
+   - Run shadow-mode advisory/strategy operators via OpenFang daemon and compare cadence + EV deltas against baseline.
+   - Promote only guarded influence knobs after stability and safety criteria are met.
 
 P2 (Medium-Term)
 1. Data realism expansion
@@ -108,3 +112,5 @@ P2 (Medium-Term)
 3. Tighten gate thresholds and re-run paper certification.
 4. Validate operator secret/config path in runtime environment.
 5. Produce weekly reliability+economics trend report for iteration governance.
+6. Stand up OpenFang daemon and run AgentOperator in shadow mode (advisory + strategy) with strict fallback gates.
+7. Gate OpenFang influence rollout behind measured improvements in cap-lock duration, risk-approval cadence, and rolling expected value.
