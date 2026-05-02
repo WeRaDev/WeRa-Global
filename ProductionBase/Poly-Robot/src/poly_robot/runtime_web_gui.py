@@ -1771,7 +1771,54 @@ class RuntimeDashboardService:
                     if market_id_text:
                         stale_open_position_market_ids.append(market_id_text)
             open_positions_value = open_positions or 0
-            if (
+            healthy_ingestion_zero_risk_alert = bool(
+                details.get("healthy_ingestion_zero_risk_alert")
+            )
+            healthy_ingestion_zero_risk_streak = RuntimeDashboardService._to_int(
+                details.get("healthy_ingestion_zero_risk_streak")
+            )
+            near_cap_zero_fill_alert = bool(details.get("near_cap_zero_fill_alert"))
+            near_cap_zero_fill_streak = RuntimeDashboardService._to_int(
+                details.get("near_cap_zero_fill_streak")
+            )
+            near_cap_exposure_threshold_fraction = (
+                RuntimeDashboardService._to_float(
+                    details.get("near_cap_exposure_threshold_fraction")
+                )
+            )
+            total_exposure_fraction = RuntimeDashboardService._to_float(
+                details.get("total_exposure_fraction")
+            )
+            filled_trade_count = RuntimeDashboardService._to_int(
+                details.get("filled_trade_count")
+            )
+            ingestion_status = str(details.get("ingestion_status") or "")
+            risk_allowed_count = RuntimeDashboardService._to_int(
+                details.get("risk_allowed_count")
+            )
+            if healthy_ingestion_zero_risk_alert:
+                summary = (
+                    "Ingestion remained healthy while risk approvals were "
+                    "continuously zero "
+                    f"(cycle_index={cycle_index}, "
+                    f"streak={healthy_ingestion_zero_risk_streak or 0}, "
+                    f"ingestion_status={ingestion_status or 'unknown'}, "
+                    f"risk_allowed_count={risk_allowed_count or 0})."
+                )
+                severity = "warning"
+            elif near_cap_zero_fill_alert:
+                summary = (
+                    "Near-cap exposure persisted with zero fills across "
+                    "consecutive cycles "
+                    f"(cycle_index={cycle_index}, "
+                    f"streak={near_cap_zero_fill_streak or 0}, "
+                    f"total_exposure_fraction={total_exposure_fraction or 0:.4f}, "
+                    "threshold="
+                    f"{near_cap_exposure_threshold_fraction or 0:.4f}, "
+                    f"filled_trade_count={filled_trade_count or 0})."
+                )
+                severity = "warning"
+            elif (
                 expected_value_after_execution_cost is not None
                 and expected_value_after_execution_cost < 0
             ):

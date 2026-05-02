@@ -38,6 +38,42 @@ class RuntimeSupervisorScriptTests(unittest.TestCase):
         )
         self.assertEqual(args.agent_operator_openfang_advisory_agent_id, "")
         self.assertEqual(args.agent_operator_openfang_strategy_agent_id, "")
+        self.assertEqual(args.ingestion_ok_zero_risk_alert_threshold_cycles, 3)
+        self.assertEqual(args.near_cap_zero_fill_alert_threshold_cycles, 3)
+        self.assertEqual(args.near_cap_exposure_threshold_fraction, 0.9)
+        self.assertFalse(args.disable_single_supervisor_lock)
+
+    def test_evaluate_observability_alerts_updates_streaks_and_alert_flags(self) -> None:
+        module = _load_runtime_supervisor_script_module()
+        first = module._evaluate_observability_alerts(
+            ingestion_status="OK",
+            risk_allowed_count=0,
+            filled_trade_count=0,
+            total_exposure_fraction=0.95,
+            zero_risk_streak=0,
+            near_cap_zero_fill_streak=0,
+            zero_risk_threshold_cycles=2,
+            near_cap_zero_fill_threshold_cycles=2,
+            near_cap_exposure_threshold_fraction=0.9,
+        )
+        self.assertEqual(first["healthy_ingestion_zero_risk_streak"], 1)
+        self.assertFalse(first["healthy_ingestion_zero_risk_alert"])
+        self.assertEqual(first["near_cap_zero_fill_streak"], 1)
+        self.assertFalse(first["near_cap_zero_fill_alert"])
+
+        second = module._evaluate_observability_alerts(
+            ingestion_status="OK",
+            risk_allowed_count=0,
+            filled_trade_count=0,
+            total_exposure_fraction=0.95,
+            zero_risk_streak=first["healthy_ingestion_zero_risk_streak"],
+            near_cap_zero_fill_streak=first["near_cap_zero_fill_streak"],
+            zero_risk_threshold_cycles=2,
+            near_cap_zero_fill_threshold_cycles=2,
+            near_cap_exposure_threshold_fraction=0.9,
+        )
+        self.assertTrue(second["healthy_ingestion_zero_risk_alert"])
+        self.assertTrue(second["near_cap_zero_fill_alert"])
 
 
 if __name__ == "__main__":

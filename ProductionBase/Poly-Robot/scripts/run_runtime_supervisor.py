@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import math
+import os
 import sys
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -281,6 +283,100 @@ def _lifecycle_mode_for_execution_mode(mode: object) -> str:
 
 def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
     return max(1, math.ceil(secret_max_age_seconds / 86_400))
+
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _acquire_single_supervisor_lock(lock_path: Path) -> Callable[[], None]:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    current_pid = os.getpid()
+    if lock_path.exists():
+        try:
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            payload = {}
+        existing_pid = int(payload.get("pid", 0) or 0)
+        if existing_pid and existing_pid != current_pid and _pid_is_running(existing_pid):
+            raise ValueError(
+                "single_supervisor_lock_active:"
+                f"pid={existing_pid}:lock_path={lock_path}"
+            )
+    lock_payload = {
+        "schema_version": "runtime_supervisor_lock.v1",
+        "pid": current_pid,
+        "acquired_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+    }
+    lock_path.write_text(json.dumps(lock_payload, indent=2) + "\n", encoding="utf-8")
+
+    released = {"value": False}
+
+    def _release() -> None:
+        if released["value"]:
+            return
+        released["value"] = True
+        try:
+            if not lock_path.exists():
+                return
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+            owner_pid = int(payload.get("pid", 0) or 0)
+            if owner_pid == current_pid:
+                lock_path.unlink(missing_ok=True)
+        except Exception:
+            return
+
+    atexit.register(_release)
+    return _release
+
+
+def _evaluate_observability_alerts(
+    *,
+    ingestion_status: str,
+    risk_allowed_count: int,
+    filled_trade_count: int,
+    total_exposure_fraction: float | None,
+    zero_risk_streak: int,
+    near_cap_zero_fill_streak: int,
+    zero_risk_threshold_cycles: int,
+    near_cap_zero_fill_threshold_cycles: int,
+    near_cap_exposure_threshold_fraction: float,
+) -> dict[str, Any]:
+    healthy_zero_risk = ingestion_status == "OK" and risk_allowed_count <= 0
+    updated_zero_risk_streak = (
+        zero_risk_streak + 1 if healthy_zero_risk else 0
+    )
+    exposure_fraction = (
+        float(total_exposure_fraction)
+        if total_exposure_fraction is not None
+        else 0.0
+    )
+    near_cap_zero_fill = (
+        exposure_fraction >= near_cap_exposure_threshold_fraction
+        and filled_trade_count <= 0
+    )
+    updated_near_cap_zero_fill_streak = (
+        near_cap_zero_fill_streak + 1 if near_cap_zero_fill else 0
+    )
+    return {
+        "healthy_ingestion_zero_risk_streak": updated_zero_risk_streak,
+        "healthy_ingestion_zero_risk_alert": (
+            updated_zero_risk_streak >= zero_risk_threshold_cycles
+        ),
+        "near_cap_zero_fill_streak": updated_near_cap_zero_fill_streak,
+        "near_cap_zero_fill_alert": (
+            updated_near_cap_zero_fill_streak
+            >= near_cap_zero_fill_threshold_cycles
+        ),
+    }
 
 def _resolve_l1_auth_guard(
     *,
@@ -981,6 +1077,44 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=0.1,
         help="Sampling temperature for AgentOperator inference.",
     )
+    parser.add_argument(
+        "--ingestion-ok-zero-risk-alert-threshold-cycles",
+        type=int,
+        default=3,
+        help=(
+            "Alert threshold for consecutive cycles where ingestion is OK "
+            "but risk gate allows zero actions."
+        ),
+    )
+    parser.add_argument(
+        "--near-cap-zero-fill-alert-threshold-cycles",
+        type=int,
+        default=3,
+        help=(
+            "Alert threshold for consecutive cycles with near-cap exposure "
+            "and zero filled trades."
+        ),
+    )
+    parser.add_argument(
+        "--near-cap-exposure-threshold-fraction",
+        type=float,
+        default=0.9,
+        help=(
+            "Exposure fraction threshold considered near-cap for "
+            "near-cap-zero-fill alerting."
+        ),
+    )
+    parser.add_argument(
+        "--single-supervisor-lock-path",
+        type=Path,
+        default=ROOT_DIR / "runtime" / "runtime_supervisor.lock.json",
+        help="Path to single-supervisor lock file used to prevent duplicate runs.",
+    )
+    parser.add_argument(
+        "--disable-single-supervisor-lock",
+        action="store_true",
+        help="Disable single-supervisor lock enforcement (not recommended).",
+    )
     return parser
 
 
@@ -1002,12 +1136,55 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--agent-operator-max-output-tokens must be > 0")
     if args.agent_operator_temperature < 0:
         raise ValueError("--agent-operator-temperature must be >= 0")
+    if args.ingestion_ok_zero_risk_alert_threshold_cycles <= 0:
+        raise ValueError(
+            "--ingestion-ok-zero-risk-alert-threshold-cycles must be > 0"
+        )
+    if args.near_cap_zero_fill_alert_threshold_cycles <= 0:
+        raise ValueError(
+            "--near-cap-zero-fill-alert-threshold-cycles must be > 0"
+        )
+    if (
+        args.near_cap_exposure_threshold_fraction <= 0
+        or args.near_cap_exposure_threshold_fraction > 1
+    ):
+        raise ValueError(
+            "--near-cap-exposure-threshold-fraction must be in (0, 1]"
+        )
     if args.ingestion_mode == "historical_jsonl" and args.events is None:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
         )
     if args.ingestion_mode == "historical_jsonl" and args.events is not None:
         args.events = _prepare_sorted_historical_events(args.events)
+    startup_self_check = {
+        "historical_event_sorting_enabled": args.ingestion_mode == "historical_jsonl",
+        "historical_cycle_timestamp_offset_enabled": (
+            args.ingestion_mode == "historical_jsonl"
+        ),
+        "single_supervisor_lock_enabled": not bool(
+            args.disable_single_supervisor_lock
+        ),
+        "single_supervisor_lock_path": str(args.single_supervisor_lock_path),
+        "ingestion_ok_zero_risk_alert_threshold_cycles": (
+            args.ingestion_ok_zero_risk_alert_threshold_cycles
+        ),
+        "near_cap_zero_fill_alert_threshold_cycles": (
+            args.near_cap_zero_fill_alert_threshold_cycles
+        ),
+        "near_cap_exposure_threshold_fraction": (
+            args.near_cap_exposure_threshold_fraction
+        ),
+    }
+    print(
+        "Runtime startup self-check: "
+        f"{json.dumps(startup_self_check, sort_keys=True)}"
+    )
+    lock_release: Callable[[], None] | None = None
+    if not args.disable_single_supervisor_lock:
+        lock_release = _acquire_single_supervisor_lock(
+            args.single_supervisor_lock_path
+        )
     profile_payload, parameters = _load_profile_payload(args.profile)
     calibration_policy_payload = _load_json(args.calibration_policy)
     calibration_policy = load_calibration_policy(args.calibration_policy)
@@ -1609,6 +1786,8 @@ def main(argv: list[str] | None = None) -> int:
     seen_live_event_ids: set[str] = set()
     state_refresh_streak_by_market: dict[str, int] = {}
     ingestion_degraded_streak = 0
+    healthy_ingestion_zero_risk_streak = 0
+    near_cap_zero_fill_streak = 0
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
@@ -1805,7 +1984,7 @@ def main(argv: list[str] | None = None) -> int:
         }
 
     def _run_test_token_cycle(heartbeat) -> dict:
-        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak
+        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak, healthy_ingestion_zero_risk_streak, near_cap_zero_fill_streak
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
@@ -1922,6 +2101,7 @@ def main(argv: list[str] | None = None) -> int:
                 "expected_execution_mode": expected_execution_mode,
                 "execution_mode": resolved_execution_mode,
                 "execution_mode_matches_lifecycle": execution_mode_matches_lifecycle,
+                "startup_self_check": startup_self_check,
             },
         )
 
@@ -2521,6 +2701,63 @@ def main(argv: list[str] | None = None) -> int:
             portfolio_state,
             initial_open_positions=open_positions_state,
         )
+        observability_alerts = _evaluate_observability_alerts(
+            ingestion_status=effective_ingestion_status,
+            risk_allowed_count=run.risk_allowed_count,
+            filled_trade_count=run.filled_trade_count,
+            total_exposure_fraction=run.final_portfolio.total_exposure_fraction,
+            zero_risk_streak=healthy_ingestion_zero_risk_streak,
+            near_cap_zero_fill_streak=near_cap_zero_fill_streak,
+            zero_risk_threshold_cycles=(
+                args.ingestion_ok_zero_risk_alert_threshold_cycles
+            ),
+            near_cap_zero_fill_threshold_cycles=(
+                args.near_cap_zero_fill_alert_threshold_cycles
+            ),
+            near_cap_exposure_threshold_fraction=(
+                args.near_cap_exposure_threshold_fraction
+            ),
+        )
+        healthy_ingestion_zero_risk_streak = int(
+            observability_alerts["healthy_ingestion_zero_risk_streak"]
+        )
+        near_cap_zero_fill_streak = int(
+            observability_alerts["near_cap_zero_fill_streak"]
+        )
+        if bool(observability_alerts["healthy_ingestion_zero_risk_alert"]):
+            heartbeat(
+                "observability_healthy_ingestion_zero_risk_alert",
+                {
+                    "cycle_index": cycle_index,
+                    "healthy_ingestion_zero_risk_streak": (
+                        healthy_ingestion_zero_risk_streak
+                    ),
+                    "threshold_cycles": (
+                        args.ingestion_ok_zero_risk_alert_threshold_cycles
+                    ),
+                    "ingestion_status": effective_ingestion_status,
+                    "risk_allowed_count": run.risk_allowed_count,
+                },
+            )
+        if bool(observability_alerts["near_cap_zero_fill_alert"]):
+            heartbeat(
+                "observability_near_cap_zero_fill_alert",
+                {
+                    "cycle_index": cycle_index,
+                    "near_cap_zero_fill_streak": near_cap_zero_fill_streak,
+                    "threshold_cycles": (
+                        args.near_cap_zero_fill_alert_threshold_cycles
+                    ),
+                    "near_cap_exposure_threshold_fraction": (
+                        args.near_cap_exposure_threshold_fraction
+                    ),
+                    "total_exposure_fraction": round(
+                        run.final_portfolio.total_exposure_fraction,
+                        6,
+                    ),
+                    "filled_trade_count": run.filled_trade_count,
+                },
+            )
         available_scenarios = (
             sorted(scenario_pack.scenarios.keys()) if scenario_pack is not None else []
         )
@@ -2850,6 +3087,8 @@ def main(argv: list[str] | None = None) -> int:
                 "ingestion_status": effective_ingestion_status,
                 "ingestion_reasons": effective_ingestion_reasons,
                 "ingestion_metadata": effective_ingestion_metadata,
+                "startup_self_check": startup_self_check,
+                "observability_alerts": dict(observability_alerts),
                 "execution_gateway": {
                     "max_retries": args.execution_gateway_max_retries,
                     "retry_backoff_seconds": args.execution_gateway_retry_backoff_seconds,
@@ -3116,6 +3355,19 @@ def main(argv: list[str] | None = None) -> int:
                 "ingestion_degraded_entry_suppressed": (
                     ingestion_degraded_entry_suppressed
                 ),
+                "healthy_ingestion_zero_risk_streak": (
+                    healthy_ingestion_zero_risk_streak
+                ),
+                "healthy_ingestion_zero_risk_alert": bool(
+                    observability_alerts["healthy_ingestion_zero_risk_alert"]
+                ),
+                "near_cap_zero_fill_streak": near_cap_zero_fill_streak,
+                "near_cap_zero_fill_alert": bool(
+                    observability_alerts["near_cap_zero_fill_alert"]
+                ),
+                "near_cap_exposure_threshold_fraction": (
+                    args.near_cap_exposure_threshold_fraction
+                ),
                 "state_refresh_applied": state_refresh_applied,
                 "state_refresh_event_count": state_refresh_event_count,
                 "state_refresh_market_ids": state_refresh_market_ids,
@@ -3230,6 +3482,19 @@ def main(argv: list[str] | None = None) -> int:
             "ingestion_degraded_entry_suppressed": (
                 ingestion_degraded_entry_suppressed
             ),
+            "healthy_ingestion_zero_risk_streak": (
+                healthy_ingestion_zero_risk_streak
+            ),
+            "healthy_ingestion_zero_risk_alert": bool(
+                observability_alerts["healthy_ingestion_zero_risk_alert"]
+            ),
+            "near_cap_zero_fill_streak": near_cap_zero_fill_streak,
+            "near_cap_zero_fill_alert": bool(
+                observability_alerts["near_cap_zero_fill_alert"]
+            ),
+            "near_cap_exposure_threshold_fraction": (
+                args.near_cap_exposure_threshold_fraction
+            ),
             "state_refresh_applied": state_refresh_applied,
             "state_refresh_event_count": state_refresh_event_count,
             "state_refresh_market_ids": state_refresh_market_ids,
@@ -3289,6 +3554,8 @@ def main(argv: list[str] | None = None) -> int:
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path}"
     )
+    if lock_release is not None:
+        lock_release()
     return 0 if overall_status == "SUCCESS" else 1
 
 

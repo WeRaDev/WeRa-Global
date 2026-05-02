@@ -830,6 +830,42 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
             }
             self.assertIn("control_kill_switch_gate", heartbeat_stages)
 
+    def test_single_supervisor_lock_blocks_second_active_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lock_path = root / "runtime_supervisor.lock.json"
+            _write_json(
+                lock_path,
+                {
+                    "schema_version": "runtime_supervisor_lock.v1",
+                    "pid": os.getpid(),
+                    "acquired_at": "2026-01-01T00:00:00Z",
+                },
+            )
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 16,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "last_annotation": "",
+            }
+            result, _, _, _, _ = self._run_supervisor(
+                temp_root=root,
+                control_state_payload=control_state,
+                cycles=1,
+                extra_args=[
+                    "--single-supervisor-lock-path",
+                    str(lock_path),
+                ],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("single_supervisor_lock_active", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
