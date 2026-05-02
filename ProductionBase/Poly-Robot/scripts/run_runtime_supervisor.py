@@ -6,7 +6,7 @@ import json
 import math
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +56,76 @@ LIFECYCLE_MODE_BY_EXECUTION_MODE = {
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _shift_iso_timestamp_for_cycle(timestamp: str, *, cycle_index: int) -> str:
+    if cycle_index <= 1:
+        return timestamp
+    raw = str(timestamp or "").strip()
+    if not raw:
+        return timestamp
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return timestamp
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    shifted = dt.astimezone(UTC) + timedelta(hours=(cycle_index - 1))
+    return shifted.isoformat().replace("+00:00", "Z")
+
+
+def _offset_events_for_cycle(
+    events: list[MarketEvent], *, cycle_index: int
+) -> list[MarketEvent]:
+    if cycle_index <= 1:
+        return events
+    shifted_events: list[MarketEvent] = []
+    for event in events:
+        payload = event.to_dict()
+        payload["timestamp"] = _shift_iso_timestamp_for_cycle(
+            str(payload.get("timestamp", event.timestamp)),
+            cycle_index=cycle_index,
+        )
+        shifted_events.append(MarketEvent.from_dict(payload))
+    return shifted_events
+
+
+def _prepare_sorted_historical_events(events_path: Path) -> Path:
+    lines = events_path.read_text(encoding="utf-8").splitlines()
+    records: list[tuple[str, str, int, dict[str, Any]]] = []
+    for index, raw_line in enumerate(lines):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return events_path
+        timestamp = str(payload.get("timestamp", ""))
+        event_id = str(payload.get("event_id", ""))
+        records.append((timestamp, event_id, index, payload))
+
+    if not records:
+        return events_path
+
+    sorted_records = sorted(records, key=lambda row: (row[0], row[1], row[2]))
+    already_sorted = all(
+        left[:3] == right[:3]
+        for left, right in zip(records, sorted_records, strict=False)
+    )
+    if already_sorted:
+        return events_path
+
+    output_dir = Path("/tmp/poly_robot_preprocessed_events")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{events_path.stem}.sorted.jsonl"
+    serialized = [
+        json.dumps(payload, separators=(",", ":"))
+        for _, _, _, payload in sorted_records
+    ]
+    output_path.write_text("\n".join(serialized) + "\n", encoding="utf-8")
+    return output_path
 
 
 def _load_profile_payload(profile_path: Path) -> tuple[dict, dict]:
@@ -896,6 +966,8 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
         )
+    if args.ingestion_mode == "historical_jsonl" and args.events is not None:
+        args.events = _prepare_sorted_historical_events(args.events)
     profile_payload, parameters = _load_profile_payload(args.profile)
     calibration_policy_payload = _load_json(args.calibration_policy)
     calibration_policy = load_calibration_policy(args.calibration_policy)
@@ -2126,6 +2198,10 @@ def main(argv: list[str] | None = None) -> int:
                     _resolve_scenario_run_inputs(scenario_name_in_use)
                 )
             run_scenario_name = scenario.name
+            events_for_run = _offset_events_for_cycle(
+                events_for_run,
+                cycle_index=cycle_index,
+            )
             if historical_ingestion is None:
                 raise ValueError("historical ingestion state is unavailable")
             cycle_ingestion = historical_ingestion
