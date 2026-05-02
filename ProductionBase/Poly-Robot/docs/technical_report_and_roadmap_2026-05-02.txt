@@ -1,0 +1,110 @@
+Poly-Robot Technical Report and Prioritized Development Roadmap
+Date: 2026-05-02
+
+1) Purpose
+This document consolidates the latest runtime investigations, implemented fixes, residual technical risks, and a prioritized roadmap for continued development.
+
+2) Current Technical Status
+2.1 Runtime
+- Runtime supervisor is cycling successfully.
+- Ingestion is currently stable (ingestion_status=OK) after replay preprocessing fix.
+- No persistent worker execution failures observed in recent windows.
+
+2.2 Trading Activity
+- Risk approvals and fills have resumed, but are periodic/intermittent.
+- Execution tends to happen in bursts between exposure-cap windows.
+- During cap windows, risk approvals drop to zero until exits release open notional.
+
+2.3 Profitability
+- Net PnL remains negative in observed windows.
+- Expected-value metrics can drop to zero in many late-cycle windows.
+- Current certification criteria can pass while economic quality remains weak.
+
+3) Root Causes Identified
+3.1 Ingestion degradation loop
+Observed:
+- non_monotonic_rows_detected
+- entry_suppressed_due_consecutive_ingestion_degraded
+Cause:
+- Historical replay file had out-of-order timestamps.
+- Supervisor tolerated violations as DEGRADED, causing degraded streak accumulation and suppression.
+
+3.2 Risk approval lockout
+Observed:
+- market_exposure_limit_reached
+Cause:
+- Open notional saturated exposure cap.
+- Historical replay used static timestamps each cycle, delaying effective holding-age progression and exit release patterns.
+
+4) Implemented Fixes
+4.1 Historical replay preprocessing
+- Added preprocessing in runtime supervisor historical path.
+- Replay rows are sorted by (timestamp, event_id) before ingestion.
+Result:
+- Ingestion moved from persistent DEGRADED to stable OK.
+
+4.2 Historical cycle-time progression
+- Added per-cycle timestamp offset in historical mode.
+- Position aging now advances across cycles.
+Result:
+- Exit events occur and exposure can be released.
+- Risk approvals and fills resume after release windows.
+
+5) Validation Summary
+- Syntax checks passed for patched supervisor.
+- Targeted validation runs confirmed:
+  - ingestion_status=OK with originally unsorted replay fixture
+  - resumed approvals/fills after exit-trigger windows
+- Live monitoring confirmed:
+  - ingestion remained OK in recent windows
+  - approvals/fills occur intermittently (not every cycle)
+  - cap windows still produce temporary no-trade periods
+
+6) Outstanding Issues
+- Economic quality remains weak (negative net PnL trend).
+- Trade cadence is uneven due to cap/exit oscillation.
+- AgentOperator runtime pathway is unavailable when model API credentials are missing.
+- Gate pass criteria remain more permissive than desired for profitability assurance.
+
+7) Prioritized Roadmap
+P0 (Immediate)
+1. Execution cadence stabilization
+   - Tune risk and exposure parameters to reduce long no-trade cap windows.
+   - Tune exit thresholds/holding controls to improve turnover safety.
+2. Runtime observability and alerting
+   - Alert when ingestion_status=OK but risk_allowed_count=0 for prolonged streaks.
+   - Alert when open_notional remains near cap with zero fills over threshold cycles.
+3. Runtime process integrity
+   - Enforce single-supervisor invariant after restart.
+   - Add startup self-check logging active feature flags (preprocess + cycle-time offset).
+
+P1 (Near-Term)
+1. Profitability gate hardening
+   - Increase minimum expected value thresholds above zero.
+   - Add rolling-window profitability constraints.
+2. Risk/exit model recalibration
+   - Re-tune max exposure and exit dynamics with scenario matrix runs.
+3. AgentOperator operational readiness
+   - Ensure secure secret provisioning and validate operator availability path.
+
+P2 (Medium-Term)
+1. Data realism expansion
+   - Replace tiny replay fixture loops with richer historical streams.
+2. Automated parameter optimization
+   - Build reproducible sweep and comparison framework.
+3. Governance separation
+   - Split reliability gate from economic-quality gate for promotion decisions.
+
+8) Acceptance Criteria for Next Milestone
+- Ingestion remains OK over long-run historical cycles without false degradation.
+- No prolonged cap-lock windows without planned exit release.
+- Repeated risk approvals/fills across multiple windows.
+- Improved rolling expected value and net PnL trend vs current baseline.
+- Strengthened gate criteria pass with positive economic signal quality.
+
+9) Recommended Next Actions
+1. Implement P0 alerts and single-supervisor guardrail.
+2. Run focused parameter-tuning experiments for risk/exposure/exit.
+3. Tighten gate thresholds and re-run paper certification.
+4. Validate operator secret/config path in runtime environment.
+5. Produce weekly reliability+economics trend report for iteration governance.
