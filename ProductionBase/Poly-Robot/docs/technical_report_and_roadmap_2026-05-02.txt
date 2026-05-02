@@ -59,44 +59,76 @@ Result:
   - ingestion remained OK in recent windows
   - approvals/fills occur intermittently (not every cycle)
   - cap windows still produce temporary no-trade periods
+5.1) Baseline Metrics Snapshot (latest verified evidence)
+- TRL4 profitability gate report: overall_status=PASS, cycle_count=24, runtime_duration_hours=24.0.
+- Runtime reliability baseline: ingestion_status=OK in recent monitored windows after replay sorting fix.
+- Execution cadence baseline: intermittent approvals/fills with recurring cap-lock windows where risk_allowed_count can drop to zero.
+- Economic baseline: net PnL trend remains negative; expected-value metrics can collapse toward zero in late-cycle windows.
 
 6) Outstanding Issues
 - Economic quality remains weak (negative net PnL trend).
 - Trade cadence is uneven due to cap/exit oscillation.
-- AgentOperator runtime pathway is unavailable when model API credentials are missing.
+- AgentOperator availability remains environment-dependent: Claude-path failures are now mitigated via OpenFang backend fail-open support, but recommendations still degrade to UNAVAILABLE when OpenFang daemon/agent IDs are not configured.
 - Gate pass criteria remain more permissive than desired for profitability assurance.
 
 7) Prioritized Roadmap
 P0 (Immediate)
 1. Execution cadence stabilization
+   - Owner: runtime_operator
+   - Target: week 1
    - Tune risk and exposure parameters to reduce long no-trade cap windows.
    - Tune exit thresholds/holding controls to improve turnover safety.
 2. Runtime observability and alerting
+   - Owner: reliability_engineering
+   - Target: week 1
    - Alert when ingestion_status=OK but risk_allowed_count=0 for prolonged streaks.
    - Alert when open_notional remains near cap with zero fills over threshold cycles.
 3. Runtime process integrity
+   - Owner: runtime_operator
+   - Target: week 1
    - Enforce single-supervisor invariant after restart.
    - Add startup self-check logging active feature flags (preprocess + cycle-time offset).
 
 P1 (Near-Term)
 1. Profitability gate hardening
+   - Owner: quant_research
+   - Target: week 2
    - Increase minimum expected value thresholds above zero.
    - Add rolling-window profitability constraints.
 2. Risk/exit model recalibration
+   - Owner: quant_research
+   - Target: week 2
    - Re-tune max exposure and exit dynamics with scenario matrix runs.
 3. AgentOperator operational readiness
+   - Owner: platform_engineering
+   - Target: week 2
    - Ensure secure secret provisioning and validate operator availability path.
 4. OpenFang AgentOperator control-plane pilot
+   - Owner: platform_engineering
+   - Target: week 2-3
    - Add OpenFang-backed AgentOperator backend with fail-open fallback to deterministic runtime behavior.
-   - Run shadow-mode advisory/strategy operators via OpenFang daemon and compare cadence + EV deltas against baseline.
-   - Promote only guarded influence knobs after stability and safety criteria are met.
+   - Run shadow-mode advisory/strategy operators via OpenFang daemon for 7 days and compare cadence + EV deltas against baseline.
+   - Promote only guarded influence knobs when all of the following are true:
+     - rolling expected_value_after_execution_cost improves >= 10% vs baseline
+     - no increase in ingestion degradation incidence vs baseline
+     - zero policy/risk guardrail violations in evaluation window
+   - Automatic rollback/disable triggers:
+     - risk approval cadence drops >= 20% vs baseline for 3 consecutive windows
+     - rolling expected_value_after_execution_cost worsens >= 10% vs baseline
+     - any high-severity policy/risk guardrail breach
 
 P2 (Medium-Term)
 1. Data realism expansion
+   - Owner: data_engineering
+   - Target: week 4
    - Replace tiny replay fixture loops with richer historical streams.
 2. Automated parameter optimization
+   - Owner: quant_research
+   - Target: week 4-5
    - Build reproducible sweep and comparison framework.
 3. Governance separation
+   - Owner: governance
+   - Target: week 5
    - Split reliability gate from economic-quality gate for promotion decisions.
 
 8) Acceptance Criteria for Next Milestone
@@ -114,3 +146,13 @@ P2 (Medium-Term)
 5. Produce weekly reliability+economics trend report for iteration governance.
 6. Stand up OpenFang daemon and run AgentOperator in shadow mode (advisory + strategy) with strict fallback gates.
 7. Gate OpenFang influence rollout behind measured improvements in cap-lock duration, risk-approval cadence, and rolling expected value.
+10) Reproducibility References (commands and artifacts)
+- Runtime supervisor validation:
+  - command: `python3 scripts/run_runtime_supervisor.py --events tests/fixtures/replay_events.jsonl --profile config/parameters/profiles/mvp_test_token.v1.json --calibration-policy config/calibration/llm_reliability.v1.json --scenario-pack config/replay/scenario_pack.v1.json --scenario baseline --cycles 3 --cycle-output-dir runtime/cycles`
+  - artifacts: `runtime/runtime_state.json`, `runtime/runtime_journal.jsonl`, `runtime/cycles/cycle_*.json`
+- TRL4 profitability gate:
+  - command: `python3 scripts/run_trl4_profitability_report.py --journal-path runtime/runtime_journal.jsonl --state-path runtime/runtime_state.json --gate-config config/certification/trl4_24h_profitability_gate.v1.json --output runtime/trl4_24h_report.json`
+  - artifact: `runtime/trl4_24h_report.json`
+- Mode promotion gate:
+  - command: `python3 scripts/run_mode_promotion_gate.py --current-mode paper --target-mode test --manual-approval-status approved --milestone-c-sequence-report runtime/milestone_c_sequence/milestone_c_sequence_summary.json --trl4-profitability-report runtime/trl4_24h_report.json --output runtime/mode_promotion_gate_report.json --audit-output runtime/mode_promotion_audit.jsonl`
+  - artifacts: `runtime/mode_promotion_gate_report.json`, `runtime/mode_promotion_audit.jsonl`
