@@ -298,6 +298,49 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 advisory["reason"],
             )
 
+    def test_agent_operator_openfang_fail_open_metadata_is_written_to_run_context(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 10,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "advisory",
+                "last_annotation": "",
+            }
+            result, state_path, _, _, _ = self._run_supervisor(
+                temp_root=root,
+                control_state_payload=control_state,
+                cycles=1,
+                cycle_output=True,
+                extra_args=[
+                    "--agent-operator-enabled",
+                    "--agent-operator-backend",
+                    "openfang_api",
+                ],
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertEqual(metadata["agent_operator_status"], "UNAVAILABLE")
+            self.assertEqual(metadata["agent_operator_provider"], "openfang_api")
+            cycle_report = _read_json(root / "cycles" / "cycle_001.json")
+            advisory = cycle_report["run_context"]["agent_operator"]
+            self.assertEqual(advisory["status"], "UNAVAILABLE")
+            self.assertEqual(
+                advisory["reason"],
+                "agent_operator_openfang_agent_id_missing",
+            )
+
     def test_strategy_mode_applies_valid_scenario_hint_for_future_cycle(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

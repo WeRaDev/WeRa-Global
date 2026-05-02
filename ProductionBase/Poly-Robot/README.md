@@ -169,6 +169,27 @@ python3 scripts/run_runtime_supervisor.py \
   --control-audit-path runtime/operator_action_audit.jsonl \
   --cycle-output-dir runtime/cycles
 ```
+Run C1 runtime supervisor with OpenFang-backed AgentOperator (shadow/fail-open):
+```bash
+python3 scripts/run_runtime_supervisor.py \
+  --events tests/fixtures/replay_events.jsonl \
+  --profile config/parameters/profiles/mvp_test_token.v1.json \
+  --calibration-policy config/calibration/llm_reliability.v1.json \
+  --scenario-pack config/replay/scenario_pack.v1.json \
+  --scenario baseline \
+  --cycles 3 \
+  --agent-operator-enabled \
+  --agent-operator-backend openfang_api \
+  --agent-operator-openfang-base-url http://127.0.0.1:4200 \
+  --agent-operator-openfang-advisory-agent-id advisory-operator \
+  --agent-operator-openfang-strategy-agent-id strategy-operator \
+  --control-state-path runtime/operator_control_state.json \
+  --control-audit-path runtime/operator_action_audit.jsonl \
+  --cycle-output-dir runtime/cycles
+```
+OpenFang AgentOperator notes:
+- If OpenFang is unavailable or agent IDs/tokens are missing, runtime remains fail-open and cycle execution continues.
+- Use this mode in shadow rollout first, then gate strategy influence on measured improvements (approval cadence, cap-lock duration, rolling expected value).
 Run C1 runtime supervisor with live Polymarket ingestion (real-time cycle decisions):
 ```bash
 python3 scripts/run_runtime_supervisor.py \
