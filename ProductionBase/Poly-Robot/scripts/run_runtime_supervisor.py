@@ -8,9 +8,11 @@ import math
 import os
 import sys
 import time
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -21,6 +23,7 @@ if str(SRC_DIR) not in sys.path:
 
 from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
 from poly_robot.agent_operator import (  # noqa: E402
+    AgencyGateway,
     AgentOperator,
     ClaudeApiClient,
     OpenFangApiClient,
@@ -1983,6 +1986,179 @@ def main(argv: list[str] | None = None) -> int:
             ),
         }
 
+    def _polymarket_market_url(market_id: str) -> str:
+        normalized = str(market_id).strip()
+        if not normalized:
+            return ""
+        return f"https://polymarket.com/event/{quote(normalized, safe='')}"
+
+    def _build_open_positions_detail(
+        final_open_positions: dict[str, object],
+    ) -> list[dict[str, object]]:
+        def _position_value(position: object, key: str, default: object) -> object:
+            if isinstance(position, dict):
+                return position.get(key, default)
+            return getattr(position, key, default)
+        details: list[dict[str, object]] = []
+        for market_id, position in sorted(final_open_positions.items()):
+            quantity = float(
+                _position_value(
+                    position,
+                    "quantity",
+                    _position_value(position, "open_notional", 0.0),
+                )
+                or 0.0
+            )
+            average_entry_price = float(
+                _position_value(
+                    position,
+                    "average_entry_price",
+                    _position_value(position, "entry_midpoint", 0.0),
+                )
+                or 0.0
+            )
+            current_price = float(
+                _position_value(
+                    position,
+                    "current_price",
+                    _position_value(position, "last_midpoint", 0.0),
+                )
+                or 0.0
+            )
+            metadata = _position_value(position, "metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            details.append(
+                {
+                    "market_id": market_id,
+                    "quantity": round(quantity, 6),
+                    "average_entry_price": round(average_entry_price, 6),
+                    "current_price": round(current_price, 6),
+                    "mark_notional": round(quantity * current_price, 6),
+                    "entry_notional": round(quantity * average_entry_price, 6),
+                    "unrealized_pnl": round(
+                        quantity * (current_price - average_entry_price),
+                        6,
+                    ),
+                    "opened_at": (
+                        str(_position_value(position, "opened_at", "")).strip() or None
+                    ),
+                    "hold_hours": (
+                        round(float(_position_value(position, "hold_hours", 0.0) or 0.0), 4)
+                    ),
+                    "stale_checks": int(_position_value(position, "stale_checks", 0) or 0),
+                    "forced_exit_threshold_hours": (
+                        float(
+                            _position_value(
+                                position,
+                                "forced_exit_threshold_hours",
+                                0.0,
+                            )
+                            or 0.0
+                        )
+                    ),
+                    "source_record_index": int(
+                        _position_value(position, "source_record_index", 0) or 0
+                    ),
+                    "verification_url": _polymarket_market_url(market_id),
+                    "event_id": str(metadata.get("event_id", "")).strip() or None,
+                    "token_id": str(metadata.get("token_id", "")).strip() or None,
+                    "tick_size": metadata.get("tick_size"),
+                    "neg_risk": metadata.get("neg_risk"),
+                }
+            )
+        return details
+
+    def _build_closed_positions_recent(
+        records: list[object],
+        *,
+        max_items: int = 50,
+    ) -> list[dict[str, object]]:
+        def _normalize_record(raw_record: object) -> dict[str, object]:
+            if isinstance(raw_record, dict):
+                return dict(raw_record)
+            if hasattr(raw_record, "__dataclass_fields__"):
+                return asdict(raw_record)
+            return {}
+        recent: list[dict[str, object]] = []
+        for raw_record in records:
+            record = _normalize_record(raw_record)
+            if not record:
+                continue
+
+            if "record_type" in record:
+                if str(record.get("record_type", "")).strip().lower() != "exit":
+                    continue
+                exit_reason = str(record.get("exit_reason", "")).strip().lower()
+                if exit_reason not in {
+                    "position_closed",
+                    "forced_max_holding_exit",
+                    "stale_exit",
+                    "capture_exit",
+                }:
+                    continue
+                market_id = str(record.get("market_id", "")).strip()
+                quantity = float(record.get("quantity", 0.0) or 0.0)
+                entry_price = float(record.get("entry_price", 0.0) or 0.0)
+                exit_price = float(record.get("exit_price", 0.0) or 0.0)
+                fees_paid = float(record.get("fees_paid", 0.0) or 0.0)
+                slippage_cost = float(record.get("slippage_cost", 0.0) or 0.0)
+                pnl = float(record.get("pnl", 0.0) or 0.0)
+                closed_at = str(record.get("timestamp", "")).strip() or None
+            else:
+                exit_decision = record.get("exit_decision")
+                if not isinstance(exit_decision, dict) or not bool(
+                    exit_decision.get("should_exit", False)
+                ):
+                    continue
+                execution_result = record.get("execution_result")
+                if not isinstance(execution_result, dict):
+                    execution_result = {}
+                metadata = execution_result.get("metadata")
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                reason_codes = exit_decision.get("reasons")
+                if isinstance(reason_codes, (list, tuple)) and reason_codes:
+                    exit_reason = str(reason_codes[0]).strip().lower()
+                else:
+                    exit_reason = "position_closed"
+                market_id = str(record.get("market_id", "")).strip()
+                exit_notional = float(
+                    metadata.get("exit_closed_notional")
+                    or execution_result.get("filled_notional", 0.0)
+                    or 0.0
+                )
+                quantity = exit_notional
+                entry_price = 1.0
+                exit_price = 1.0
+                fees_paid = float(execution_result.get("fee_paid", 0.0) or 0.0)
+                slippage_cost = float(
+                    execution_result.get("slippage_cost", 0.0) or 0.0
+                )
+                pnl = 0.0
+                closed_at = str(record.get("timestamp", "")).strip() or None
+            recent.append(
+                {
+                    "market_id": market_id,
+                    "quantity": round(quantity, 6),
+                    "entry_price": round(entry_price, 6),
+                    "exit_price": round(exit_price, 6),
+                    "entry_notional": round(quantity * entry_price, 6),
+                    "exit_notional": round(quantity * exit_price, 6),
+                    "fees_paid": round(fees_paid, 6),
+                    "slippage_cost": round(slippage_cost, 6),
+                    "realized_pnl": round(pnl, 6),
+                    "exit_reason": exit_reason,
+                    "closed_at": closed_at,
+                    "verification_url": _polymarket_market_url(market_id),
+                }
+            )
+        recent.sort(
+            key=lambda row: str(row.get("closed_at", "")),
+            reverse=True,
+        )
+        return recent[:max_items]
+
     def _run_test_token_cycle(heartbeat) -> dict:
         nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak, healthy_ingestion_zero_risk_streak, near_cap_zero_fill_streak
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
@@ -2807,29 +2983,23 @@ def main(argv: list[str] | None = None) -> int:
             },
             "available_scenarios": available_scenarios,
         }
-        role_modes = {
-            "supervisor": "advisory",
-            "strategist": "strategy",
-        }
+        role_modes = {"supervisor": "advisory", "strategist": "strategy"}
+        agency_gateway = AgencyGateway(agent_operators_by_mode)
         agent_operators = _agent_operators_skipped(
             "agent_operators_stopped_by_control"
         )
         if agent_operators_running:
-            for role_name, role_mode in role_modes.items():
-                active_agent_operator = agent_operators_by_mode.get(role_mode)
-                if active_agent_operator is None:
-                    agent_operators[role_name] = _agent_operator_skipped_result(
-                        "agent_operator_mode_not_configured",
-                        mode=role_mode,
-                    )
-                    continue
-                agent_operators[role_name] = active_agent_operator.infer(
-                    cycle_context={
-                        **base_agent_operator_cycle_context,
-                        "agent_operator_role": role_name,
-                        "agent_operator_mode": role_mode,
-                    }
-                )
+            requested_role_modes = dict(role_modes)
+            if agent_operator_mode == "advisory":
+                requested_role_modes = {"supervisor": "advisory"}
+            elif agent_operator_mode == "strategy":
+                requested_role_modes = {"strategist": "strategy"}
+            agent_operators = agency_gateway.infer_roles(
+                base_cycle_context=base_agent_operator_cycle_context,
+                requested_role_modes=requested_role_modes,
+                all_role_modes=role_modes,
+                operators_enabled=True,
+            )
         else:
             agent_operators = _agent_operators_skipped(
                 "agent_operators_stopped_by_control"
@@ -2845,6 +3015,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         final_portfolio = run.final_portfolio
+        open_positions_detail = _build_open_positions_detail(run.final_open_positions)
+        closed_positions_recent = _build_closed_positions_recent(run.records)
         cycle_net_pnl = round(
             final_portfolio.current_equity - final_portfolio.day_start_equity,
             4,
@@ -3148,6 +3320,8 @@ def main(argv: list[str] | None = None) -> int:
                     "starting_open_notional": cycle_start_open_notional,
                     "starting_open_positions": cycle_start_open_positions,
                 },
+                "open_positions_detail": open_positions_detail,
+                "closed_positions_recent": closed_positions_recent,
             },
         )
         result_hash = stable_hash(
@@ -3373,6 +3547,8 @@ def main(argv: list[str] | None = None) -> int:
                 "state_refresh_market_ids": state_refresh_market_ids,
                 "state_refresh_max_streak": state_refresh_max_streak,
                 "stale_open_position_market_ids": stale_open_position_market_ids,
+                "open_positions_detail": open_positions_detail,
+                "closed_positions_recent": closed_positions_recent,
             },
         )
         portfolio_state = run.final_portfolio.clone()
@@ -3500,6 +3676,8 @@ def main(argv: list[str] | None = None) -> int:
             "state_refresh_market_ids": state_refresh_market_ids,
             "state_refresh_max_streak": state_refresh_max_streak,
             "stale_open_position_market_ids": stale_open_position_market_ids,
+            "open_positions_detail": open_positions_detail,
+            "closed_positions_recent": closed_positions_recent,
             **mode_lifecycle_metadata,
         }
 

@@ -97,6 +97,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         cycle_output: bool = False,
         extra_args: list[str] | None = None,
         env: dict[str, str] | None = None,
+        disable_single_supervisor_lock: bool = True,
     ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path, Path]:
         state_path = temp_root / "runtime_state.json"
         journal_path = temp_root / "runtime_journal.jsonl"
@@ -134,6 +135,8 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
         ]
         if cycle_output:
             command.extend(["--cycle-output-dir", str(temp_root / "cycles")])
+        if disable_single_supervisor_lock:
+            command.append("--disable-single-supervisor-lock")
         if extra_args:
             command.extend(extra_args)
 
@@ -339,6 +342,78 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
             self.assertEqual(
                 advisory["reason"],
                 "agent_operator_openfang_agent_id_missing",
+            )
+    def test_advisory_mode_runs_supervisor_role_and_skips_strategist_role(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            control_state = {
+                "schema_version": RUNTIME_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "control_version": 11,
+                "paused": False,
+                "restart_requested": False,
+                "kill_switch_active": False,
+                "cancel_all_requested": False,
+                "selected_scenario": "baseline",
+                "agent_operator_enabled": True,
+                "agent_operator_mode": "advisory",
+                "last_annotation": "",
+            }
+            response_text = json.dumps(
+                {
+                    "summary": "Maintain baseline posture.",
+                    "profitability_hypothesis": "Edge remains stable.",
+                    "risk_posture": "neutral",
+                    "confidence": 0.6,
+                    "recommended_actions": [],
+                    "scenario_hint": "",
+                }
+            )
+            server, worker, endpoint = self._start_mock_claude_server(
+                response_text=response_text
+            )
+            try:
+                env = dict(os.environ)
+                env["POLY_ROBOT_TEST_AGENT_KEY"] = "test-key"
+                result, state_path, _, _, _ = self._run_supervisor(
+                    temp_root=root,
+                    control_state_payload=control_state,
+                    cycles=1,
+                    cycle_output=True,
+                    extra_args=[
+                        "--agent-operator-enabled",
+                        "--agent-operator-api-key-env",
+                        "POLY_ROBOT_TEST_AGENT_KEY",
+                        "--agent-operator-endpoint-url",
+                        endpoint,
+                    ],
+                    env=env,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=5)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            state = _read_json(state_path)
+            metadata = state["worker_results"][0]["last_metadata"]
+            self.assertIsInstance(metadata.get("open_positions_detail"), list)
+            self.assertIsInstance(metadata.get("closed_positions_recent"), list)
+            for row in metadata["open_positions_detail"] + metadata["closed_positions_recent"]:
+                self.assertIn("verification_url", row)
+
+            cycle_report = _read_json(root / "cycles" / "cycle_001.json")
+            run_context = cycle_report["run_context"]
+            self.assertIsInstance(run_context.get("open_positions_detail"), list)
+            self.assertIsInstance(run_context.get("closed_positions_recent"), list)
+
+            agent_operators = run_context["agent_operators"]
+            self.assertEqual(agent_operators["supervisor"]["status"], "OK")
+            self.assertEqual(agent_operators["supervisor"]["mode"], "advisory")
+            self.assertEqual(agent_operators["strategist"]["status"], "SKIPPED")
+            self.assertEqual(
+                agent_operators["strategist"]["reason"],
+                "agent_operator_role_not_requested_by_mode",
             )
 
     def test_strategy_mode_applies_valid_scenario_hint_for_future_cycle(self) -> None:
@@ -857,6 +932,7 @@ class RuntimeSupervisorControlIntegrationTests(unittest.TestCase):
                 temp_root=root,
                 control_state_payload=control_state,
                 cycles=1,
+                disable_single_supervisor_lock=False,
                 extra_args=[
                     "--single-supervisor-lock-path",
                     str(lock_path),

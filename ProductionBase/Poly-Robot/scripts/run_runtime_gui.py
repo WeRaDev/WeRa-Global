@@ -456,6 +456,18 @@ def _html_page() -> str:
   </div>
   <div class="grid">
     <div class="card">
+      <h2>Financial Game Overview</h2>
+      <p class="section-help">Simplified supervision snapshot with quick status signals and control state.</p>
+      <pre id="gameOverviewPayload"></pre>
+    </div>
+    <div class="card">
+      <h2>Position Verification</h2>
+      <p class="section-help">Open and recently closed positions with verification links for manual checks.</p>
+      <pre id="positionBookPayload"></pre>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card">
       <h2>State + Loop Metrics</h2>
       <pre id="statePayload"></pre>
     </div>
@@ -749,6 +761,10 @@ def _html_page() -> str:
         ' | ' + statusCounts;
       document.getElementById('agentOperatorLearningPayload').textContent =
         JSON.stringify(agentOperatorLearning, null, 2);
+      document.getElementById('gameOverviewPayload').textContent =
+        JSON.stringify(payload.game_overview || {}, null, 2);
+      document.getElementById('positionBookPayload').textContent =
+        JSON.stringify(payload.position_book || {}, null, 2);
 
       const incidentPaging = (payload.incident_feed || {}).paging || {};
       const cursorLabel = incidentPaging.cursor ?? 'latest';

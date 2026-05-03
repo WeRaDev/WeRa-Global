@@ -368,10 +368,12 @@ class AgentOperator:
         *,
         status: str,
         reason: str,
+        reason_detail: str = "",
     ) -> dict[str, Any]:
         return {
             "status": status,
             "reason": reason,
+            "reason_detail": _trim_text(reason_detail, max_length=256),
             "provider": self.client.provider,
             "model": self.client.model,
             "mode": "advisory",
@@ -400,13 +402,18 @@ class AgentOperator:
                 timeout_seconds=self.timeout_seconds,
             )
         except AgentOperatorUnavailableError as exc:
-            fallback = self._fallback_result(status="UNAVAILABLE", reason=str(exc))
+            fallback = self._fallback_result(
+                status="UNAVAILABLE",
+                reason=str(exc),
+                reason_detail=str(exc),
+            )
             fallback["mode"] = mode
             return fallback
         except Exception as exc:  # pragma: no cover - defensive fail-open
             fallback = self._fallback_result(
                 status="ERROR",
                 reason=exc.__class__.__name__,
+                reason_detail=str(exc),
             )
             fallback["mode"] = mode
             return fallback
@@ -472,3 +479,84 @@ class AgentOperator:
             ),
             "scenario_hint": _normalize_scenario_hint(parsed.get("scenario_hint", "")),
         }
+
+
+class AgencyGateway:
+    def __init__(self, operators_by_mode: dict[str, AgentOperator]) -> None:
+        self.operators_by_mode = dict(operators_by_mode)
+
+    def skipped_result(self, *, reason: str, mode: str) -> dict[str, Any]:
+        operator = self.operators_by_mode.get(mode)
+        if operator is None:
+            return {
+                "status": "DISABLED",
+                "reason": reason,
+                "reason_detail": "",
+                "provider": "none",
+                "model": "none",
+                "mode": mode,
+                "generated_at": _utc_now_iso(),
+                "summary": "",
+                "profitability_hypothesis": "",
+                "risk_posture": "neutral",
+                "confidence": None,
+                "recommended_actions": [],
+                "scenario_hint": "",
+            }
+        return {
+            "status": "SKIPPED",
+            "reason": reason,
+            "reason_detail": "",
+            "provider": operator.client.provider,
+            "model": operator.client.model,
+            "mode": mode,
+            "generated_at": _utc_now_iso(),
+            "summary": "",
+            "profitability_hypothesis": "",
+            "risk_posture": "neutral",
+            "confidence": None,
+            "recommended_actions": [],
+            "scenario_hint": "",
+        }
+
+    def infer_roles(
+        self,
+        *,
+        base_cycle_context: dict[str, Any],
+        requested_role_modes: dict[str, str],
+        all_role_modes: dict[str, str],
+        operators_enabled: bool,
+        disabled_reason: str = "agent_operators_stopped_by_control",
+        role_not_requested_reason: str = "agent_operator_role_not_requested_by_mode",
+    ) -> dict[str, dict[str, Any]]:
+        role_results: dict[str, dict[str, Any]] = {}
+        if not operators_enabled:
+            for role_name, role_mode in all_role_modes.items():
+                role_results[role_name] = self.skipped_result(
+                    reason=disabled_reason,
+                    mode=role_mode,
+                )
+            return role_results
+
+        for role_name, role_mode in all_role_modes.items():
+            if role_name not in requested_role_modes:
+                role_results[role_name] = self.skipped_result(
+                    reason=role_not_requested_reason,
+                    mode=role_mode,
+                )
+                continue
+            operator = self.operators_by_mode.get(role_mode)
+            if operator is None:
+                role_results[role_name] = self.skipped_result(
+                    reason="agent_operator_mode_not_configured",
+                    mode=role_mode,
+                )
+                continue
+            role_results[role_name] = operator.infer(
+                cycle_context={
+                    **base_cycle_context,
+                    "agent_operator_role": role_name,
+                    "agent_operator_mode": role_mode,
+                }
+            )
+        return role_results

@@ -966,6 +966,96 @@ class RuntimeDashboardService:
         return numerator / denominator
 
     @staticmethod
+    def _normalize_position_rows(rows: Any) -> list[dict[str, Any]]:
+        if not isinstance(rows, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            normalized.append(dict(row))
+        return normalized
+
+    @staticmethod
+    def _extract_position_book(
+        supervisor_state: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        last_metadata = RuntimeDashboardService._extract_test_token_loop_metadata(
+            supervisor_state
+        )
+        open_positions_detail = RuntimeDashboardService._normalize_position_rows(
+            last_metadata.get("open_positions_detail")
+        )
+        closed_positions_recent = RuntimeDashboardService._normalize_position_rows(
+            last_metadata.get("closed_positions_recent")
+        )
+        return {
+            "open_positions": open_positions_detail,
+            "closed_positions_recent": closed_positions_recent,
+            "open_count": len(open_positions_detail),
+            "closed_recent_count": len(closed_positions_recent),
+            "verification_links_available": (
+                sum(
+                    1
+                    for row in open_positions_detail + closed_positions_recent
+                    if str(row.get("verification_url", "")).strip()
+                )
+            ),
+        }
+
+    @staticmethod
+    def _build_game_overview(
+        *,
+        financial_metrics: dict[str, Any],
+        loop_metrics: dict[str, Any],
+        position_book: dict[str, Any],
+        control_state: dict[str, Any],
+    ) -> dict[str, Any]:
+        net_pnl = RuntimeDashboardService._to_float(financial_metrics.get("net_pnl"))
+        expected_value_after_cost = RuntimeDashboardService._to_float(
+            loop_metrics.get("expected_value_after_execution_cost")
+        )
+        fill_rate = RuntimeDashboardService._to_float(financial_metrics.get("fill_rate"))
+        return {
+            "phase": (
+                "green"
+                if (net_pnl is not None and net_pnl >= 0)
+                else "amber"
+                if (
+                    expected_value_after_cost is not None
+                    and expected_value_after_cost >= 0
+                )
+                else "red"
+            ),
+            "scoreboard": {
+                "net_pnl": financial_metrics.get("net_pnl"),
+                "equity": financial_metrics.get("current_equity"),
+                "expected_value_after_execution_cost": (
+                    loop_metrics.get("expected_value_after_execution_cost")
+                ),
+                "fill_rate": financial_metrics.get("fill_rate"),
+                "open_positions": position_book.get("open_count"),
+            },
+            "quick_controls": {
+                "paused": bool(control_state.get("paused", False)),
+                "kill_switch_active": bool(
+                    control_state.get("kill_switch_active", False)
+                ),
+                "cancel_all_requested": bool(
+                    control_state.get("cancel_all_requested", False)
+                ),
+            },
+            "status_flags": {
+                "profitable": bool(net_pnl is not None and net_pnl >= 0),
+                "edge_positive": bool(
+                    expected_value_after_cost is not None
+                    and expected_value_after_cost >= 0
+                ),
+                "fills_active": bool(fill_rate is not None and fill_rate > 0),
+            },
+        }
+
+    @staticmethod
     def _extract_loop_metrics(
         supervisor_state: dict[str, Any] | None,
     ) -> dict[str, Any]:
@@ -1039,6 +1129,8 @@ class RuntimeDashboardService:
             ),
             "agent_operators_running": last_metadata.get("agent_operators_running"),
             "agent_operators": last_metadata.get("agent_operators"),
+            "open_positions_detail": last_metadata.get("open_positions_detail"),
+            "closed_positions_recent": last_metadata.get("closed_positions_recent"),
             "mode_lifecycle_current_mode": last_metadata.get(
                 "mode_lifecycle_current_mode"
             ),
@@ -2447,6 +2539,13 @@ class RuntimeDashboardService:
             ),
             "runtime_decision_hash": loop_metrics.get("mode_lifecycle_decision_hash"),
         }
+        position_book = self._extract_position_book(supervisor_state)
+        game_overview = self._build_game_overview(
+            financial_metrics=financial_metrics,
+            loop_metrics=loop_metrics,
+            position_book=position_book,
+            control_state=control_state,
+        )
 
         return {
             "schema_version": RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION,
@@ -2464,4 +2563,6 @@ class RuntimeDashboardService:
             "incident_feed": incident_feed,
             "cycle_comparison": cycle_comparison,
             "kpi_shadow": kpi_shadow,
+            "position_book": position_book,
+            "game_overview": game_overview,
         }
