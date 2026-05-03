@@ -1,0 +1,9 @@
+{
+  "schema_version": "trl4_profitability_gate.v1",
+  "min_runtime_hours": 24.0,
+  "runtime_hours_per_cycle": 1.0,
+  "minimum_expected_value_after_execution_cost": 0.5,
+  "minimum_expected_net_edge_value_on_fills": 0.5,
+  "require_profitability_metrics": true,
+  "allow_negative_net_pnl": false
+}
