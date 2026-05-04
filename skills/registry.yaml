@@ -29,6 +29,15 @@ execution_profiles:
     - "task-intake"
     - "karpathy-guidelines"
     - "quality-gate"
+  python_async_service_flow:
+    - "repo-orientation"
+    - "task-intake"
+    - "karpathy-guidelines"
+    - "python-systempy-lifecycle"
+    - "implementation-plan"
+    - "quality-gate"
+    - "release-readiness"
+    - "retro-capture"
 skills:
   - id: "repo-orientation"
     name: "Repository Orientation"
@@ -58,3 +67,7 @@ skills:
     name: "Retrospective Capture"
     path: "skills/retro-capture.md"
     intent: "Record outcomes, incidents, and follow-up improvements for future iterations."
+  - id: "python-systempy-lifecycle"
+    name: "Python systemPY Lifecycle Integration"
+    path: "skills/python-systempy-lifecycle.md"
+    intent: "Standardize startup, shutdown, and reload behavior for Python asyncio applications using systemPY lifecycle units."

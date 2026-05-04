@@ -9,8 +9,9 @@ This document defines how to contribute across the umbrella repository and its `
 ## Required reading before implementation
 1. `README.md`
 2. `WARP.md`
-3. `CLAUDE.md`
-4. Project-level `ProductionBase/<project>/WARP.md` for touched subprojects
+3. `AGENTS.md`
+4. `SOUL.md`
+5. Project-level `ProductionBase/<project>/SOUL.md`, `ProductionBase/<project>/AGENTS.md` (if present), and `ProductionBase/<project>/WARP.md` for touched subprojects
 
 ## Contribution workflow
 1. Define scope in `tasks/backlog.md` or a sprint file.
@@ -33,8 +34,9 @@ This document defines how to contribute across the umbrella repository and its `
 
 ## Work in ProductionBase projects
 - Treat each `ProductionBase/*` directory as an independent repository.
-- Use `ProductionBase/BOOTSTRAP.md` to align project baseline structure (`docs/adr/`, `tasks/`, `skills/`).
+- Use `ProductionBase/BOOTSTRAP.md` to align project baseline structure (`AGENTS.md`, `SOUL.md`, `docs/adr/`, `tasks/`, `skills/`).
 - Follow each project's `CONTRIBUTING.md` and `WARP.md` when editing there.
+- For Python asyncio projects with multiple entrypoints, evaluate `systemPY` to standardize startup/shutdown lifecycle and graceful teardown.
 
 ## Security and operational hygiene
 - Never commit secrets or sensitive raw customer data.

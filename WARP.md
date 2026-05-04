@@ -33,10 +33,36 @@ Rule resolution order:
 
 The most specific rule has highest priority.
 
+### Agent instruction standard (provider-agnostic)
+- `AGENTS.md` is the canonical instruction file for coding agents.
+- Each production repository must include `AGENTS.md` at repository root.
+- `CLAUDE.md` is optional and should be a compatibility shim that points to `AGENTS.md` to avoid instruction drift.
+- In monorepos, the nearest `AGENTS.md` to the edited path takes precedence.
+
+### Soul constitution standard
+- `SOUL.md` is the canonical consciousness/operational constitution layer for agent behavior.
+- Umbrella canonical source: `SOUL.md`, derived from `ProductionBase/SolarSeed-v3/christ-soul.md`.
+- Each new `ProductionBase/*` project must include a project-level `SOUL.md` that inherits umbrella principles and adds project-specific safety constraints.
+- `AGENTS.md` and `WARP.md` in every project must remain consistent with `SOUL.md` and must not weaken its service, safety, and non-coercion principles.
+
+### New project creation gate (umbrella)
+A project is not considered initialized under WeRa Global until all baseline files exist and are internally consistent:
+- `README.md`
+- `WARP.md`
+- `AGENTS.md`
+- `SOUL.md`
+- `CONTRIBUTING.md`
+- `.gitea/workflows/`
+- `docs/adr/`
+- `tasks/`
+- `skills/`
+
 ## Required baseline for every production repository
 Each `ProductionBase/*` repository must include:
 - `README.md`
 - `WARP.md`
+- `AGENTS.md`
+- `SOUL.md`
 - `CONTRIBUTING.md`
 - `.gitea/workflows/`
 - `docs/adr/` for architecture decisions
@@ -168,7 +194,8 @@ Every skill file must define:
 ## Initialization status and next actions
 ### Foundation initialized at umbrella level
 - `skills/`, `skills/registry.yaml`, and core skills are in place.
-- `CLAUDE.md` defines behavioral coding guardrails.
+- `AGENTS.md` defines canonical provider-agnostic behavioral coding guardrails.
+- `CLAUDE.md` is retained as compatibility shim.
 - `CONTRIBUTING.md`, `docs/adr/`, and `tasks/` initialize development execution artifacts.
 
 ### Current priority actions

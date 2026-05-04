@@ -12,7 +12,8 @@ Core governance existed in `WARP.md`, but contributor flow and startup artifacts
 
 ## Decision
 Adopt and operationalize a unified umbrella development foundation consisting of:
-- Behavioral guardrails in `CLAUDE.md`
+- Behavioral guardrails in canonical provider-agnostic `AGENTS.md` (with `CLAUDE.md` retained only as compatibility shim)
+- Constitutional behavioral baseline in umbrella `SOUL.md` (derived from `ProductionBase/SolarSeed-v3/christ-soul.md`)
 - Skill framework and execution profiles in `skills/`
 - Contributor workflow in `CONTRIBUTING.md`
 - ADR system in `docs/adr/`
@@ -37,6 +38,8 @@ Adopt and operationalize a unified umbrella development foundation consisting of
 
 ## Validation plan
 - Confirm all umbrella artifacts are present and referenced from `README.md`.
+- Confirm `AGENTS.md` is present as canonical instruction file and `CLAUDE.md` does not diverge from it.
+- Confirm `SOUL.md` is present as constitutional layer and inherited by new `ProductionBase/*` projects.
 - Use `tasks/backlog.md` and `tasks/sprint-template.md` for active planning cycles.
 - Track major architectural choices with incremental ADRs.
 

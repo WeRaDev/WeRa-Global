@@ -9,6 +9,8 @@ from pathlib import Path
 REQUIRED_BASELINE_PATHS = (
     "README.md",
     "WARP.md",
+    "AGENTS.md",
+    "SOUL.md",
     "CONTRIBUTING.md",
     ".gitea/workflows",
     "docs/adr",

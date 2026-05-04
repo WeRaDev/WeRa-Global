@@ -8,6 +8,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 
 ## Project structure
 - `README.md`: project context and onboarding.
+- `AGENTS.md`: provider-agnostic coding-agent instructions for this repository.
 - `WARP.md`: project-specific agent operating rules and guardrails.
 - `CONTRIBUTING.md`: contribution standards and definition of done.
 - `.gitea/workflows/`: CI baseline checks.
