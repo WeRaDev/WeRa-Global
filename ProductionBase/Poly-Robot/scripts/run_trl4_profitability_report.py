@@ -245,9 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         else 0.0
     )
     runtime_duration_hours_cycle_based = len(cycle_rows) * runtime_hours_per_cycle
-    runtime_duration_hours = max(
-        runtime_duration_hours_wall_clock, runtime_duration_hours_cycle_based
-    )
+    runtime_duration_hours = runtime_duration_hours_wall_clock
 
     expected_value_after_execution_cost_values = [
         value

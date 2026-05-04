@@ -104,10 +104,12 @@ class Trl4ProfitabilityReportScriptTests(unittest.TestCase):
             self.assertEqual(report["runtime"]["cycle_count"], 2)
             self.assertEqual(report["runtime"]["runtime_duration_hours"], 24.0)
             self.assertEqual(report["runtime"]["runtime_duration_hours_wall_clock"], 24.0)
-            self.assertEqual(report["runtime"]["runtime_duration_hours_cycle_based"], 2.0)
-            self.assertEqual(report["runtime"]["runtime_hours_per_cycle"], 1.0)
+            self.assertEqual(report["runtime"]["runtime_duration_hours_cycle_based"], 0.0)
+            self.assertEqual(report["runtime"]["runtime_hours_per_cycle"], 0.0)
 
-    def test_report_uses_cycle_based_runtime_when_wall_clock_is_short(self) -> None:
+    def test_report_fails_when_wall_clock_is_short_despite_cycle_based_override(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             journal_path = root / "runtime_journal.jsonl"
@@ -155,12 +157,24 @@ class Trl4ProfitabilityReportScriptTests(unittest.TestCase):
             result = subprocess.run(
                 command, capture_output=True, text=True, check=False
             )
-            self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+            self.assertNotEqual(
+                result.returncode, 0, msg=result.stderr or result.stdout
+            )
             report = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(report["overall_status"], "PASS")
+            self.assertEqual(report["overall_status"], "FAIL")
             self.assertEqual(report["runtime"]["runtime_hours_per_cycle"], 12.0)
             self.assertEqual(report["runtime"]["runtime_duration_hours_cycle_based"], 24.0)
-            self.assertEqual(report["runtime"]["runtime_duration_hours"], 24.0)
+            self.assertAlmostEqual(
+                report["runtime"]["runtime_duration_hours"],
+                report["runtime"]["runtime_duration_hours_wall_clock"],
+            )
+            incident_codes = {
+                incident["code"] for incident in report.get("incidents", [])
+            }
+            self.assertIn(
+                "criterion_failed:runtime_duration_hours",
+                incident_codes,
+            )
 
     def test_report_fails_when_latest_expected_profitability_is_negative(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

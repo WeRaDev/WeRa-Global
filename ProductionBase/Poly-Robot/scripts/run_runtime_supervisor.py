@@ -7,6 +7,7 @@ import json
 import math
 import os
 import sys
+import tempfile
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -126,8 +127,9 @@ def _prepare_sorted_historical_events(events_path: Path) -> Path:
     if already_sorted:
         return events_path
 
-    output_dir = Path("/tmp/poly_robot_preprocessed_events")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(
+        tempfile.mkdtemp(prefix="poly_robot_preprocessed_events_")
+    )
     output_path = output_dir / f"{events_path.stem}.sorted.jsonl"
     serialized = [
         json.dumps(payload, separators=(",", ":"))
