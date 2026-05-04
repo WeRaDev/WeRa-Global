@@ -476,9 +476,24 @@ class TestTokenLoop:
         open_positions: dict[str, PositionSnapshot] = dict(initial_open_positions or {})
 
         for event in ordered_events:
-            position = open_positions.get(event.market_id)
-            exit_decision = self.exit_module.evaluate(event=event, position=position)
-            event_for_decision = event
+            event_payload = event.to_dict()
+            event_metadata = dict(event_payload.get("metadata", {}))
+            event_metadata["current_total_exposure_fraction"] = (
+                portfolio.total_exposure_fraction
+            )
+            event_metadata["current_market_exposure_fraction"] = (
+                portfolio.market_exposure_fraction(event.market_id)
+            )
+            event_metadata["current_open_notional"] = portfolio.open_notional
+            event_metadata["current_open_positions"] = portfolio.open_positions
+            event_payload["metadata"] = event_metadata
+            event_for_cycle = MarketEvent.from_dict(event_payload)
+            position = open_positions.get(event_for_cycle.market_id)
+            exit_decision = self.exit_module.evaluate(
+                event=event_for_cycle,
+                position=position,
+            )
+            event_for_decision = event_for_cycle
             if (
                 position is not None
                 and not exit_decision.should_exit
@@ -486,11 +501,13 @@ class TestTokenLoop:
                     exit_decision.metadata.get("inventory_aging_derisk_active", False)
                 )
             ):
-                event_payload = event.to_dict()
+                event_payload = event_for_cycle.to_dict()
                 event_metadata = dict(event_payload.get("metadata", {}))
                 event_metadata["suppress_new_entries"] = True
                 event_metadata["inventory_aging_derisk_active"] = True
-                event_metadata["inventory_aging_derisk_market_id"] = event.market_id
+                event_metadata["inventory_aging_derisk_market_id"] = (
+                    event_for_cycle.market_id
+                )
                 event_payload["metadata"] = event_metadata
                 event_for_decision = MarketEvent.from_dict(event_payload)
             strategy_decision = self.strategy.evaluate(event_for_decision, portfolio)

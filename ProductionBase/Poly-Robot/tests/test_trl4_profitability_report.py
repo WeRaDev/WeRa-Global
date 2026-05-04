@@ -103,6 +103,78 @@ class Trl4ProfitabilityReportScriptTests(unittest.TestCase):
             self.assertEqual(report["overall_status"], "PASS")
             self.assertEqual(report["runtime"]["cycle_count"], 2)
             self.assertEqual(report["runtime"]["runtime_duration_hours"], 24.0)
+            self.assertEqual(report["runtime"]["runtime_duration_hours_wall_clock"], 24.0)
+            self.assertEqual(report["runtime"]["runtime_duration_hours_cycle_based"], 0.0)
+            self.assertEqual(report["runtime"]["runtime_hours_per_cycle"], 0.0)
+
+    def test_report_fails_when_wall_clock_is_short_despite_cycle_based_override(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal_path = root / "runtime_journal.jsonl"
+            output_path = root / "trl4_report.json"
+            state_path = root / "runtime_state.json"
+            state_path.write_text(
+                json.dumps({"cycle_index": 2, "status": "SUCCESS"}) + "\n",
+                encoding="utf-8",
+            )
+
+            _write_jsonl(
+                journal_path,
+                [
+                    _journal_row(
+                        timestamp="2026-01-01T00:00:00.000Z",
+                        cycle_index=1,
+                        expected_value_after_execution_cost=1.0,
+                        expected_net_edge_value_on_fills=1.0,
+                        net_pnl=-0.1,
+                    ),
+                    _journal_row(
+                        timestamp="2026-01-01T00:00:01.000Z",
+                        cycle_index=2,
+                        expected_value_after_execution_cost=1.0,
+                        expected_net_edge_value_on_fills=1.0,
+                        net_pnl=-0.2,
+                    ),
+                ],
+            )
+
+            command = [
+                sys.executable,
+                str(SCRIPT_PATH),
+                "--journal-path",
+                str(journal_path),
+                "--state-path",
+                str(state_path),
+                "--gate-config",
+                str(GATE_CONFIG_PATH),
+                "--runtime-hours-per-cycle",
+                "12",
+                "--output",
+                str(output_path),
+            ]
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False
+            )
+            self.assertNotEqual(
+                result.returncode, 0, msg=result.stderr or result.stdout
+            )
+            report = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["overall_status"], "FAIL")
+            self.assertEqual(report["runtime"]["runtime_hours_per_cycle"], 12.0)
+            self.assertEqual(report["runtime"]["runtime_duration_hours_cycle_based"], 24.0)
+            self.assertAlmostEqual(
+                report["runtime"]["runtime_duration_hours"],
+                report["runtime"]["runtime_duration_hours_wall_clock"],
+            )
+            incident_codes = {
+                incident["code"] for incident in report.get("incidents", [])
+            }
+            self.assertIn(
+                "criterion_failed:runtime_duration_hours",
+                incident_codes,
+            )
 
     def test_report_fails_when_latest_expected_profitability_is_negative(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

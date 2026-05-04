@@ -262,51 +262,25 @@ def _html_page() -> str:
         <p class="field-hint">Use after every key decision so responders can reconstruct timeline quickly.</p>
       </div>
     </div>
-    <div class="field-grid">
-      <div class="field-group">
-        <label class="field-label" for="agentOperatorEnabled">AgentOperator Enabled</label>
-        <input id="agentOperatorEnabled" type="checkbox" title="Enable or disable AgentOperator inference in runtime cycles." />
-        <p class="field-hint">Toggle parallel AgentOperator inference without restarting the GUI.</p>
-      </div>
-      <div class="field-group">
-        <label class="field-label" for="agentOperatorMode">AgentOperator Mode</label>
-        <select id="agentOperatorMode" title="Select advisory or strategy mode for AgentOperator behavior.">
-          <option value="advisory">advisory</option>
-          <option value="strategy">strategy</option>
-        </select>
-        <p class="field-hint">Advisory mode is read-only guidance; strategy mode can auto-select scenario hints for future cycles.</p>
-      </div>
-      <div class="field-group">
-        <label class="field-label" for="agentOperatorStrategyAutoApply">Strategy Auto Apply</label>
-        <input id="agentOperatorStrategyAutoApply" type="checkbox" title="When enabled, valid strategy recommendations auto-apply candidate scenarios for the next cycle." />
-        <p class="field-hint">Disable to require explicit candidate apply actions via runtime controls.</p>
+    <div class="button-grid">
+      <div class="button-group">
+        <button onclick="sendAgentOperatorsLifecycle('start')" title="Start Supervisor and Strategist AgentOperators for concurrent cycle inference.">Start AgentOperators</button>
+        <p class="field-hint">Starts both AgentOperators so each cycle includes dual role inference.</p>
       </div>
       <div class="button-group">
-        <button onclick="setAgentOperatorAndSend(true, null)" title="Enable AgentOperator using the currently selected mode.">Enable AgentOperator</button>
-        <p class="field-hint">Special enable action for turning AgentOperator on quickly during operations.</p>
-      </div>
-      <div class="button-group">
-        <button onclick="setAgentOperatorAndSend(false, null)" title="Disable AgentOperator regardless of selected mode.">Disable AgentOperator</button>
-        <p class="field-hint">Immediate fail-open disable path while keeping other runtime controls active.</p>
-      </div>
-      <div class="button-group">
-        <button onclick="sendControl('/api/control/agent-operator')" title="Persist AgentOperator enabled/mode configuration to control state.">Apply AgentOperator Config</button>
-        <p class="field-hint">Writes AgentOperator mode and enabled status to audited control state.</p>
+        <button onclick="sendAgentOperatorsLifecycle('stop')" title="Stop all AgentOperators and keep runtime in deterministic fail-open mode.">Stop AgentOperators</button>
+        <p class="field-hint">Stops both AgentOperators while preserving other supervisor controls.</p>
       </div>
     </div>
-    <div class="field-grid">
-      <div class="field-group">
-        <label class="field-label" for="agentOperatorCandidateId">Candidate ID</label>
-        <input id="agentOperatorCandidateId" placeholder="cand-000001" title="Candidate identifier from AgentOperator learning payload." />
-        <p class="field-hint">Use empty value on revert to target currently active candidate.</p>
+    <div id="agentOperatorStatus"></div>
+    <div class="grid">
+      <div class="card">
+        <h2>AgentOperator: Supervisor</h2>
+        <pre id="agentOperatorSupervisorPayload"></pre>
       </div>
-      <div class="button-group">
-        <button onclick="sendAgentOperatorCandidateControl('apply')" title="Apply selected candidate scenario to control state and mark candidate active.">Apply Candidate</button>
-        <p class="field-hint">Moves selected candidate into active state and updates selected scenario.</p>
-      </div>
-      <div class="button-group">
-        <button onclick="sendAgentOperatorCandidateControl('revert')" title="Revert selected or active candidate and restore previous scenario when available.">Revert Candidate</button>
-        <p class="field-hint">Reverts candidate activation and clears active candidate metadata.</p>
+      <div class="card">
+        <h2>AgentOperator: Strategist</h2>
+        <pre id="agentOperatorStrategistPayload"></pre>
       </div>
     </div>
     <div class="field-grid">
@@ -358,8 +332,6 @@ def _html_page() -> str:
       </div>
     </div>
     <div id="modeTransitionStatus"></div>
-    <div id="agentOperatorStatus"></div>
-    <div id="agentOperatorCandidateStatus"></div>
     <div id="controlResult"></div>
   </div>
   <div class="card">
@@ -484,6 +456,18 @@ def _html_page() -> str:
   </div>
   <div class="grid">
     <div class="card">
+      <h2>Financial Game Overview</h2>
+      <p class="section-help">Simplified supervision snapshot with quick status signals and control state.</p>
+      <pre id="gameOverviewPayload"></pre>
+    </div>
+    <div class="card">
+      <h2>Position Verification</h2>
+      <p class="section-help">Open and recently closed positions with verification links for manual checks.</p>
+      <pre id="positionBookPayload"></pre>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card">
       <h2>State + Loop Metrics</h2>
       <pre id="statePayload"></pre>
     </div>
@@ -554,14 +538,6 @@ def _html_page() -> str:
       };
     }
 
-    function candidateControlPayload() {
-      const basePayload = controlPayload();
-      return {
-        actor: basePayload.actor,
-        reason: basePayload.reason,
-        candidate_id: (document.getElementById('agentOperatorCandidateId').value || '').trim(),
-      };
-    }
     function hasNumericValue(value) {
       return value !== null && value !== undefined && Number.isFinite(Number(value));
     }
@@ -785,6 +761,10 @@ def _html_page() -> str:
         ' | ' + statusCounts;
       document.getElementById('agentOperatorLearningPayload').textContent =
         JSON.stringify(agentOperatorLearning, null, 2);
+      document.getElementById('gameOverviewPayload').textContent =
+        JSON.stringify(payload.game_overview || {}, null, 2);
+      document.getElementById('positionBookPayload').textContent =
+        JSON.stringify(payload.position_book || {}, null, 2);
 
       const incidentPaging = (payload.incident_feed || {}).paging || {};
       const cursorLabel = incidentPaging.cursor ?? 'latest';
@@ -852,57 +832,20 @@ def _html_page() -> str:
         ' | last_action=' + (modeLifecycle.last_action || '-') +
         ' | last_decision_at=' + (modeLifecycle.last_decision_at || '-') +
         ' | last_transition_at=' + (modeLifecycle.last_transition_at || '-');
-      if (Object.prototype.hasOwnProperty.call(controlState, 'agent_operator_enabled')) {
-        document.getElementById('agentOperatorEnabled').checked = Boolean(
-          controlState.agent_operator_enabled
-        );
-      }
-      if (controlState.agent_operator_mode) {
-        document.getElementById('agentOperatorMode').value = String(
-          controlState.agent_operator_mode
-        );
-      }
-      if (Object.prototype.hasOwnProperty.call(controlState, 'agent_operator_strategy_auto_apply')) {
-        document.getElementById('agentOperatorStrategyAutoApply').checked = Boolean(
-          controlState.agent_operator_strategy_auto_apply
-        );
-      }
-      const agentOperatorStatus = loopMetrics.agent_operator_status || 'UNKNOWN';
-      const agentOperatorMode = controlState.agent_operator_mode || loopMetrics.agent_operator_mode || 'advisory';
-      const agentOperatorModel = loopMetrics.agent_operator_model || '-';
-      const strategyScenarioHint = loopMetrics.agent_operator_strategy_scenario_hint || '-';
-      const strategyScenarioApplied = loopMetrics.agent_operator_strategy_scenario_applied ? 'yes' : 'no';
-      const strategyScenarioRejectedReason = loopMetrics.agent_operator_strategy_scenario_rejected_reason || '-';
-      const strategyAutoApply = String(
-        Boolean(controlState.agent_operator_strategy_auto_apply)
-      );
+      const agentOperators = loopMetrics.agent_operators || {};
+      const supervisorOperator = agentOperators.supervisor || {};
+      const strategistOperator = agentOperators.strategist || {};
+      const agentOperatorsRunning = Object.prototype.hasOwnProperty.call(controlState, 'agent_operators_running')
+        ? Boolean(controlState.agent_operators_running)
+        : Boolean(controlState.agent_operator_enabled);
       document.getElementById('agentOperatorStatus').textContent =
-        'AgentOperator status=' + agentOperatorStatus +
-        ' | enabled=' + String(Boolean(controlState.agent_operator_enabled)) +
-        ' | mode=' + agentOperatorMode +
-        ' | strategy_auto_apply=' + strategyAutoApply +
-        ' | model=' + agentOperatorModel +
-        ' | strategy_scenario_hint=' + strategyScenarioHint +
-        ' | strategy_applied=' + strategyScenarioApplied +
-        ' | strategy_rejected_reason=' + strategyScenarioRejectedReason;
-      const activeCandidateId =
-        String(controlState.agent_operator_active_candidate_id || '') ||
-        String(agentOperatorLearning.active_candidate_id || '');
-      const activeCandidateScenario = String(
-        controlState.agent_operator_active_candidate_scenario || ''
-      );
-      const candidateInput = document.getElementById('agentOperatorCandidateId');
-      if (document.activeElement !== candidateInput && activeCandidateId) {
-        candidateInput.value = activeCandidateId;
-      }
-      const learningMetrics = agentOperatorLearning.metrics || {};
-      document.getElementById('agentOperatorCandidateStatus').textContent =
-        'active_candidate_id=' + (activeCandidateId || '-') +
-        ' | active_candidate_scenario=' + (activeCandidateScenario || '-') +
-        ' | last_action=' + (controlState.agent_operator_candidate_last_action || '-') +
-        ' | recommendation_count=' + (learningMetrics.recommendation_count ?? 0) +
-        ' | attributed_count=' + (learningMetrics.attributed_count ?? 0) +
-        ' | win_rate=' + (learningMetrics.outcome_win_rate ?? '-');
+        'AgentOperators running=' + String(agentOperatorsRunning) +
+        ' | supervisor_status=' + (supervisorOperator.status || '-') +
+        ' | strategist_status=' + (strategistOperator.status || '-');
+      document.getElementById('agentOperatorSupervisorPayload').textContent =
+        JSON.stringify(supervisorOperator, null, 2);
+      document.getElementById('agentOperatorStrategistPayload').textContent =
+        JSON.stringify(strategistOperator, null, 2);
       document.getElementById('filterResult').textContent =
         'Incident cursor=' + cursorLabel + ' | older_cursor=' + olderCursor + ' | total=' + totalIncidents;
       updateRefreshStatus('Refresh succeeded');
@@ -914,13 +857,6 @@ def _html_page() -> str:
         reason: document.getElementById('reason').value || '',
         scenario_name: document.getElementById('scenario').value || '',
         note: document.getElementById('annotation').value || '',
-        agent_operator_enabled: Boolean(
-          document.getElementById('agentOperatorEnabled').checked
-        ),
-        agent_operator_mode: document.getElementById('agentOperatorMode').value || 'advisory',
-        agent_operator_strategy_auto_apply: Boolean(
-          document.getElementById('agentOperatorStrategyAutoApply').checked
-        ),
       };
     }
 
@@ -990,22 +926,15 @@ def _html_page() -> str:
         'Mode transition ' + action + ' response=' + response.status;
       await fetchDashboard();
     }
-    async function setAgentOperatorAndSend(enabled, mode) {
-      document.getElementById('agentOperatorEnabled').checked = Boolean(enabled);
-      if (mode) {
-        document.getElementById('agentOperatorMode').value = String(mode);
-      }
-      await sendControl('/api/control/agent-operator');
-    }
-    async function sendAgentOperatorCandidateControl(action) {
+    async function sendAgentOperatorsLifecycle(action) {
       const endpointByAction = {
-        apply: '/api/control/agent-operator/candidate/apply',
-        revert: '/api/control/agent-operator/candidate/revert'
+        start: '/api/control/agent-operators/start',
+        stop: '/api/control/agent-operators/stop'
       };
       const endpoint = endpointByAction[action];
       if (!endpoint) {
-        document.getElementById('agentOperatorCandidateStatus').textContent =
-          'Unsupported candidate action: ' + action;
+        document.getElementById('agentOperatorStatus').textContent =
+          'Unsupported AgentOperators lifecycle action: ' + action;
         return;
       }
       const response = await fetch(endpoint, {
@@ -1014,7 +943,7 @@ def _html_page() -> str:
           'Content-Type': 'application/json',
           ...operatorTokenHeaders()
         },
-        body: JSON.stringify(candidateControlPayload())
+        body: JSON.stringify(controlPayload())
       });
       const text = await response.text();
       document.getElementById('controlResult').textContent = 'Response (' + response.status + '): ' + text;
@@ -1456,6 +1385,16 @@ def _build_handler(
                         enabled=enabled,
                         mode=mode,
                         strategy_auto_apply=strategy_auto_apply,
+                        reason=reason,
+                    )
+                elif parsed.path == "/api/control/agent-operators/start":
+                    state = control_manager.start_agent_operators(
+                        actor=actor,
+                        reason=reason,
+                    )
+                elif parsed.path == "/api/control/agent-operators/stop":
+                    state = control_manager.stop_agent_operators(
+                        actor=actor,
                         reason=reason,
                     )
                 elif parsed.path == "/api/control/agent-operator/candidate/apply":

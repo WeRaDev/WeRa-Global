@@ -1348,6 +1348,105 @@ class RuntimeWebGuiTests(unittest.TestCase):
             self.assertEqual(payload["recent_operator_actions"], [])
             self.assertEqual(payload["incident_feed"]["items"], [])
             self.assertEqual(payload["cycle_comparison"]["items"], [])
+    def test_dashboard_payload_includes_position_book_and_game_overview(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state_path = root / "runtime_state.json"
+            journal_path = root / "runtime_journal.jsonl"
+            control_state_path = root / "operator_state.json"
+            audit_path = root / "operator_audit.jsonl"
+
+            _write_json(
+                state_path,
+                {
+                    "schema_version": RUNTIME_SUPERVISOR_STATE_SCHEMA_VERSION,
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "cycle_index": 7,
+                    "status": "SUCCESS",
+                    "worker_count": 1,
+                    "failed_workers": [],
+                    "worker_results": [
+                        {
+                            "worker_name": "test_token_loop",
+                            "status": "SUCCESS",
+                            "attempts": [],
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "final_failure_reason": None,
+                            "last_metadata": {
+                                "events": 3,
+                                "risk_allowed_count": 2,
+                                "filled_trade_count": 1,
+                                "partial_fill_count": 0,
+                                "total_fees_paid": 0.02,
+                                "total_slippage_cost": 0.03,
+                                "total_execution_cost": 0.05,
+                                "attributed_trade_count": 1,
+                                "expected_gross_edge_value": 0.5,
+                                "expected_net_edge_value": 0.3,
+                                "expected_net_edge_value_on_fills": 0.2,
+                                "expected_value_after_execution_cost": 0.1,
+                                "bankroll": 1000.0,
+                                "day_start_equity": 1000.0,
+                                "current_equity": 998.5,
+                                "net_pnl": -1.5,
+                                "open_notional": 20.0,
+                                "open_positions": 1,
+                                "total_exposure_fraction": 0.02,
+                                "daily_drawdown_fraction": 0.0015,
+                                "result_hash": "hash-positions",
+                                "open_positions_detail": [
+                                    {
+                                        "market_id": "market-a",
+                                        "quantity": 10.0,
+                                        "verification_url": "https://polymarket.com/event/market-a",
+                                    }
+                                ],
+                                "closed_positions_recent": [
+                                    {
+                                        "market_id": "market-b",
+                                        "quantity": 5.0,
+                                        "verification_url": "https://polymarket.com/event/market-b",
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+            )
+
+            control_manager = OperatorControlManager(
+                control_state_path=control_state_path,
+                audit_path=audit_path,
+            )
+            control_manager.set_paused(paused=True, actor="alice", reason="review")
+            control_manager.set_kill_switch(
+                active=True, actor="alice", reason="review"
+            )
+            control_manager.request_cancel_all(actor="alice", reason="review")
+
+            service = RuntimeDashboardService(
+                state_path=state_path,
+                journal_path=journal_path,
+                control_manager=control_manager,
+            )
+            payload = service.build_dashboard_payload(
+                recent_events_limit=10, recent_audit_limit=10
+            )
+
+            self.assertEqual(payload["position_book"]["open_count"], 1)
+            self.assertEqual(payload["position_book"]["closed_recent_count"], 1)
+            self.assertEqual(payload["position_book"]["verification_links_available"], 2)
+            self.assertEqual(payload["game_overview"]["phase"], "amber")
+            self.assertTrue(payload["game_overview"]["quick_controls"]["paused"])
+            self.assertTrue(
+                payload["game_overview"]["quick_controls"]["kill_switch_active"]
+            )
+            self.assertTrue(
+                payload["game_overview"]["quick_controls"]["cancel_all_requested"]
+            )
+            self.assertFalse(payload["game_overview"]["status_flags"]["profitable"])
+            self.assertTrue(payload["game_overview"]["status_flags"]["edge_positive"])
 
     def test_dashboard_payload_ignores_malformed_jsonl_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2498,9 +2597,9 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn('id="kpiPayload"', html)
         self.assertIn('id="kpiSummary"', html)
         self.assertIn('id="refreshStatus"', html)
-        self.assertIn('id="agentOperatorEnabled"', html)
-        self.assertIn('id="agentOperatorMode"', html)
         self.assertIn('id="agentOperatorStatus"', html)
+        self.assertIn('id="agentOperatorSupervisorPayload"', html)
+        self.assertIn('id="agentOperatorStrategistPayload"', html)
         self.assertIn('id="modeCurrent"', html)
         self.assertIn('id="modeTarget"', html)
         self.assertIn('id="modeApprovalStatus"', html)
@@ -2512,9 +2611,8 @@ class RuntimeWebGuiTests(unittest.TestCase):
         self.assertIn("How to Use and Control Poly-Robot", html)
         self.assertIn("Kill Switch ON", html)
         self.assertIn("Cancel All Orders", html)
-        self.assertIn("Enable AgentOperator", html)
-        self.assertIn("Disable AgentOperator", html)
-        self.assertIn("Apply AgentOperator Config", html)
+        self.assertIn("Start AgentOperators", html)
+        self.assertIn("Stop AgentOperators", html)
         self.assertIn("Request Mode Transition", html)
         self.assertIn("Approve Transition", html)
         self.assertIn("Reject Transition", html)

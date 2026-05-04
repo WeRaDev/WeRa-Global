@@ -135,6 +135,38 @@ class ExitModule:
             0.0,
             min(self.max_holding_hours, configured_inventory_aging_derisk_hours),
         )
+        self.cap_pressure_exposure_threshold = min(
+            1.0,
+            max(
+                0.0,
+                float(
+                    parameters.get(
+                        "exit.cap_pressure_exposure_threshold",
+                        1.1,
+                    )
+                ),
+            ),
+        )
+        configured_cap_pressure_trigger_hours = float(
+            parameters.get(
+                "exit.cap_pressure_trigger_hours",
+                self.inventory_aging_derisk_hours,
+            )
+        )
+        self.cap_pressure_trigger_hours = max(
+            0.0,
+            min(self.max_holding_hours, configured_cap_pressure_trigger_hours),
+        )
+        configured_cap_pressure_force_exit_hours = float(
+            parameters.get(
+                "exit.cap_pressure_force_exit_hours",
+                self.max_holding_hours,
+            )
+        )
+        self.cap_pressure_force_exit_hours = max(
+            self.cap_pressure_trigger_hours,
+            min(self.max_holding_hours, configured_cap_pressure_force_exit_hours),
+        )
         self.confirmation_threshold = confirmation_threshold
 
     def evaluate(
@@ -180,6 +212,25 @@ class ExitModule:
             and absolute_price_change <= self.stale_price_change_threshold
         )
         max_holding_time_trigger = holding_hours >= self.max_holding_hours
+        current_total_exposure_fraction = 0.0
+        try:
+            current_total_exposure_fraction = max(
+                0.0,
+                float(event.metadata.get("current_total_exposure_fraction", 0.0)),
+            )
+        except (TypeError, ValueError):
+            current_total_exposure_fraction = 0.0
+        cap_pressure_active = (
+            self.cap_pressure_exposure_threshold <= 1.0
+            and current_total_exposure_fraction
+            >= self.cap_pressure_exposure_threshold
+        )
+        cap_pressure_derisk_trigger = (
+            cap_pressure_active and holding_hours >= self.cap_pressure_trigger_hours
+        )
+        cap_pressure_force_exit_trigger = (
+            cap_pressure_active and holding_hours >= self.cap_pressure_force_exit_hours
+        )
         inventory_aging_derisk_trigger = (
             not max_holding_time_trigger
             and holding_hours >= self.inventory_aging_derisk_hours
@@ -194,11 +245,15 @@ class ExitModule:
             trigger_reasons.append("stale_thesis_detected")
         if max_holding_time_trigger:
             trigger_reasons.append("max_holding_time_exceeded_force_exit")
+        if cap_pressure_derisk_trigger:
+            trigger_reasons.append("cap_pressure_inventory_derisk")
 
         trigger_count = len(trigger_reasons)
-        forced_exit = max_holding_time_trigger
+        forced_exit = max_holding_time_trigger or cap_pressure_force_exit_trigger
         should_exit = forced_exit or trigger_count >= self.confirmation_threshold
         if forced_exit:
+            if cap_pressure_force_exit_trigger:
+                trigger_reasons.append("cap_pressure_force_exit")
             if trigger_count == 1:
                 trigger_reasons.append("exit_forced_single_trigger")
             else:
@@ -222,9 +277,25 @@ class ExitModule:
                     "stale_thesis": stale_thesis_trigger,
                     "max_holding_time": max_holding_time_trigger,
                     "inventory_aging_derisk": inventory_aging_derisk_trigger,
+                        "cap_pressure_inventory_derisk": cap_pressure_derisk_trigger,
+                        "cap_pressure_force_exit": cap_pressure_force_exit_trigger,
                 },
                 "forced_exit": forced_exit,
                 "inventory_aging_derisk_active": inventory_aging_derisk_trigger,
+                "cap_pressure_active": cap_pressure_active,
+                "current_total_exposure_fraction": round(
+                    current_total_exposure_fraction,
+                    6,
+                ),
+                "cap_pressure_exposure_threshold": (
+                    self.cap_pressure_exposure_threshold
+                ),
+                "cap_pressure_trigger_hours_threshold": (
+                    self.cap_pressure_trigger_hours
+                ),
+                "cap_pressure_force_exit_hours_threshold": (
+                    self.cap_pressure_force_exit_hours
+                ),
                 "target_capture_ratio": round(capture_ratio, 6),
                 "target_capture_threshold": self.target_capture_ratio,
                 "expected_move": round(expected_move, 6),

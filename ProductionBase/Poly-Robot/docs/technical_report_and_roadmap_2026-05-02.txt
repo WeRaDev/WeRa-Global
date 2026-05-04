@@ -1,0 +1,180 @@
+Poly-Robot Technical Report and Prioritized Development Roadmap
+Date: 2026-05-02
+
+1) Purpose
+This document consolidates the latest runtime investigations, implemented fixes, residual technical risks, and a prioritized roadmap for continued development.
+
+2) Current Technical Status
+2.1 Runtime
+- Runtime supervisor is cycling successfully.
+- Ingestion is currently stable (ingestion_status=OK) after replay preprocessing fix.
+- No persistent worker execution failures observed in recent windows.
+
+2.2 Trading Activity
+- Risk approvals and fills have resumed, but are periodic/intermittent.
+- Execution tends to happen in bursts between exposure-cap windows.
+- During cap windows, risk approvals drop to zero until exits release open notional.
+
+2.3 Profitability
+- Net PnL remains negative in observed windows.
+- Expected-value metrics can drop to zero in many late-cycle windows.
+- Current certification criteria can pass while economic quality remains weak.
+
+3) Root Causes Identified
+3.1 Ingestion degradation loop
+Observed:
+- non_monotonic_rows_detected
+- entry_suppressed_due_consecutive_ingestion_degraded
+Cause:
+- Historical replay file had out-of-order timestamps.
+- Supervisor tolerated violations as DEGRADED, causing degraded streak accumulation and suppression.
+
+3.2 Risk approval lockout
+Observed:
+- market_exposure_limit_reached
+Cause:
+- Open notional saturated exposure cap.
+- Historical replay used static timestamps each cycle, delaying effective holding-age progression and exit release patterns.
+
+4) Implemented Fixes
+4.1 Historical replay preprocessing
+- Added preprocessing in runtime supervisor historical path.
+- Replay rows are sorted by (timestamp, event_id) before ingestion.
+Result:
+- Ingestion moved from persistent DEGRADED to stable OK.
+
+4.2 Historical cycle-time progression
+- Added per-cycle timestamp offset in historical mode.
+- Position aging now advances across cycles.
+Result:
+- Exit events occur and exposure can be released.
+- Risk approvals and fills resume after release windows.
+
+5) Validation Summary
+- Syntax checks passed for patched supervisor.
+- Targeted validation runs confirmed:
+  - ingestion_status=OK with originally unsorted replay fixture
+  - resumed approvals/fills after exit-trigger windows
+- Live monitoring confirmed:
+  - ingestion remained OK in recent windows
+  - approvals/fills occur intermittently (not every cycle)
+  - cap windows still produce temporary no-trade periods
+5.1) Baseline Metrics Snapshot (latest verified evidence)
+- TRL4 profitability gate report: overall_status=PASS, cycle_count=24, runtime_duration_hours=24.0.
+- Runtime reliability baseline: ingestion_status=OK in recent monitored windows after replay sorting fix.
+- Execution cadence baseline: intermittent approvals/fills with recurring cap-lock windows where risk_allowed_count can drop to zero.
+- Economic baseline: net PnL trend remains negative; expected-value metrics can collapse toward zero in late-cycle windows.
+5.2) Track A + Track B Execution Evidence (2026-05-02)
+- Track A (P0 observability + process integrity) implementation status: complete.
+  - Added runtime observability alerts for:
+    - healthy ingestion + zero-risk-approval streaks
+    - near-cap exposure + zero-fill streaks
+  - Added startup self-check reporting for active runtime integrity controls.
+  - Added single-supervisor lock invariant with active-PID rejection and stale-lock recovery semantics.
+  - Runtime GUI incident feed now surfaces the new observability alert conditions with explicit warning summaries.
+- Track B (Phase F lifecycle gates F1-F3) implementation status: complete.
+  - F1 readiness certification gate: PASS (readiness_score=100.000, blockers=0) from rehearsal evidence.
+  - F2 stage enablement decision using template approval record: DENY (expected while required approver remains pending) with machine-readable failed_reason_codes and append-only audit artifact.
+  - F3 rollback guard on denied enablement: FAIL + incident_status=OPEN (expected guardrail behavior) with guard, incident-handoff, and audit artifacts written.
+- Validation summary for Track A/B:
+  - `python3 scripts/run_typecheck.py`: PASS.
+  - `tests/test_runtime_supervisor_script.py`: PASS.
+  - `tests/test_runtime_supervisor_controls.py`: PASS.
+  - `tests/test_canary_readiness.py`: PASS.
+  - `tests/test_canary_enablement.py`: PASS.
+  - `tests/test_canary_rollback_guard.py`: PASS.
+  - `tests/test_canary_lifecycle_gate.py`: PASS.
+  - `tests/test_runtime_supervisor_live.py`, `tests/test_integration_adapters.py`, `tests/test_runtime_supervisor_controls.py` integrated run: PASS.
+
+6) Outstanding Issues
+- Economic quality remains weak (negative net PnL trend).
+- Trade cadence is uneven due to cap/exit oscillation.
+- AgentOperator availability remains environment-dependent: Claude-path failures are now mitigated via OpenFang backend fail-open support, but recommendations still degrade to UNAVAILABLE when OpenFang daemon/agent IDs are not configured.
+- Gate pass criteria remain more permissive than desired for profitability assurance.
+- Phase F enablement approvals are intentionally pending in template records; production canary promotion remains blocked until explicit required-approver sign-off and approval-record evidence are provided.
+
+7) Prioritized Roadmap
+P0 (Immediate)
+1. Execution cadence stabilization
+   - Owner: runtime_operator
+   - Target: week 1
+   - Tune risk and exposure parameters to reduce long no-trade cap windows.
+   - Tune exit thresholds/holding controls to improve turnover safety.
+2. Runtime observability and alerting
+   - Owner: reliability_engineering
+   - Target: week 1
+   - Alert when ingestion_status=OK but risk_allowed_count=0 for prolonged streaks.
+   - Alert when open_notional remains near cap with zero fills over threshold cycles.
+3. Runtime process integrity
+   - Owner: runtime_operator
+   - Target: week 1
+   - Enforce single-supervisor invariant after restart.
+   - Add startup self-check logging active feature flags (preprocess + cycle-time offset).
+
+P1 (Near-Term)
+1. Profitability gate hardening
+   - Owner: quant_research
+   - Target: week 2
+   - Increase minimum expected value thresholds above zero.
+   - Add rolling-window profitability constraints.
+2. Risk/exit model recalibration
+   - Owner: quant_research
+   - Target: week 2
+   - Re-tune max exposure and exit dynamics with scenario matrix runs.
+3. AgentOperator operational readiness
+   - Owner: platform_engineering
+   - Target: week 2
+   - Ensure secure secret provisioning and validate operator availability path.
+4. OpenFang AgentOperator control-plane pilot
+   - Owner: platform_engineering
+   - Target: week 2-3
+   - Add OpenFang-backed AgentOperator backend with fail-open fallback to deterministic runtime behavior.
+   - Run shadow-mode advisory/strategy operators via OpenFang daemon for 7 days and compare cadence + EV deltas against baseline.
+   - Promote only guarded influence knobs when all of the following are true:
+     - rolling expected_value_after_execution_cost improves >= 10% vs baseline
+     - no increase in ingestion degradation incidence vs baseline
+     - zero policy/risk guardrail violations in evaluation window
+   - Automatic rollback/disable triggers:
+     - risk approval cadence drops >= 20% vs baseline for 3 consecutive windows
+     - rolling expected_value_after_execution_cost worsens >= 10% vs baseline
+     - any high-severity policy/risk guardrail breach
+
+P2 (Medium-Term)
+1. Data realism expansion
+   - Owner: data_engineering
+   - Target: week 4
+   - Replace tiny replay fixture loops with richer historical streams.
+2. Automated parameter optimization
+   - Owner: quant_research
+   - Target: week 4-5
+   - Build reproducible sweep and comparison framework.
+3. Governance separation
+   - Owner: governance
+   - Target: week 5
+   - Split reliability gate from economic-quality gate for promotion decisions.
+
+8) Acceptance Criteria for Next Milestone
+- Ingestion remains OK over long-run historical cycles without false degradation.
+- No prolonged cap-lock windows without planned exit release.
+- Repeated risk approvals/fills across multiple windows.
+- Improved rolling expected value and net PnL trend vs current baseline.
+- Strengthened gate criteria pass with positive economic signal quality.
+
+9) Recommended Next Actions
+1. Run extended-cycle validation to quantify Track A alert incidence (streak frequency, durations, and false-positive rate) under realistic replay windows.
+2. Execute focused parameter-tuning experiments for risk/exposure/exit to reduce cap-lock oscillation and improve approval cadence continuity.
+3. Tighten profitability gate thresholds and rerun paper certification with rolling-window constraints.
+4. Validate operator secret/config path in runtime environment and complete OpenFang shadow pilot preflight.
+5. Keep canary promotion blocked until F2 approval record is explicitly signed by all required approvers and stored as immutable audit evidence.
+6. Produce weekly reliability+economics trend reports, including lifecycle gate outputs (F1/F2/F3) and incident-handoff counts.
+7. Gate OpenFang influence rollout behind measured improvements in cap-lock duration, risk-approval cadence, and rolling expected value with rollback triggers enforced.
+10) Reproducibility References (commands and artifacts)
+- Runtime supervisor validation:
+  - command: `python3 scripts/run_runtime_supervisor.py --events tests/fixtures/replay_events.jsonl --profile config/parameters/profiles/mvp_test_token.v1.json --calibration-policy config/calibration/llm_reliability.v1.json --scenario-pack config/replay/scenario_pack.v1.json --scenario baseline --cycles 3 --cycle-output-dir runtime/cycles`
+  - artifacts: `runtime/runtime_state.json`, `runtime/runtime_journal.jsonl`, `runtime/cycles/cycle_*.json`
+- TRL4 profitability gate:
+  - command: `python3 scripts/run_trl4_profitability_report.py --journal-path runtime/runtime_journal.jsonl --state-path runtime/runtime_state.json --gate-config config/certification/trl4_24h_profitability_gate.v1.json --output runtime/trl4_24h_report.json`
+  - artifact: `runtime/trl4_24h_report.json`
+- Mode promotion gate:
+  - command: `python3 scripts/run_mode_promotion_gate.py --current-mode paper --target-mode test --manual-approval-status approved --milestone-c-sequence-report runtime/milestone_c_sequence/milestone_c_sequence_summary.json --trl4-profitability-report runtime/trl4_24h_report.json --output runtime/mode_promotion_gate_report.json --audit-output runtime/mode_promotion_audit.jsonl`
+  - artifacts: `runtime/mode_promotion_gate_report.json`, `runtime/mode_promotion_audit.jsonl`

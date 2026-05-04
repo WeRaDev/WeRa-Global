@@ -66,6 +66,10 @@ def _normalize_scenario_hint(value: Any) -> str:
     ).strip()
 
 
+def _is_bare_false_token(text: str) -> bool:
+    return text.strip() == "False"
+
+
 def _extract_json_object(text: str) -> dict[str, Any] | None:
     stripped = text.strip()
     if not stripped:
@@ -186,6 +190,182 @@ class ClaudeApiClient:
             raise RuntimeError("claude_invalid_response_payload")
         return self._extract_text(response_payload)
 
+@dataclass(frozen=True)
+class OpenFangApiClient:
+    agent_id: str
+    base_url: str = "http://127.0.0.1:4200"
+    auth_token_env: str = ""
+    provider: str = "openfang_api"
+    model: str = "openfang_agent"
+
+    def _resolve_agent_id(self) -> str:
+        resolved = str(self.agent_id or "").strip()
+        if not resolved:
+            raise AgentOperatorUnavailableError(
+                "agent_operator_openfang_agent_id_missing"
+            )
+        return resolved
+
+    def _resolve_auth_token(self) -> str:
+        env_name = str(self.auth_token_env or "").strip()
+        if not env_name:
+            return ""
+        token = os.environ.get(env_name, "").strip()
+        if not token:
+            raise AgentOperatorUnavailableError(
+                f"agent_operator_openfang_auth_token_missing:{env_name}"
+            )
+        return token
+
+    def _build_headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        auth_token = self._resolve_auth_token()
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        return headers
+
+    def _request_json(
+        self,
+        *,
+        method: str,
+        path: str,
+        timeout_seconds: float,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        base_url = str(self.base_url or "").strip().rstrip("/")
+        if not base_url:
+            raise AgentOperatorUnavailableError(
+                "agent_operator_openfang_base_url_missing"
+            )
+        request = Request(
+            f"{base_url}{path}",
+            data=(
+                None
+                if payload is None
+                else json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            ),
+            headers=self._build_headers(),
+            method=method,
+        )
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:
+                charset = response.headers.get_content_charset() or "utf-8"
+                body = response.read().decode(charset)
+        except HTTPError as exc:
+            raise RuntimeError(f"openfang_http_error:{exc.code}") from exc
+        except URLError as exc:
+            raise RuntimeError("openfang_network_error") from exc
+        except TimeoutError as exc:
+            raise RuntimeError("openfang_timeout") from exc
+        try:
+            response_payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("openfang_invalid_json_response") from exc
+        if not isinstance(response_payload, dict):
+            raise RuntimeError("openfang_invalid_response_payload")
+        return response_payload
+
+    def complete(
+        self,
+        *,
+        prompt: str,
+        timeout_seconds: float,
+    ) -> str:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be > 0")
+        agent_id = self._resolve_agent_id()
+        self._request_json(
+            method="GET",
+            path="/api/health",
+            timeout_seconds=timeout_seconds,
+        )
+        response_payload = self._request_json(
+            method="POST",
+            path=f"/api/agents/{agent_id}/message",
+            timeout_seconds=timeout_seconds,
+            payload={"message": prompt},
+        )
+        response_text = str(response_payload.get("response", "")).strip()
+        if not response_text:
+            raise RuntimeError("openfang_response_text_empty")
+        return response_text
+
+def _compact_cycle_context(cycle_context: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    scalar_keys = (
+        "cycle_index",
+        "scenario_name",
+        "ingestion_mode",
+        "ingestion_status",
+        "ingestion_degraded_streak",
+        "risk_allowed_count",
+        "filled_trade_count",
+        "partial_fill_count",
+        "exit_candidate_count",
+        "confirmed_exit_count",
+        "forced_exit_count",
+        "expected_gross_edge_value",
+        "expected_net_edge_value",
+        "expected_net_edge_value_on_fills",
+        "expected_value_after_execution_cost",
+        "total_execution_cost",
+        "total_fees_paid",
+        "total_slippage_cost",
+        "execution_cost_to_expected_net_ratio",
+    )
+    for key in scalar_keys:
+        if key in cycle_context:
+            compact[key] = cycle_context.get(key)
+
+    ingestion_reasons = cycle_context.get("ingestion_reasons")
+    if isinstance(ingestion_reasons, list):
+        compact["ingestion_reasons"] = [
+            _trim_text(reason, max_length=80) for reason in ingestion_reasons[:8]
+        ]
+
+    portfolio = cycle_context.get("portfolio")
+    if isinstance(portfolio, dict):
+        compact["portfolio"] = {
+            "bankroll": portfolio.get("bankroll"),
+            "current_equity": portfolio.get("current_equity"),
+            "net_pnl": portfolio.get("net_pnl"),
+            "open_notional": portfolio.get("open_notional"),
+            "open_positions": portfolio.get("open_positions"),
+            "total_exposure_fraction": portfolio.get("total_exposure_fraction"),
+            "daily_drawdown_fraction": portfolio.get("daily_drawdown_fraction"),
+        }
+
+    operator_controls = cycle_context.get("operator_controls")
+    if isinstance(operator_controls, dict):
+        compact["operator_controls"] = {
+            "kill_switch_active": bool(
+                operator_controls.get("kill_switch_active", False)
+            ),
+            "cancel_all_requested": bool(
+                operator_controls.get("cancel_all_requested", False)
+            ),
+            "cancel_all_acknowledged": bool(
+                operator_controls.get("cancel_all_acknowledged", False)
+            ),
+        }
+
+    available_scenarios = cycle_context.get("available_scenarios")
+    if isinstance(available_scenarios, list):
+        compact["available_scenarios"] = [
+            str(item).strip()
+            for item in available_scenarios[:12]
+            if str(item).strip()
+        ]
+
+    open_positions_detail = cycle_context.get("open_positions_detail")
+    if isinstance(open_positions_detail, list):
+        compact["open_positions_detail_count"] = len(open_positions_detail)
+    closed_positions_recent = cycle_context.get("closed_positions_recent")
+    if isinstance(closed_positions_recent, list):
+        compact["closed_positions_recent_count"] = len(closed_positions_recent)
+
+    return compact
+
 
 class AgentOperator:
     def __init__(
@@ -202,40 +382,30 @@ class AgentOperator:
     @staticmethod
     def _build_prompt(cycle_context: dict[str, Any]) -> str:
         mode = _normalize_mode(cycle_context.get("agent_operator_mode"))
-        available_scenarios_clause = ""
-        raw_available_scenarios = cycle_context.get("available_scenarios")
-        if isinstance(raw_available_scenarios, list):
-            normalized_available_scenarios = [
-                str(item).strip()
-                for item in raw_available_scenarios
-                if str(item).strip()
-            ]
-            if normalized_available_scenarios:
-                available_scenarios_clause = (
-                    "Available scenarios for strategy mode: "
-                    f"{normalized_available_scenarios}.\n"
-                )
-        serialized_context = json.dumps(cycle_context, indent=2, sort_keys=True)
+        serialized_context = json.dumps(
+            _compact_cycle_context(cycle_context), indent=2, sort_keys=True
+        )
         return (
-            "You are AgentOperator for Poly-Robot. "
-            "Goal: improve profitability while preserving risk controls.\n"
-            f"Operating mode: {mode}.\n"
-            "Given the cycle context JSON below, produce a strict JSON object with keys:\n"
+            "You are an operator advisor for Poly-Robot.\n"
+            f"Mode: {mode}.\n"
+            "Output format (strict, no markdown, no prose outside output):\n"
+            "A) If context is insufficient, output exactly: False\n"
+            "B) Otherwise output one JSON object with keys:\n"
             "{"
             "\"summary\": string, "
             "\"profitability_hypothesis\": string, "
             "\"risk_posture\": \"increase\"|\"reduce\"|\"neutral\", "
             "\"confidence\": number in [0,1], "
             "\"recommended_actions\": array of short actionable strings, "
-            "\"scenario_hint\": string"
+            "\"scenario_hint\": string, "
+            "\"state\": optional string (OK or REJECTED:<reason_code>)"
             "}\n"
-            "Constraints:\n"
-            "- Never suggest bypassing kill switch, drawdown limits, or risk caps.\n"
+            "Rules:\n"
+            "- Keep summary under 220 characters.\n"
+            "- Keep recommended_actions to at most 4 items.\n"
+            "- Do not suggest bypassing kill switch, drawdown limits, or risk caps.\n"
             "- Prefer execution-cost and edge-capture improvements.\n"
-            "- Keep recommendations concrete and testable in next cycle.\n\n"
-            "- When mode is strategy, scenario_hint should be one of available "
-            "scenarios if suitable, otherwise empty string.\n"
-            + available_scenarios_clause
+            "- If mode=strategy, scenario_hint must be one of available_scenarios or empty.\n"
             + f"Cycle context:\n{serialized_context}\n"
         )
 
@@ -244,10 +414,12 @@ class AgentOperator:
         *,
         status: str,
         reason: str,
+        reason_detail: str = "",
     ) -> dict[str, Any]:
         return {
             "status": status,
             "reason": reason,
+            "reason_detail": _trim_text(reason_detail, max_length=256),
             "provider": self.client.provider,
             "model": self.client.model,
             "mode": "advisory",
@@ -276,16 +448,36 @@ class AgentOperator:
                 timeout_seconds=self.timeout_seconds,
             )
         except AgentOperatorUnavailableError as exc:
-            fallback = self._fallback_result(status="UNAVAILABLE", reason=str(exc))
+            fallback = self._fallback_result(
+                status="UNAVAILABLE",
+                reason=str(exc),
+                reason_detail=str(exc),
+            )
             fallback["mode"] = mode
             return fallback
         except Exception as exc:  # pragma: no cover - defensive fail-open
             fallback = self._fallback_result(
                 status="ERROR",
                 reason=exc.__class__.__name__,
+                reason_detail=str(exc),
             )
             fallback["mode"] = mode
             return fallback
+        if _is_bare_false_token(response_text):
+            return {
+                "status": "UNAVAILABLE",
+                "reason": "factual_unavailable_false",
+                "provider": self.client.provider,
+                "model": self.client.model,
+                "mode": mode,
+                "generated_at": _utc_now_iso(),
+                "summary": "",
+                "profitability_hypothesis": "",
+                "risk_posture": "neutral",
+                "confidence": None,
+                "recommended_actions": [],
+                "scenario_hint": "",
+            }
 
         parsed = _extract_json_object(response_text)
         if parsed is None:
@@ -307,9 +499,17 @@ class AgentOperator:
         risk_posture = str(parsed.get("risk_posture", "neutral")).strip().lower()
         if risk_posture not in {"increase", "reduce", "neutral"}:
             risk_posture = "neutral"
+        raw_state = str(parsed.get("state", "")).strip()
+        normalized_status = "OK"
+        normalized_reason = ""
+        if raw_state.upper().startswith("REJECTED:"):
+            normalized_status = "REJECTED"
+            normalized_reason = raw_state.split(":", 1)[1].strip()
+        elif raw_state:
+            normalized_status = raw_state.upper()
         return {
-            "status": "OK",
-            "reason": "",
+            "status": normalized_status,
+            "reason": normalized_reason,
             "provider": self.client.provider,
             "model": self.client.model,
             "mode": mode,
@@ -325,3 +525,84 @@ class AgentOperator:
             ),
             "scenario_hint": _normalize_scenario_hint(parsed.get("scenario_hint", "")),
         }
+
+
+class AgencyGateway:
+    def __init__(self, operators_by_mode: dict[str, AgentOperator]) -> None:
+        self.operators_by_mode = dict(operators_by_mode)
+
+    def skipped_result(self, *, reason: str, mode: str) -> dict[str, Any]:
+        operator = self.operators_by_mode.get(mode)
+        if operator is None:
+            return {
+                "status": "DISABLED",
+                "reason": reason,
+                "reason_detail": "",
+                "provider": "none",
+                "model": "none",
+                "mode": mode,
+                "generated_at": _utc_now_iso(),
+                "summary": "",
+                "profitability_hypothesis": "",
+                "risk_posture": "neutral",
+                "confidence": None,
+                "recommended_actions": [],
+                "scenario_hint": "",
+            }
+        return {
+            "status": "SKIPPED",
+            "reason": reason,
+            "reason_detail": "",
+            "provider": operator.client.provider,
+            "model": operator.client.model,
+            "mode": mode,
+            "generated_at": _utc_now_iso(),
+            "summary": "",
+            "profitability_hypothesis": "",
+            "risk_posture": "neutral",
+            "confidence": None,
+            "recommended_actions": [],
+            "scenario_hint": "",
+        }
+
+    def infer_roles(
+        self,
+        *,
+        base_cycle_context: dict[str, Any],
+        requested_role_modes: dict[str, str],
+        all_role_modes: dict[str, str],
+        operators_enabled: bool,
+        disabled_reason: str = "agent_operators_stopped_by_control",
+        role_not_requested_reason: str = "agent_operator_role_not_requested_by_mode",
+    ) -> dict[str, dict[str, Any]]:
+        role_results: dict[str, dict[str, Any]] = {}
+        if not operators_enabled:
+            for role_name, role_mode in all_role_modes.items():
+                role_results[role_name] = self.skipped_result(
+                    reason=disabled_reason,
+                    mode=role_mode,
+                )
+            return role_results
+
+        for role_name, role_mode in all_role_modes.items():
+            if role_name not in requested_role_modes:
+                role_results[role_name] = self.skipped_result(
+                    reason=role_not_requested_reason,
+                    mode=role_mode,
+                )
+                continue
+            operator = self.operators_by_mode.get(role_mode)
+            if operator is None:
+                role_results[role_name] = self.skipped_result(
+                    reason="agent_operator_mode_not_configured",
+                    mode=role_mode,
+                )
+                continue
+            role_results[role_name] = operator.infer(
+                cycle_context={
+                    **base_cycle_context,
+                    "agent_operator_role": role_name,
+                    "agent_operator_mode": role_mode,
+                }
+            )
+        return role_results

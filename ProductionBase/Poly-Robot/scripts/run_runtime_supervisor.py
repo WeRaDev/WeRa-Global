@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import math
+import os
 import sys
+import tempfile
 import time
-from datetime import UTC, datetime
+from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from urllib.parse import quote
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -18,7 +23,12 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from poly_robot.contracts import MarketEvent, PortfolioState  # noqa: E402
-from poly_robot.agent_operator import AgentOperator, ClaudeApiClient  # noqa: E402
+from poly_robot.agent_operator import (  # noqa: E402
+    AgencyGateway,
+    AgentOperator,
+    ClaudeApiClient,
+    OpenFangApiClient,
+)
 from poly_robot.integration_adapters import (  # noqa: E402
     HardenedExecutionAdapter,
     HistoricalIngestionAdapter,
@@ -56,6 +66,77 @@ LIFECYCLE_MODE_BY_EXECUTION_MODE = {
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _shift_iso_timestamp_for_cycle(timestamp: str, *, cycle_index: int) -> str:
+    if cycle_index <= 1:
+        return timestamp
+    raw = str(timestamp or "").strip()
+    if not raw:
+        return timestamp
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return timestamp
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    shifted = dt.astimezone(UTC) + timedelta(hours=(cycle_index - 1))
+    return shifted.isoformat().replace("+00:00", "Z")
+
+
+def _offset_events_for_cycle(
+    events: list[MarketEvent], *, cycle_index: int
+) -> list[MarketEvent]:
+    if cycle_index <= 1:
+        return events
+    shifted_events: list[MarketEvent] = []
+    for event in events:
+        payload = event.to_dict()
+        payload["timestamp"] = _shift_iso_timestamp_for_cycle(
+            str(payload.get("timestamp", event.timestamp)),
+            cycle_index=cycle_index,
+        )
+        shifted_events.append(MarketEvent.from_dict(payload))
+    return shifted_events
+
+
+def _prepare_sorted_historical_events(events_path: Path) -> Path:
+    lines = events_path.read_text(encoding="utf-8").splitlines()
+    records: list[tuple[str, str, int, dict[str, Any]]] = []
+    for index, raw_line in enumerate(lines):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return events_path
+        timestamp = str(payload.get("timestamp", ""))
+        event_id = str(payload.get("event_id", ""))
+        records.append((timestamp, event_id, index, payload))
+
+    if not records:
+        return events_path
+
+    sorted_records = sorted(records, key=lambda row: (row[0], row[1], row[2]))
+    already_sorted = all(
+        left[:3] == right[:3]
+        for left, right in zip(records, sorted_records, strict=False)
+    )
+    if already_sorted:
+        return events_path
+
+    output_dir = Path(
+        tempfile.mkdtemp(prefix="poly_robot_preprocessed_events_")
+    )
+    output_path = output_dir / f"{events_path.stem}.sorted.jsonl"
+    serialized = [
+        json.dumps(payload, separators=(",", ":"))
+        for _, _, _, payload in sorted_records
+    ]
+    output_path.write_text("\n".join(serialized) + "\n", encoding="utf-8")
+    return output_path
 
 
 def _load_profile_payload(profile_path: Path) -> tuple[dict, dict]:
@@ -207,6 +288,100 @@ def _lifecycle_mode_for_execution_mode(mode: object) -> str:
 
 def _secret_max_age_days_from_seconds(secret_max_age_seconds: float) -> int:
     return max(1, math.ceil(secret_max_age_seconds / 86_400))
+
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _acquire_single_supervisor_lock(lock_path: Path) -> Callable[[], None]:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    current_pid = os.getpid()
+    if lock_path.exists():
+        try:
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            payload = {}
+        existing_pid = int(payload.get("pid", 0) or 0)
+        if existing_pid and existing_pid != current_pid and _pid_is_running(existing_pid):
+            raise ValueError(
+                "single_supervisor_lock_active:"
+                f"pid={existing_pid}:lock_path={lock_path}"
+            )
+    lock_payload = {
+        "schema_version": "runtime_supervisor_lock.v1",
+        "pid": current_pid,
+        "acquired_at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+    }
+    lock_path.write_text(json.dumps(lock_payload, indent=2) + "\n", encoding="utf-8")
+
+    released = {"value": False}
+
+    def _release() -> None:
+        if released["value"]:
+            return
+        released["value"] = True
+        try:
+            if not lock_path.exists():
+                return
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+            owner_pid = int(payload.get("pid", 0) or 0)
+            if owner_pid == current_pid:
+                lock_path.unlink(missing_ok=True)
+        except Exception:
+            return
+
+    atexit.register(_release)
+    return _release
+
+
+def _evaluate_observability_alerts(
+    *,
+    ingestion_status: str,
+    risk_allowed_count: int,
+    filled_trade_count: int,
+    total_exposure_fraction: float | None,
+    zero_risk_streak: int,
+    near_cap_zero_fill_streak: int,
+    zero_risk_threshold_cycles: int,
+    near_cap_zero_fill_threshold_cycles: int,
+    near_cap_exposure_threshold_fraction: float,
+) -> dict[str, Any]:
+    healthy_zero_risk = ingestion_status == "OK" and risk_allowed_count <= 0
+    updated_zero_risk_streak = (
+        zero_risk_streak + 1 if healthy_zero_risk else 0
+    )
+    exposure_fraction = (
+        float(total_exposure_fraction)
+        if total_exposure_fraction is not None
+        else 0.0
+    )
+    near_cap_zero_fill = (
+        exposure_fraction >= near_cap_exposure_threshold_fraction
+        and filled_trade_count <= 0
+    )
+    updated_near_cap_zero_fill_streak = (
+        near_cap_zero_fill_streak + 1 if near_cap_zero_fill else 0
+    )
+    return {
+        "healthy_ingestion_zero_risk_streak": updated_zero_risk_streak,
+        "healthy_ingestion_zero_risk_alert": (
+            updated_zero_risk_streak >= zero_risk_threshold_cycles
+        ),
+        "near_cap_zero_fill_streak": updated_near_cap_zero_fill_streak,
+        "near_cap_zero_fill_alert": (
+            updated_near_cap_zero_fill_streak
+            >= near_cap_zero_fill_threshold_cycles
+        ),
+    }
 
 def _resolve_l1_auth_guard(
     *,
@@ -828,6 +1003,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--agent-operator-backend",
+        type=str,
+        choices=["claude_api", "openfang_api"],
+        default="claude_api",
+        help="AgentOperator backend provider.",
+    )
+    parser.add_argument(
         "--agent-operator-model",
         type=str,
         default="claude-sonnet-4-6",
@@ -854,6 +1036,35 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Environment variable name containing Claude API key.",
     )
     parser.add_argument(
+        "--agent-operator-openfang-base-url",
+        type=str,
+        default="http://127.0.0.1:4200",
+        help="OpenFang daemon base URL used by AgentOperator.",
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-auth-token-env",
+        type=str,
+        default="",
+        help=(
+            "Optional environment variable name containing OpenFang bearer token."
+        ),
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-advisory-agent-id",
+        type=str,
+        default="",
+        help="OpenFang advisory agent ID used when backend=openfang_api.",
+    )
+    parser.add_argument(
+        "--agent-operator-openfang-strategy-agent-id",
+        type=str,
+        default="",
+        help=(
+            "OpenFang strategy agent ID used when backend=openfang_api; "
+            "falls back to advisory agent ID when omitted."
+        ),
+    )
+    parser.add_argument(
         "--agent-operator-timeout-seconds",
         type=float,
         default=8.0,
@@ -870,6 +1081,44 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.1,
         help="Sampling temperature for AgentOperator inference.",
+    )
+    parser.add_argument(
+        "--ingestion-ok-zero-risk-alert-threshold-cycles",
+        type=int,
+        default=3,
+        help=(
+            "Alert threshold for consecutive cycles where ingestion is OK "
+            "but risk gate allows zero actions."
+        ),
+    )
+    parser.add_argument(
+        "--near-cap-zero-fill-alert-threshold-cycles",
+        type=int,
+        default=3,
+        help=(
+            "Alert threshold for consecutive cycles with near-cap exposure "
+            "and zero filled trades."
+        ),
+    )
+    parser.add_argument(
+        "--near-cap-exposure-threshold-fraction",
+        type=float,
+        default=0.9,
+        help=(
+            "Exposure fraction threshold considered near-cap for "
+            "near-cap-zero-fill alerting."
+        ),
+    )
+    parser.add_argument(
+        "--single-supervisor-lock-path",
+        type=Path,
+        default=ROOT_DIR / "runtime" / "runtime_supervisor.lock.json",
+        help="Path to single-supervisor lock file used to prevent duplicate runs.",
+    )
+    parser.add_argument(
+        "--disable-single-supervisor-lock",
+        action="store_true",
+        help="Disable single-supervisor lock enforcement (not recommended).",
     )
     return parser
 
@@ -892,9 +1141,54 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--agent-operator-max-output-tokens must be > 0")
     if args.agent_operator_temperature < 0:
         raise ValueError("--agent-operator-temperature must be >= 0")
+    if args.ingestion_ok_zero_risk_alert_threshold_cycles <= 0:
+        raise ValueError(
+            "--ingestion-ok-zero-risk-alert-threshold-cycles must be > 0"
+        )
+    if args.near_cap_zero_fill_alert_threshold_cycles <= 0:
+        raise ValueError(
+            "--near-cap-zero-fill-alert-threshold-cycles must be > 0"
+        )
+    if (
+        args.near_cap_exposure_threshold_fraction <= 0
+        or args.near_cap_exposure_threshold_fraction > 1
+    ):
+        raise ValueError(
+            "--near-cap-exposure-threshold-fraction must be in (0, 1]"
+        )
     if args.ingestion_mode == "historical_jsonl" and args.events is None:
         raise ValueError(
             "--events is required when --ingestion-mode=historical_jsonl"
+        )
+    if args.ingestion_mode == "historical_jsonl" and args.events is not None:
+        args.events = _prepare_sorted_historical_events(args.events)
+    startup_self_check = {
+        "historical_event_sorting_enabled": args.ingestion_mode == "historical_jsonl",
+        "historical_cycle_timestamp_offset_enabled": (
+            args.ingestion_mode == "historical_jsonl"
+        ),
+        "single_supervisor_lock_enabled": not bool(
+            args.disable_single_supervisor_lock
+        ),
+        "single_supervisor_lock_path": str(args.single_supervisor_lock_path),
+        "ingestion_ok_zero_risk_alert_threshold_cycles": (
+            args.ingestion_ok_zero_risk_alert_threshold_cycles
+        ),
+        "near_cap_zero_fill_alert_threshold_cycles": (
+            args.near_cap_zero_fill_alert_threshold_cycles
+        ),
+        "near_cap_exposure_threshold_fraction": (
+            args.near_cap_exposure_threshold_fraction
+        ),
+    }
+    print(
+        "Runtime startup self-check: "
+        f"{json.dumps(startup_self_check, sort_keys=True)}"
+    )
+    lock_release: Callable[[], None] | None = None
+    if not args.disable_single_supervisor_lock:
+        lock_release = _acquire_single_supervisor_lock(
+            args.single_supervisor_lock_path
         )
     profile_payload, parameters = _load_profile_payload(args.profile)
     calibration_policy_payload = _load_json(args.calibration_policy)
@@ -1433,26 +1727,51 @@ def main(argv: list[str] | None = None) -> int:
     strategy_model = (
         str(args.agent_operator_strategy_model).strip() or args.agent_operator_model
     )
+    advisory_client = None
+    strategy_client = None
+    if args.agent_operator_backend == "openfang_api":
+        advisory_agent_id = str(
+            args.agent_operator_openfang_advisory_agent_id
+        ).strip()
+        strategy_agent_id = (
+            str(args.agent_operator_openfang_strategy_agent_id).strip()
+            or advisory_agent_id
+        )
+        advisory_client = OpenFangApiClient(
+            agent_id=advisory_agent_id,
+            base_url=args.agent_operator_openfang_base_url,
+            auth_token_env=args.agent_operator_openfang_auth_token_env,
+            model=f"openfang_agent:{advisory_agent_id or 'missing'}",
+        )
+        strategy_client = OpenFangApiClient(
+            agent_id=strategy_agent_id,
+            base_url=args.agent_operator_openfang_base_url,
+            auth_token_env=args.agent_operator_openfang_auth_token_env,
+            model=f"openfang_agent:{strategy_agent_id or 'missing'}",
+        )
+    else:
+        advisory_client = ClaudeApiClient(
+            model=args.agent_operator_model,
+            endpoint_url=args.agent_operator_endpoint_url,
+            api_key_env=args.agent_operator_api_key_env,
+            max_output_tokens=args.agent_operator_max_output_tokens,
+            temperature=args.agent_operator_temperature,
+        )
+        strategy_client = ClaudeApiClient(
+            model=strategy_model,
+            endpoint_url=args.agent_operator_endpoint_url,
+            api_key_env=args.agent_operator_api_key_env,
+            max_output_tokens=args.agent_operator_max_output_tokens,
+            temperature=args.agent_operator_temperature,
+        )
     agent_operators_by_mode: dict[str, AgentOperator] = {
         "advisory": AgentOperator(
-            client=ClaudeApiClient(
-                model=args.agent_operator_model,
-                endpoint_url=args.agent_operator_endpoint_url,
-                api_key_env=args.agent_operator_api_key_env,
-                max_output_tokens=args.agent_operator_max_output_tokens,
-                temperature=args.agent_operator_temperature,
-            ),
+            client=advisory_client,
             timeout_seconds=args.agent_operator_timeout_seconds,
             enabled=True,
         ),
         "strategy": AgentOperator(
-            client=ClaudeApiClient(
-                model=strategy_model,
-                endpoint_url=args.agent_operator_endpoint_url,
-                api_key_env=args.agent_operator_api_key_env,
-                max_output_tokens=args.agent_operator_max_output_tokens,
-                temperature=args.agent_operator_temperature,
-            ),
+            client=strategy_client,
             timeout_seconds=args.agent_operator_timeout_seconds,
             enabled=True,
         ),
@@ -1472,6 +1791,8 @@ def main(argv: list[str] | None = None) -> int:
     seen_live_event_ids: set[str] = set()
     state_refresh_streak_by_market: dict[str, int] = {}
     ingestion_degraded_streak = 0
+    healthy_ingestion_zero_risk_streak = 0
+    near_cap_zero_fill_streak = 0
 
     def _resolve_scenario_run_inputs(
         scenario_name: str,
@@ -1506,6 +1827,7 @@ def main(argv: list[str] | None = None) -> int:
                 "selected_scenario": control_default_scenario_name,
                 "control_version": 0,
                 "agent_operator_enabled": default_agent_operator_enabled,
+                "agent_operators_running": default_agent_operator_enabled,
                 "agent_operator_mode": default_agent_operator_mode,
                 "agent_operator_strategy_auto_apply": (
                     default_agent_operator_strategy_auto_apply
@@ -1537,6 +1859,13 @@ def main(argv: list[str] | None = None) -> int:
             control_state["cancel_all_requested"] = False
         if "agent_operator_enabled" not in control_state:
             control_state["agent_operator_enabled"] = default_agent_operator_enabled
+        if "agent_operators_running" not in control_state:
+            control_state["agent_operators_running"] = bool(
+                control_state.get(
+                    "agent_operator_enabled",
+                    default_agent_operator_enabled,
+                )
+            )
         if "agent_operator_mode" not in control_state:
             control_state["agent_operator_mode"] = default_agent_operator_mode
         if "agent_operator_strategy_auto_apply" not in control_state:
@@ -1555,6 +1884,16 @@ def main(argv: list[str] | None = None) -> int:
             control_state["agent_operator_candidate_last_action_at"] = ""
         control_state["agent_operator_mode"] = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode")
+        )
+        agent_operator_enabled_state = bool(
+            control_state.get("agent_operator_enabled", False)
+        )
+        control_state["agent_operators_running"] = bool(
+            control_state.get("agent_operators_running", False)
+            or agent_operator_enabled_state
+        )
+        control_state["agent_operator_enabled"] = bool(
+            control_state["agent_operators_running"]
         )
         control_state["agent_operator_strategy_auto_apply"] = bool(
             control_state.get("agent_operator_strategy_auto_apply", True)
@@ -1637,8 +1976,193 @@ def main(argv: list[str] | None = None) -> int:
             "scenario_hint": "",
         }
 
+    def _agent_operators_skipped(reason: str) -> dict[str, dict[str, Any]]:
+        return {
+            "supervisor": _agent_operator_skipped_result(
+                reason,
+                mode="advisory",
+            ),
+            "strategist": _agent_operator_skipped_result(
+                reason,
+                mode="strategy",
+            ),
+        }
+
+    def _polymarket_market_url(market_id: str) -> str:
+        normalized = str(market_id).strip()
+        if not normalized:
+            return ""
+        return f"https://polymarket.com/event/{quote(normalized, safe='')}"
+
+    def _build_open_positions_detail(
+        final_open_positions: dict[str, object],
+    ) -> list[dict[str, object]]:
+        def _position_value(position: object, key: str, default: object) -> object:
+            if isinstance(position, dict):
+                return position.get(key, default)
+            return getattr(position, key, default)
+        details: list[dict[str, object]] = []
+        for market_id, position in sorted(final_open_positions.items()):
+            quantity = float(
+                _position_value(
+                    position,
+                    "quantity",
+                    _position_value(position, "open_notional", 0.0),
+                )
+                or 0.0
+            )
+            average_entry_price = float(
+                _position_value(
+                    position,
+                    "average_entry_price",
+                    _position_value(position, "entry_midpoint", 0.0),
+                )
+                or 0.0
+            )
+            current_price = float(
+                _position_value(
+                    position,
+                    "current_price",
+                    _position_value(position, "last_midpoint", 0.0),
+                )
+                or 0.0
+            )
+            metadata = _position_value(position, "metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            details.append(
+                {
+                    "market_id": market_id,
+                    "quantity": round(quantity, 6),
+                    "average_entry_price": round(average_entry_price, 6),
+                    "current_price": round(current_price, 6),
+                    "mark_notional": round(quantity * current_price, 6),
+                    "entry_notional": round(quantity * average_entry_price, 6),
+                    "unrealized_pnl": round(
+                        quantity * (current_price - average_entry_price),
+                        6,
+                    ),
+                    "opened_at": (
+                        str(_position_value(position, "opened_at", "")).strip() or None
+                    ),
+                    "hold_hours": (
+                        round(float(_position_value(position, "hold_hours", 0.0) or 0.0), 4)
+                    ),
+                    "stale_checks": int(_position_value(position, "stale_checks", 0) or 0),
+                    "forced_exit_threshold_hours": (
+                        float(
+                            _position_value(
+                                position,
+                                "forced_exit_threshold_hours",
+                                0.0,
+                            )
+                            or 0.0
+                        )
+                    ),
+                    "source_record_index": int(
+                        _position_value(position, "source_record_index", 0) or 0
+                    ),
+                    "verification_url": _polymarket_market_url(market_id),
+                    "event_id": str(metadata.get("event_id", "")).strip() or None,
+                    "token_id": str(metadata.get("token_id", "")).strip() or None,
+                    "tick_size": metadata.get("tick_size"),
+                    "neg_risk": metadata.get("neg_risk"),
+                }
+            )
+        return details
+
+    def _build_closed_positions_recent(
+        records: list[object],
+        *,
+        max_items: int = 50,
+    ) -> list[dict[str, object]]:
+        def _normalize_record(raw_record: object) -> dict[str, object]:
+            if isinstance(raw_record, dict):
+                return dict(raw_record)
+            if hasattr(raw_record, "__dataclass_fields__"):
+                return asdict(raw_record)
+            return {}
+        recent: list[dict[str, object]] = []
+        for raw_record in records:
+            record = _normalize_record(raw_record)
+            if not record:
+                continue
+
+            if "record_type" in record:
+                if str(record.get("record_type", "")).strip().lower() != "exit":
+                    continue
+                exit_reason = str(record.get("exit_reason", "")).strip().lower()
+                if exit_reason not in {
+                    "position_closed",
+                    "forced_max_holding_exit",
+                    "stale_exit",
+                    "capture_exit",
+                }:
+                    continue
+                market_id = str(record.get("market_id", "")).strip()
+                quantity = float(record.get("quantity", 0.0) or 0.0)
+                entry_price = float(record.get("entry_price", 0.0) or 0.0)
+                exit_price = float(record.get("exit_price", 0.0) or 0.0)
+                fees_paid = float(record.get("fees_paid", 0.0) or 0.0)
+                slippage_cost = float(record.get("slippage_cost", 0.0) or 0.0)
+                pnl = float(record.get("pnl", 0.0) or 0.0)
+                closed_at = str(record.get("timestamp", "")).strip() or None
+            else:
+                exit_decision = record.get("exit_decision")
+                if not isinstance(exit_decision, dict) or not bool(
+                    exit_decision.get("should_exit", False)
+                ):
+                    continue
+                execution_result = record.get("execution_result")
+                if not isinstance(execution_result, dict):
+                    execution_result = {}
+                metadata = execution_result.get("metadata")
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                reason_codes = exit_decision.get("reasons")
+                if isinstance(reason_codes, (list, tuple)) and reason_codes:
+                    exit_reason = str(reason_codes[0]).strip().lower()
+                else:
+                    exit_reason = "position_closed"
+                market_id = str(record.get("market_id", "")).strip()
+                exit_notional = float(
+                    metadata.get("exit_closed_notional")
+                    or execution_result.get("filled_notional", 0.0)
+                    or 0.0
+                )
+                quantity = exit_notional
+                entry_price = 1.0
+                exit_price = 1.0
+                fees_paid = float(execution_result.get("fee_paid", 0.0) or 0.0)
+                slippage_cost = float(
+                    execution_result.get("slippage_cost", 0.0) or 0.0
+                )
+                pnl = 0.0
+                closed_at = str(record.get("timestamp", "")).strip() or None
+            recent.append(
+                {
+                    "market_id": market_id,
+                    "quantity": round(quantity, 6),
+                    "entry_price": round(entry_price, 6),
+                    "exit_price": round(exit_price, 6),
+                    "entry_notional": round(quantity * entry_price, 6),
+                    "exit_notional": round(quantity * exit_price, 6),
+                    "fees_paid": round(fees_paid, 6),
+                    "slippage_cost": round(slippage_cost, 6),
+                    "realized_pnl": round(pnl, 6),
+                    "exit_reason": exit_reason,
+                    "closed_at": closed_at,
+                    "verification_url": _polymarket_market_url(market_id),
+                }
+            )
+        recent.sort(
+            key=lambda row: str(row.get("closed_at", "")),
+            reverse=True,
+        )
+        return recent[:max_items]
+
     def _run_test_token_cycle(heartbeat) -> dict:
-        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak
+        nonlocal portfolio_state, open_positions_state, seen_live_event_ids, state_refresh_streak_by_market, ingestion_degraded_streak, healthy_ingestion_zero_risk_streak, near_cap_zero_fill_streak
         cycle_index = current_cycle["index"] if current_cycle["index"] > 0 else 1
         control_state = _read_operator_control_state()
         selected_scenario_name = str(
@@ -1651,9 +2175,13 @@ def main(argv: list[str] | None = None) -> int:
         restart_requested = bool(control_state.get("restart_requested", False))
         kill_switch_active = bool(control_state.get("kill_switch_active", False))
         cancel_all_requested = bool(control_state.get("cancel_all_requested", False))
-        agent_operator_enabled = bool(
-            control_state.get("agent_operator_enabled", False)
+        agent_operators_running = bool(
+            control_state.get(
+                "agent_operators_running",
+                control_state.get("agent_operator_enabled", False),
+            )
         )
+        agent_operator_enabled = agent_operators_running
         agent_operator_mode = _normalize_agent_operator_mode(
             control_state.get("agent_operator_mode", "advisory")
         )
@@ -1730,6 +2258,7 @@ def main(argv: list[str] | None = None) -> int:
                 "kill_switch_active": kill_switch_active,
                 "cancel_all_requested": cancel_all_requested,
                 "agent_operator_enabled": agent_operator_enabled,
+                "agent_operators_running": agent_operators_running,
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_strategy_auto_apply": (
                     agent_operator_strategy_auto_apply
@@ -1750,6 +2279,7 @@ def main(argv: list[str] | None = None) -> int:
                 "expected_execution_mode": expected_execution_mode,
                 "execution_mode": resolved_execution_mode,
                 "execution_mode_matches_lifecycle": execution_mode_matches_lifecycle,
+                "startup_self_check": startup_self_check,
             },
         )
 
@@ -1827,6 +2357,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "result_hash": None,
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": _agent_operators_skipped("restart_requested"),
                 "agent_operator_status": agent_operator_result["status"],
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result["provider"],
@@ -1905,6 +2437,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "result_hash": None,
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": _agent_operators_skipped("paused"),
                 "agent_operator_status": agent_operator_result["status"],
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result["provider"],
@@ -1990,6 +2524,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "result_hash": None,
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": _agent_operators_skipped(mismatch_reason),
                 "agent_operator_status": agent_operator_result["status"],
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result["provider"],
@@ -2085,6 +2621,10 @@ def main(argv: list[str] | None = None) -> int:
                     _resolve_scenario_run_inputs(scenario_name_in_use)
                 )
             run_scenario_name = scenario.name
+            events_for_run = _offset_events_for_cycle(
+                events_for_run,
+                cycle_index=cycle_index,
+            )
             if historical_ingestion is None:
                 raise ValueError("historical ingestion state is unavailable")
             cycle_ingestion = historical_ingestion
@@ -2339,79 +2879,146 @@ def main(argv: list[str] | None = None) -> int:
             portfolio_state,
             initial_open_positions=open_positions_state,
         )
+        observability_alerts = _evaluate_observability_alerts(
+            ingestion_status=effective_ingestion_status,
+            risk_allowed_count=run.risk_allowed_count,
+            filled_trade_count=run.filled_trade_count,
+            total_exposure_fraction=run.final_portfolio.total_exposure_fraction,
+            zero_risk_streak=healthy_ingestion_zero_risk_streak,
+            near_cap_zero_fill_streak=near_cap_zero_fill_streak,
+            zero_risk_threshold_cycles=(
+                args.ingestion_ok_zero_risk_alert_threshold_cycles
+            ),
+            near_cap_zero_fill_threshold_cycles=(
+                args.near_cap_zero_fill_alert_threshold_cycles
+            ),
+            near_cap_exposure_threshold_fraction=(
+                args.near_cap_exposure_threshold_fraction
+            ),
+        )
+        healthy_ingestion_zero_risk_streak = int(
+            observability_alerts["healthy_ingestion_zero_risk_streak"]
+        )
+        near_cap_zero_fill_streak = int(
+            observability_alerts["near_cap_zero_fill_streak"]
+        )
+        if bool(observability_alerts["healthy_ingestion_zero_risk_alert"]):
+            heartbeat(
+                "observability_healthy_ingestion_zero_risk_alert",
+                {
+                    "cycle_index": cycle_index,
+                    "healthy_ingestion_zero_risk_streak": (
+                        healthy_ingestion_zero_risk_streak
+                    ),
+                    "threshold_cycles": (
+                        args.ingestion_ok_zero_risk_alert_threshold_cycles
+                    ),
+                    "ingestion_status": effective_ingestion_status,
+                    "risk_allowed_count": run.risk_allowed_count,
+                },
+            )
+        if bool(observability_alerts["near_cap_zero_fill_alert"]):
+            heartbeat(
+                "observability_near_cap_zero_fill_alert",
+                {
+                    "cycle_index": cycle_index,
+                    "near_cap_zero_fill_streak": near_cap_zero_fill_streak,
+                    "threshold_cycles": (
+                        args.near_cap_zero_fill_alert_threshold_cycles
+                    ),
+                    "near_cap_exposure_threshold_fraction": (
+                        args.near_cap_exposure_threshold_fraction
+                    ),
+                    "total_exposure_fraction": round(
+                        run.final_portfolio.total_exposure_fraction,
+                        6,
+                    ),
+                    "filled_trade_count": run.filled_trade_count,
+                },
+            )
         available_scenarios = (
             sorted(scenario_pack.scenarios.keys()) if scenario_pack is not None else []
         )
         strategy_scenario_hint = ""
         strategy_scenario_applied = False
         strategy_scenario_rejected_reason = ""
-        agent_operator_result = _agent_operator_skipped_result(
-            "agent_operator_disabled_by_control",
-            mode=agent_operator_mode,
+        base_agent_operator_cycle_context = {
+            "cycle_index": cycle_index,
+            "scenario_name": run_scenario_name,
+            "ingestion_mode": args.ingestion_mode,
+            "ingestion_status": effective_ingestion_status,
+            "ingestion_reasons": effective_ingestion_reasons,
+            "ingestion_degraded_streak": ingestion_degraded_streak,
+            "risk_allowed_count": run.risk_allowed_count,
+            "filled_trade_count": run.filled_trade_count,
+            "partial_fill_count": run.partial_fill_count,
+            "exit_candidate_count": run.exit_candidate_count,
+            "confirmed_exit_count": run.confirmed_exit_count,
+            "forced_exit_count": run.forced_exit_count,
+            "expected_gross_edge_value": run.expected_gross_edge_value,
+            "expected_net_edge_value": run.expected_net_edge_value,
+            "expected_net_edge_value_on_fills": run.expected_net_edge_value_on_fills,
+            "expected_value_after_execution_cost": run.expected_value_after_execution_cost,
+            "total_execution_cost": run.total_execution_cost,
+            "total_fees_paid": run.total_fees_paid,
+            "total_slippage_cost": run.total_slippage_cost,
+            "execution_cost_to_expected_net_ratio": (
+                run.execution_cost_to_expected_net_ratio
+            ),
+            "portfolio": {
+                "bankroll": run.final_portfolio.bankroll,
+                "day_start_equity": run.final_portfolio.day_start_equity,
+                "current_equity": run.final_portfolio.current_equity,
+                "net_pnl": (
+                    run.final_portfolio.current_equity
+                    - run.final_portfolio.day_start_equity
+                ),
+                "open_notional": run.final_portfolio.open_notional,
+                "open_positions": run.final_portfolio.open_positions,
+                "total_exposure_fraction": run.final_portfolio.total_exposure_fraction,
+                "daily_drawdown_fraction": run.final_portfolio.daily_drawdown_fraction,
+            },
+            "operator_controls": {
+                "kill_switch_active": kill_switch_active,
+                "cancel_all_requested": cancel_all_requested,
+                "cancel_all_acknowledged": cancel_all_acknowledged,
+            },
+            "available_scenarios": available_scenarios,
+        }
+        role_modes = {"supervisor": "advisory", "strategist": "strategy"}
+        agency_gateway = AgencyGateway(agent_operators_by_mode)
+        agent_operators = _agent_operators_skipped(
+            "agent_operators_stopped_by_control"
         )
-        if agent_operator_enabled:
-            active_agent_operator = agent_operators_by_mode.get(agent_operator_mode)
-            if active_agent_operator is None:
-                agent_operator_result = _agent_operator_skipped_result(
+        if agent_operators_running:
+            requested_role_modes = dict(role_modes)
+            if agent_operator_mode == "advisory":
+                requested_role_modes = {"supervisor": "advisory"}
+            elif agent_operator_mode == "strategy":
+                requested_role_modes = {"strategist": "strategy"}
+            agent_operators = agency_gateway.infer_roles(
+                base_cycle_context=base_agent_operator_cycle_context,
+                requested_role_modes=requested_role_modes,
+                all_role_modes=role_modes,
+                operators_enabled=True,
+            )
+        else:
+            agent_operators = _agent_operators_skipped(
+                "agent_operators_stopped_by_control"
+            )
+        legacy_role_name = "strategist" if agent_operator_mode == "strategy" else "supervisor"
+        agent_operator_result = dict(
+            agent_operators.get(
+                legacy_role_name,
+                _agent_operator_skipped_result(
                     "agent_operator_mode_not_configured",
                     mode=agent_operator_mode,
-                )
-            else:
-                agent_operator_result = active_agent_operator.infer(
-                    cycle_context={
-                        "cycle_index": cycle_index,
-                        "scenario_name": run_scenario_name,
-                        "ingestion_mode": args.ingestion_mode,
-                        "ingestion_status": effective_ingestion_status,
-                        "ingestion_reasons": effective_ingestion_reasons,
-                        "ingestion_degraded_streak": ingestion_degraded_streak,
-                        "risk_allowed_count": run.risk_allowed_count,
-                        "filled_trade_count": run.filled_trade_count,
-                        "partial_fill_count": run.partial_fill_count,
-                        "exit_candidate_count": run.exit_candidate_count,
-                        "confirmed_exit_count": run.confirmed_exit_count,
-                        "forced_exit_count": run.forced_exit_count,
-                        "expected_gross_edge_value": run.expected_gross_edge_value,
-                        "expected_net_edge_value": run.expected_net_edge_value,
-                        "expected_net_edge_value_on_fills": (
-                            run.expected_net_edge_value_on_fills
-                        ),
-                        "expected_value_after_execution_cost": (
-                            run.expected_value_after_execution_cost
-                        ),
-                        "total_execution_cost": run.total_execution_cost,
-                        "total_fees_paid": run.total_fees_paid,
-                        "total_slippage_cost": run.total_slippage_cost,
-                        "execution_cost_to_expected_net_ratio": (
-                            run.execution_cost_to_expected_net_ratio
-                        ),
-                        "portfolio": {
-                            "bankroll": run.final_portfolio.bankroll,
-                            "day_start_equity": run.final_portfolio.day_start_equity,
-                            "current_equity": run.final_portfolio.current_equity,
-                            "net_pnl": (
-                                run.final_portfolio.current_equity
-                                - run.final_portfolio.day_start_equity
-                            ),
-                            "open_notional": run.final_portfolio.open_notional,
-                            "open_positions": run.final_portfolio.open_positions,
-                            "total_exposure_fraction": (
-                                run.final_portfolio.total_exposure_fraction
-                            ),
-                            "daily_drawdown_fraction": (
-                                run.final_portfolio.daily_drawdown_fraction
-                            ),
-                        },
-                        "operator_controls": {
-                            "kill_switch_active": kill_switch_active,
-                            "cancel_all_requested": cancel_all_requested,
-                            "cancel_all_acknowledged": cancel_all_acknowledged,
-                        },
-                        "agent_operator_mode": agent_operator_mode,
-                        "available_scenarios": available_scenarios,
-                    }
-                )
+                ),
+            )
+        )
         final_portfolio = run.final_portfolio
+        open_positions_detail = _build_open_positions_detail(run.final_open_positions)
+        closed_positions_recent = _build_closed_positions_recent(run.records)
         cycle_net_pnl = round(
             final_portfolio.current_equity - final_portfolio.day_start_equity,
             4,
@@ -2654,6 +3261,8 @@ def main(argv: list[str] | None = None) -> int:
                 "ingestion_status": effective_ingestion_status,
                 "ingestion_reasons": effective_ingestion_reasons,
                 "ingestion_metadata": effective_ingestion_metadata,
+                "startup_self_check": startup_self_check,
+                "observability_alerts": dict(observability_alerts),
                 "execution_gateway": {
                     "max_retries": args.execution_gateway_max_retries,
                     "retry_backoff_seconds": args.execution_gateway_retry_backoff_seconds,
@@ -2675,6 +3284,8 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 },
                 "agent_operator": agent_operator_result,
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": agent_operators,
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_strategy_auto_apply": (
                     agent_operator_strategy_auto_apply
@@ -2711,6 +3322,8 @@ def main(argv: list[str] | None = None) -> int:
                     "starting_open_notional": cycle_start_open_notional,
                     "starting_open_positions": cycle_start_open_positions,
                 },
+                "open_positions_detail": open_positions_detail,
+                "closed_positions_recent": closed_positions_recent,
             },
         )
         result_hash = stable_hash(
@@ -2868,6 +3481,8 @@ def main(argv: list[str] | None = None) -> int:
                 "agent_operator_mode": agent_operator_mode,
                 "agent_operator_provider": agent_operator_result.get("provider"),
                 "agent_operator_model": agent_operator_result.get("model"),
+                "agent_operators_running": agent_operators_running,
+                "agent_operators": agent_operators,
                 "agent_operator_risk_posture": agent_operator_result.get(
                     "risk_posture"
                 ),
@@ -2916,11 +3531,26 @@ def main(argv: list[str] | None = None) -> int:
                 "ingestion_degraded_entry_suppressed": (
                     ingestion_degraded_entry_suppressed
                 ),
+                "healthy_ingestion_zero_risk_streak": (
+                    healthy_ingestion_zero_risk_streak
+                ),
+                "healthy_ingestion_zero_risk_alert": bool(
+                    observability_alerts["healthy_ingestion_zero_risk_alert"]
+                ),
+                "near_cap_zero_fill_streak": near_cap_zero_fill_streak,
+                "near_cap_zero_fill_alert": bool(
+                    observability_alerts["near_cap_zero_fill_alert"]
+                ),
+                "near_cap_exposure_threshold_fraction": (
+                    args.near_cap_exposure_threshold_fraction
+                ),
                 "state_refresh_applied": state_refresh_applied,
                 "state_refresh_event_count": state_refresh_event_count,
                 "state_refresh_market_ids": state_refresh_market_ids,
                 "state_refresh_max_streak": state_refresh_max_streak,
                 "stale_open_position_market_ids": stale_open_position_market_ids,
+                "open_positions_detail": open_positions_detail,
+                "closed_positions_recent": closed_positions_recent,
             },
         )
         portfolio_state = run.final_portfolio.clone()
@@ -2988,6 +3618,8 @@ def main(argv: list[str] | None = None) -> int:
             "daily_drawdown_fraction": daily_drawdown_fraction,
             "result_hash": result_hash,
             "agent_operator": agent_operator_result,
+            "agent_operators_running": agent_operators_running,
+            "agent_operators": agent_operators,
             "agent_operator_status": agent_operator_result.get("status"),
             "agent_operator_mode": agent_operator_mode,
             "agent_operator_provider": agent_operator_result.get("provider"),
@@ -3028,11 +3660,26 @@ def main(argv: list[str] | None = None) -> int:
             "ingestion_degraded_entry_suppressed": (
                 ingestion_degraded_entry_suppressed
             ),
+            "healthy_ingestion_zero_risk_streak": (
+                healthy_ingestion_zero_risk_streak
+            ),
+            "healthy_ingestion_zero_risk_alert": bool(
+                observability_alerts["healthy_ingestion_zero_risk_alert"]
+            ),
+            "near_cap_zero_fill_streak": near_cap_zero_fill_streak,
+            "near_cap_zero_fill_alert": bool(
+                observability_alerts["near_cap_zero_fill_alert"]
+            ),
+            "near_cap_exposure_threshold_fraction": (
+                args.near_cap_exposure_threshold_fraction
+            ),
             "state_refresh_applied": state_refresh_applied,
             "state_refresh_event_count": state_refresh_event_count,
             "state_refresh_market_ids": state_refresh_market_ids,
             "state_refresh_max_streak": state_refresh_max_streak,
             "stale_open_position_market_ids": stale_open_position_market_ids,
+            "open_positions_detail": open_positions_detail,
+            "closed_positions_recent": closed_positions_recent,
             **mode_lifecycle_metadata,
         }
 
@@ -3087,6 +3734,8 @@ def main(argv: list[str] | None = None) -> int:
         f"state_path={args.state_path} "
         f"journal_path={args.journal_path}"
     )
+    if lock_release is not None:
+        lock_release()
     return 0 if overall_status == "SUCCESS" else 1
 
 

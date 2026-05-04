@@ -96,6 +96,7 @@ def _default_control_state() -> dict[str, Any]:
         "cancel_all_requested": False,
         "selected_scenario": "baseline",
         "agent_operator_enabled": False,
+        "agent_operators_running": False,
         "agent_operator_mode": "advisory",
         "agent_operator_strategy_auto_apply": True,
         "agent_operator_active_candidate_id": "",
@@ -511,6 +512,7 @@ class OperatorControlManager:
         def _apply(state: dict[str, Any]) -> None:
             if enabled is not None:
                 state["agent_operator_enabled"] = bool(enabled)
+                state["agent_operators_running"] = bool(enabled)
             if normalized_mode is not None:
                 state["agent_operator_mode"] = normalized_mode
             if strategy_auto_apply is not None:
@@ -532,6 +534,46 @@ class OperatorControlManager:
 
         return self._mutate_state(
             action="agent_operator_config_updated",
+            actor=actor,
+            details=details,
+            mutate_state=_apply,
+        )
+
+    def start_agent_operators(self, *, actor: str, reason: str = "") -> dict[str, Any]:
+        normalized_reason = reason.strip()
+        def _apply(state: dict[str, Any]) -> None:
+            state["agent_operator_enabled"] = True
+            state["agent_operators_running"] = True
+            if normalized_reason:
+                state["agent_operator_reason"] = normalized_reason
+        details: dict[str, Any] = {
+            "agent_operator_enabled": True,
+            "agent_operators_running": True,
+        }
+        if normalized_reason:
+            details["reason"] = normalized_reason
+        return self._mutate_state(
+            action="agent_operators_started",
+            actor=actor,
+            details=details,
+            mutate_state=_apply,
+        )
+
+    def stop_agent_operators(self, *, actor: str, reason: str = "") -> dict[str, Any]:
+        normalized_reason = reason.strip()
+        def _apply(state: dict[str, Any]) -> None:
+            state["agent_operator_enabled"] = False
+            state["agent_operators_running"] = False
+            if normalized_reason:
+                state["agent_operator_reason"] = normalized_reason
+        details: dict[str, Any] = {
+            "agent_operator_enabled": False,
+            "agent_operators_running": False,
+        }
+        if normalized_reason:
+            details["reason"] = normalized_reason
+        return self._mutate_state(
+            action="agent_operators_stopped",
             actor=actor,
             details=details,
             mutate_state=_apply,
@@ -924,6 +966,96 @@ class RuntimeDashboardService:
         return numerator / denominator
 
     @staticmethod
+    def _normalize_position_rows(rows: Any) -> list[dict[str, Any]]:
+        if not isinstance(rows, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            normalized.append(dict(row))
+        return normalized
+
+    @staticmethod
+    def _extract_position_book(
+        supervisor_state: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        last_metadata = RuntimeDashboardService._extract_test_token_loop_metadata(
+            supervisor_state
+        )
+        open_positions_detail = RuntimeDashboardService._normalize_position_rows(
+            last_metadata.get("open_positions_detail")
+        )
+        closed_positions_recent = RuntimeDashboardService._normalize_position_rows(
+            last_metadata.get("closed_positions_recent")
+        )
+        return {
+            "open_positions": open_positions_detail,
+            "closed_positions_recent": closed_positions_recent,
+            "open_count": len(open_positions_detail),
+            "closed_recent_count": len(closed_positions_recent),
+            "verification_links_available": (
+                sum(
+                    1
+                    for row in open_positions_detail + closed_positions_recent
+                    if str(row.get("verification_url", "")).strip()
+                )
+            ),
+        }
+
+    @staticmethod
+    def _build_game_overview(
+        *,
+        financial_metrics: dict[str, Any],
+        loop_metrics: dict[str, Any],
+        position_book: dict[str, Any],
+        control_state: dict[str, Any],
+    ) -> dict[str, Any]:
+        net_pnl = RuntimeDashboardService._to_float(financial_metrics.get("net_pnl"))
+        expected_value_after_cost = RuntimeDashboardService._to_float(
+            loop_metrics.get("expected_value_after_execution_cost")
+        )
+        fill_rate = RuntimeDashboardService._to_float(financial_metrics.get("fill_rate"))
+        return {
+            "phase": (
+                "green"
+                if (net_pnl is not None and net_pnl >= 0)
+                else "amber"
+                if (
+                    expected_value_after_cost is not None
+                    and expected_value_after_cost >= 0
+                )
+                else "red"
+            ),
+            "scoreboard": {
+                "net_pnl": financial_metrics.get("net_pnl"),
+                "equity": financial_metrics.get("current_equity"),
+                "expected_value_after_execution_cost": (
+                    loop_metrics.get("expected_value_after_execution_cost")
+                ),
+                "fill_rate": financial_metrics.get("fill_rate"),
+                "open_positions": position_book.get("open_count"),
+            },
+            "quick_controls": {
+                "paused": bool(control_state.get("paused", False)),
+                "kill_switch_active": bool(
+                    control_state.get("kill_switch_active", False)
+                ),
+                "cancel_all_requested": bool(
+                    control_state.get("cancel_all_requested", False)
+                ),
+            },
+            "status_flags": {
+                "profitable": bool(net_pnl is not None and net_pnl >= 0),
+                "edge_positive": bool(
+                    expected_value_after_cost is not None
+                    and expected_value_after_cost >= 0
+                ),
+                "fills_active": bool(fill_rate is not None and fill_rate > 0),
+            },
+        }
+
+    @staticmethod
     def _extract_loop_metrics(
         supervisor_state: dict[str, Any] | None,
     ) -> dict[str, Any]:
@@ -995,6 +1127,10 @@ class RuntimeDashboardService:
             "agent_operator_strategy_scenario_rejected_reason": last_metadata.get(
                 "agent_operator_strategy_scenario_rejected_reason"
             ),
+            "agent_operators_running": last_metadata.get("agent_operators_running"),
+            "agent_operators": last_metadata.get("agent_operators"),
+            "open_positions_detail": last_metadata.get("open_positions_detail"),
+            "closed_positions_recent": last_metadata.get("closed_positions_recent"),
             "mode_lifecycle_current_mode": last_metadata.get(
                 "mode_lifecycle_current_mode"
             ),
@@ -1727,7 +1863,54 @@ class RuntimeDashboardService:
                     if market_id_text:
                         stale_open_position_market_ids.append(market_id_text)
             open_positions_value = open_positions or 0
-            if (
+            healthy_ingestion_zero_risk_alert = bool(
+                details.get("healthy_ingestion_zero_risk_alert")
+            )
+            healthy_ingestion_zero_risk_streak = RuntimeDashboardService._to_int(
+                details.get("healthy_ingestion_zero_risk_streak")
+            )
+            near_cap_zero_fill_alert = bool(details.get("near_cap_zero_fill_alert"))
+            near_cap_zero_fill_streak = RuntimeDashboardService._to_int(
+                details.get("near_cap_zero_fill_streak")
+            )
+            near_cap_exposure_threshold_fraction = (
+                RuntimeDashboardService._to_float(
+                    details.get("near_cap_exposure_threshold_fraction")
+                )
+            )
+            total_exposure_fraction = RuntimeDashboardService._to_float(
+                details.get("total_exposure_fraction")
+            )
+            filled_trade_count = RuntimeDashboardService._to_int(
+                details.get("filled_trade_count")
+            )
+            ingestion_status = str(details.get("ingestion_status") or "")
+            risk_allowed_count = RuntimeDashboardService._to_int(
+                details.get("risk_allowed_count")
+            )
+            if healthy_ingestion_zero_risk_alert:
+                summary = (
+                    "Ingestion remained healthy while risk approvals were "
+                    "continuously zero "
+                    f"(cycle_index={cycle_index}, "
+                    f"streak={healthy_ingestion_zero_risk_streak or 0}, "
+                    f"ingestion_status={ingestion_status or 'unknown'}, "
+                    f"risk_allowed_count={risk_allowed_count or 0})."
+                )
+                severity = "warning"
+            elif near_cap_zero_fill_alert:
+                summary = (
+                    "Near-cap exposure persisted with zero fills across "
+                    "consecutive cycles "
+                    f"(cycle_index={cycle_index}, "
+                    f"streak={near_cap_zero_fill_streak or 0}, "
+                    f"total_exposure_fraction={total_exposure_fraction or 0:.4f}, "
+                    "threshold="
+                    f"{near_cap_exposure_threshold_fraction or 0:.4f}, "
+                    f"filled_trade_count={filled_trade_count or 0})."
+                )
+                severity = "warning"
+            elif (
                 expected_value_after_execution_cost is not None
                 and expected_value_after_execution_cost < 0
             ):
@@ -2356,6 +2539,13 @@ class RuntimeDashboardService:
             ),
             "runtime_decision_hash": loop_metrics.get("mode_lifecycle_decision_hash"),
         }
+        position_book = self._extract_position_book(supervisor_state)
+        game_overview = self._build_game_overview(
+            financial_metrics=financial_metrics,
+            loop_metrics=loop_metrics,
+            position_book=position_book,
+            control_state=control_state,
+        )
 
         return {
             "schema_version": RUNTIME_SUPERVISOR_DASHBOARD_SCHEMA_VERSION,
@@ -2373,4 +2563,6 @@ class RuntimeDashboardService:
             "incident_feed": incident_feed,
             "cycle_comparison": cycle_comparison,
             "kpi_shadow": kpi_shadow,
+            "position_book": position_book,
+            "game_overview": game_overview,
         }

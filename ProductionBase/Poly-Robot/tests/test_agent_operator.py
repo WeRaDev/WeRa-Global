@@ -1,8 +1,10 @@
 from __future__ import annotations
+import json
 import sys
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -11,7 +13,11 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from poly_robot.agent_operator import AgentOperator  # noqa: E402
+from poly_robot.agent_operator import (  # noqa: E402
+    AgentOperator,
+    AgentOperatorUnavailableError,
+    OpenFangApiClient,
+)
 
 
 class _StubClient:
@@ -115,6 +121,99 @@ class AgentOperatorTests(unittest.TestCase):
         self.assertEqual(result["status"], "OK")
         self.assertEqual(result["mode"], "strategy")
         self.assertEqual(result["scenario_hint"], "liquiditycrunch....")
+
+    def test_bare_false_response_maps_to_unavailable(self) -> None:
+        operator = AgentOperator(client=_StubClient(response="False"))
+
+        result = operator.infer(cycle_context={"cycle_index": 7})
+
+        self.assertEqual(result["status"], "UNAVAILABLE")
+        self.assertEqual(result["reason"], "factual_unavailable_false")
+        self.assertEqual(result["summary"], "")
+
+    def test_structured_rejected_state_is_parsed(self) -> None:
+        operator = AgentOperator(
+            client=_StubClient(
+                response='{"state":"REJECTED:non_positive_net_edge_after_costs","summary":"rejected"}'
+            )
+        )
+
+        result = operator.infer(cycle_context={"cycle_index": 8})
+
+        self.assertEqual(result["status"], "REJECTED")
+        self.assertEqual(result["reason"], "non_positive_net_edge_after_costs")
+        self.assertEqual(result["summary"], "rejected")
+    def test_prompt_compacts_large_context_lists_to_counts(self) -> None:
+        cycle_context = {
+            "cycle_index": 9,
+            "agent_operator_mode": "strategy",
+            "available_scenarios": ["baseline", "liquidity_crunch"],
+            "open_positions_detail": [
+                {"market_id": f"m{i}", "note": "x" * 400} for i in range(120)
+            ],
+            "closed_positions_recent": [
+                {"market_id": f"c{i}", "note": "y" * 400} for i in range(80)
+            ],
+            "portfolio": {
+                "current_equity": 1000.0,
+                "open_positions": 6,
+                "total_exposure_fraction": 0.2,
+            },
+        }
+
+        prompt = AgentOperator._build_prompt(cycle_context)
+
+        self.assertIn('"open_positions_detail_count": 120', prompt)
+        self.assertIn('"closed_positions_recent_count": 80', prompt)
+        self.assertNotIn('"open_positions_detail": [', prompt)
+        self.assertNotIn('"closed_positions_recent": [', prompt)
+
+class _StubHeaders:
+    @staticmethod
+    def get_content_charset() -> str:
+        return "utf-8"
+
+
+class _StubHttpResponse:
+    def __init__(self, payload: dict[str, object]) -> None:
+        self._payload = payload
+        self.headers = _StubHeaders()
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def __enter__(self) -> "_StubHttpResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        del exc_type, exc, tb
+
+
+class OpenFangApiClientTests(unittest.TestCase):
+    def test_missing_agent_id_raises_unavailable(self) -> None:
+        client = OpenFangApiClient(agent_id="")
+        with self.assertRaises(AgentOperatorUnavailableError):
+            client.complete(prompt="hello", timeout_seconds=1.0)
+
+    def test_complete_uses_health_then_message_and_returns_response_text(self) -> None:
+        client = OpenFangApiClient(
+            agent_id="advisory-agent",
+            base_url="http://127.0.0.1:4200",
+        )
+        with patch(
+            "poly_robot.agent_operator.urlopen",
+            side_effect=[
+                _StubHttpResponse({"status": "ok"}),
+                _StubHttpResponse({"response": "{\"summary\":\"ok\"}"}),
+            ],
+        ) as mock_urlopen:
+            response_text = client.complete(
+                prompt="cycle context",
+                timeout_seconds=1.0,
+            )
+
+        self.assertEqual(response_text, "{\"summary\":\"ok\"}")
+        self.assertEqual(mock_urlopen.call_count, 2)
 
 
 if __name__ == "__main__":

@@ -281,6 +281,44 @@ class RiskEngine(RiskModule):
             0.0,
             max_market_exposure - current_market_exposure,
         )
+        cap_pressure_fraction_threshold = min(
+            1.0,
+            max(
+                0.0,
+                _coerce_float(
+                    self.parameters.get(
+                        "risk.cap_pressure_fraction_threshold",
+                        1.0,
+                    ),
+                    default=1.0,
+                ),
+            ),
+        )
+        cap_pressure_size_scale = min(
+            1.0,
+            max(
+                0.0,
+                _coerce_float(
+                    self.parameters.get("risk.cap_pressure_size_scale", 1.0),
+                    default=1.0,
+                ),
+            ),
+        )
+        near_market_cap = (
+            cap_pressure_fraction_threshold > 0
+            and current_market_exposure
+            >= (max_market_exposure * cap_pressure_fraction_threshold)
+        )
+        near_portfolio_cap = (
+            cap_pressure_fraction_threshold > 0
+            and current_total_exposure
+            >= (max_portfolio_exposure * cap_pressure_fraction_threshold)
+        )
+        if cap_pressure_size_scale < 1.0 and (
+            near_market_cap or near_portfolio_cap
+        ):
+            approved_fraction *= cap_pressure_size_scale
+            reasons.append("cap_pressure_size_scaled")
         approved_fraction = min(
             approved_fraction,
             remaining_portfolio_fraction,
@@ -324,6 +362,43 @@ class RiskEngine(RiskModule):
                     "fee_rate_bps": fee_rate_bps,
                     "gross_edge_bps": round(gross_edge_fraction * 10_000, 2),
                     "net_edge_bps": round(net_edge_fraction * 10_000, 2),
+                    "domain_key": domain_key,
+                    "domain_allocation_budget": domain_allocation_budget,
+                    "domain_budget_scale": round(domain_budget_scale, 6),
+                    "max_domain_exposure_fraction": max_domain_exposure,
+                    "current_domain_exposure_fraction": (
+                        current_domain_exposure
+                    ),
+                    "remaining_domain_exposure_fraction": (
+                        remaining_domain_fraction
+                    ),
+                },
+            )
+        minimum_net_edge_bps = max(
+            0.0,
+            _coerce_float(
+                self.parameters.get("risk.minimum_net_edge_bps", 0.0),
+                default=0.0,
+            ),
+        )
+        observed_net_edge_bps = round(net_edge_fraction * 10_000, 2)
+        if observed_net_edge_bps < minimum_net_edge_bps:
+            failure_reasons = list(reasons)
+            failure_reasons.append("net_edge_below_minimum_threshold")
+            return RiskDecision(
+                allowed=False,
+                approved_notional=0.0,
+                approved_fraction=0.0,
+                kill_switch=False,
+                reasons=tuple(dict.fromkeys(failure_reasons)),
+                metadata={
+                    "minimum_net_edge_bps": minimum_net_edge_bps,
+                    "observed_net_edge_bps": observed_net_edge_bps,
+                    "max_slippage_bps": max_slippage_bps,
+                    "expected_slippage_bps": expected_slippage_bps,
+                    "fee_rate_bps": fee_rate_bps,
+                    "gross_edge_bps": round(gross_edge_fraction * 10_000, 2),
+                    "net_edge_bps": observed_net_edge_bps,
                     "domain_key": domain_key,
                     "domain_allocation_budget": domain_allocation_budget,
                     "domain_budget_scale": round(domain_budget_scale, 6),
@@ -384,5 +459,12 @@ class RiskEngine(RiskModule):
                 "remaining_domain_exposure_fraction": (
                     remaining_domain_fraction
                 ),
+                "cap_pressure_fraction_threshold": (
+                    cap_pressure_fraction_threshold
+                ),
+                "cap_pressure_size_scale": cap_pressure_size_scale,
+                "near_market_cap": near_market_cap,
+                "near_portfolio_cap": near_portfolio_cap,
+                "minimum_net_edge_bps": minimum_net_edge_bps,
             },
         )
