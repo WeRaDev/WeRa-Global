@@ -21,7 +21,9 @@ Unified umbrella repository for WeRa Global.
 - Update `ProductionBase/repos.yaml` whenever project remotes, branches, or ownership change.
 
 ## Development quality framework
-- `CLAUDE.md` — shared behavioral guardrails for agent-assisted coding (assumptions, simplicity, surgical diffs, verifiable goals).
+- `AGENTS.md` — canonical provider-agnostic behavioral guardrails for coding agents.
+- `SOUL.md` — umbrella constitutional layer for service posture, non-coercion, and crisis behavior.
+- `CLAUDE.md` — compatibility shim that delegates to `AGENTS.md` for tools expecting legacy filename conventions.
 - `WARP.md` — umbrella governance, delivery process, and repository policy baseline.
 - `CONTRIBUTING.md` — contribution workflow, quality requirements, and documentation update rules.
 - `skills/` — reusable operational skills used across WeRa Global and inherited by `ProductionBase/*` repositories.
@@ -32,14 +34,14 @@ Unified umbrella repository for WeRa Global.
 
 ## Development kickoff
 Start project development in this order:
-1. Read `README.md`, `WARP.md`, `CLAUDE.md`, and `CONTRIBUTING.md`.
+1. Read `README.md`, `WARP.md`, `AGENTS.md`, `SOUL.md`, and `CONTRIBUTING.md`.
 2. Pick or define scope in `tasks/backlog.md`.
 3. If the change affects architecture, create an ADR from `docs/adr/0000-adr-template.md`.
 4. Execute work using the skill flow in `skills/registry.yaml`.
 5. Validate with repository-native checks and update relevant docs.
 
 ## ProductionBase baseline bootstrap
-Use `ProductionBase/BOOTSTRAP.md` to align each `ProductionBase/*` repository with the umbrella baseline (`docs/adr/`, `tasks/`, `skills/`).
+Use `ProductionBase/BOOTSTRAP.md` to align each `ProductionBase/*` repository with the umbrella baseline (`AGENTS.md`, `SOUL.md`, `docs/adr/`, `tasks/`, `skills/`).
 
 ## Clone
 Use recursive clone to pull all production repositories:

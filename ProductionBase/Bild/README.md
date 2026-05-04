@@ -17,6 +17,7 @@ If dependency installation fails, fix the reported error before continuing.
 - `tasks/`: sprint-ready work items and operating task templates.
 - `skills/`: project-specific agent skills for repeatable delivery workflows.
 - `.gitea/workflows/`: CI pipelines for lint/test/security validation.
+- `AGENTS.md`: provider-agnostic coding-agent instructions for this repository.
 - `WARP.md`: project execution and safety policy for contributors and agents.
 
 ## Core workflows
