@@ -143,6 +143,30 @@ class AgentOperatorTests(unittest.TestCase):
         self.assertEqual(result["status"], "REJECTED")
         self.assertEqual(result["reason"], "non_positive_net_edge_after_costs")
         self.assertEqual(result["summary"], "rejected")
+    def test_prompt_compacts_large_context_lists_to_counts(self) -> None:
+        cycle_context = {
+            "cycle_index": 9,
+            "agent_operator_mode": "strategy",
+            "available_scenarios": ["baseline", "liquidity_crunch"],
+            "open_positions_detail": [
+                {"market_id": f"m{i}", "note": "x" * 400} for i in range(120)
+            ],
+            "closed_positions_recent": [
+                {"market_id": f"c{i}", "note": "y" * 400} for i in range(80)
+            ],
+            "portfolio": {
+                "current_equity": 1000.0,
+                "open_positions": 6,
+                "total_exposure_fraction": 0.2,
+            },
+        }
+
+        prompt = AgentOperator._build_prompt(cycle_context)
+
+        self.assertIn('"open_positions_detail_count": 120', prompt)
+        self.assertIn('"closed_positions_recent_count": 80', prompt)
+        self.assertNotIn('"open_positions_detail": [', prompt)
+        self.assertNotIn('"closed_positions_recent": [', prompt)
 
 class _StubHeaders:
     @staticmethod

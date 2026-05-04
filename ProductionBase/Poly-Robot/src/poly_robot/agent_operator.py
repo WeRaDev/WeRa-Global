@@ -290,6 +290,82 @@ class OpenFangApiClient:
             raise RuntimeError("openfang_response_text_empty")
         return response_text
 
+def _compact_cycle_context(cycle_context: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    scalar_keys = (
+        "cycle_index",
+        "scenario_name",
+        "ingestion_mode",
+        "ingestion_status",
+        "ingestion_degraded_streak",
+        "risk_allowed_count",
+        "filled_trade_count",
+        "partial_fill_count",
+        "exit_candidate_count",
+        "confirmed_exit_count",
+        "forced_exit_count",
+        "expected_gross_edge_value",
+        "expected_net_edge_value",
+        "expected_net_edge_value_on_fills",
+        "expected_value_after_execution_cost",
+        "total_execution_cost",
+        "total_fees_paid",
+        "total_slippage_cost",
+        "execution_cost_to_expected_net_ratio",
+    )
+    for key in scalar_keys:
+        if key in cycle_context:
+            compact[key] = cycle_context.get(key)
+
+    ingestion_reasons = cycle_context.get("ingestion_reasons")
+    if isinstance(ingestion_reasons, list):
+        compact["ingestion_reasons"] = [
+            _trim_text(reason, max_length=80) for reason in ingestion_reasons[:8]
+        ]
+
+    portfolio = cycle_context.get("portfolio")
+    if isinstance(portfolio, dict):
+        compact["portfolio"] = {
+            "bankroll": portfolio.get("bankroll"),
+            "current_equity": portfolio.get("current_equity"),
+            "net_pnl": portfolio.get("net_pnl"),
+            "open_notional": portfolio.get("open_notional"),
+            "open_positions": portfolio.get("open_positions"),
+            "total_exposure_fraction": portfolio.get("total_exposure_fraction"),
+            "daily_drawdown_fraction": portfolio.get("daily_drawdown_fraction"),
+        }
+
+    operator_controls = cycle_context.get("operator_controls")
+    if isinstance(operator_controls, dict):
+        compact["operator_controls"] = {
+            "kill_switch_active": bool(
+                operator_controls.get("kill_switch_active", False)
+            ),
+            "cancel_all_requested": bool(
+                operator_controls.get("cancel_all_requested", False)
+            ),
+            "cancel_all_acknowledged": bool(
+                operator_controls.get("cancel_all_acknowledged", False)
+            ),
+        }
+
+    available_scenarios = cycle_context.get("available_scenarios")
+    if isinstance(available_scenarios, list):
+        compact["available_scenarios"] = [
+            str(item).strip()
+            for item in available_scenarios[:12]
+            if str(item).strip()
+        ]
+
+    open_positions_detail = cycle_context.get("open_positions_detail")
+    if isinstance(open_positions_detail, list):
+        compact["open_positions_detail_count"] = len(open_positions_detail)
+    closed_positions_recent = cycle_context.get("closed_positions_recent")
+    if isinstance(closed_positions_recent, list):
+        compact["closed_positions_recent_count"] = len(closed_positions_recent)
+
+    return compact
+
 
 class AgentOperator:
     def __init__(
@@ -306,44 +382,15 @@ class AgentOperator:
     @staticmethod
     def _build_prompt(cycle_context: dict[str, Any]) -> str:
         mode = _normalize_mode(cycle_context.get("agent_operator_mode"))
-        available_scenarios_clause = ""
-        raw_available_scenarios = cycle_context.get("available_scenarios")
-        if isinstance(raw_available_scenarios, list):
-            normalized_available_scenarios = [
-                str(item).strip()
-                for item in raw_available_scenarios
-                if str(item).strip()
-            ]
-            if normalized_available_scenarios:
-                available_scenarios_clause = (
-                    "Available scenarios for strategy mode: "
-                    f"{normalized_available_scenarios}.\n"
-                )
-        serialized_context = json.dumps(cycle_context, indent=2, sort_keys=True)
+        serialized_context = json.dumps(
+            _compact_cycle_context(cycle_context), indent=2, sort_keys=True
+        )
         return (
-            "# agents.md — v2\n"
-            "System name: AgentOperator — Operator Layer for Poly-Robot.\n"
-            "Architecture: two cooperative roles (Supervisor + Strategist) wrapping "
-            "Poly-Robot.\n"
-            "Source of truth for mechanics: POLY_ROBOT_ECONOMY_UNIFIED_SPEC.md.\n"
-            "Phase reality: TRL4, advisory_only LLM calibration, and cost-attribution "
-            "economics (net_pnl is execution-cost drag until MTM is implemented).\n"
-            "Covenant:\n"
-            "- Loyalty to user bankroll; if no action is justified, say so.\n"
-            "- Calm, specific, non-hype tone.\n"
-            "- Distinct refusal modes: factual unavailability -> bare token False; "
-            "gate-driven refusal -> structured REJECTED:<reason_code> state.\n"
-            "- Reversibility language must acknowledge spread/slippage/liquidity costs.\n"
-            "Operational constraints:\n"
-            "- Do not invent mechanics or override engine probabilities/confidence.\n"
-            "- Defer to risk gates and reason codes exactly as emitted.\n"
-            "- Use cost-aware language: gross_edge_bps, net_edge_bps, "
-            "expected_slippage_bps, fee_rate_bps.\n"
-            f"Operating mode: {mode}.\n"
-            "Given the cycle context JSON below, produce one of two allowed outputs:\n"
-            "A) If factual truth is unavailable in provided context, output exactly:\n"
-            "False\n"
-            "B) Otherwise output a strict JSON object with keys:\n"
+            "You are an operator advisor for Poly-Robot.\n"
+            f"Mode: {mode}.\n"
+            "Output format (strict, no markdown, no prose outside output):\n"
+            "A) If context is insufficient, output exactly: False\n"
+            "B) Otherwise output one JSON object with keys:\n"
             "{"
             "\"summary\": string, "
             "\"profitability_hypothesis\": string, "
@@ -353,13 +400,12 @@ class AgentOperator:
             "\"scenario_hint\": string, "
             "\"state\": optional string (OK or REJECTED:<reason_code>)"
             "}\n"
-            "Constraints:\n"
-            "- Never suggest bypassing kill switch, drawdown limits, or risk caps.\n"
+            "Rules:\n"
+            "- Keep summary under 220 characters.\n"
+            "- Keep recommended_actions to at most 4 items.\n"
+            "- Do not suggest bypassing kill switch, drawdown limits, or risk caps.\n"
             "- Prefer execution-cost and edge-capture improvements.\n"
-            "- Keep recommendations concrete and testable in next cycle.\n\n"
-            "- When mode is strategy, scenario_hint should be one of available "
-            "scenarios if suitable, otherwise empty string.\n"
-            + available_scenarios_clause
+            "- If mode=strategy, scenario_hint must be one of available_scenarios or empty.\n"
             + f"Cycle context:\n{serialized_context}\n"
         )
 
