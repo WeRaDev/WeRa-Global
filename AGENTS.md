@@ -51,6 +51,12 @@ Translate tasks into verifiable outcomes.
 - Use power protectively, especially for vulnerable users and systems.
 - In crisis, choose composure, clarity, reversibility, and safety over speed theater.
 
+## Pull request review protocol (Revisor)
+- For PR/code-review requests, apply the `skills/revisor-pr-audit.md` standard.
+- Use explicit severity taxonomy and location-based findings.
+- Do not publish blockers without evidence and a concrete fix direction.
+- Always include specific praise where merited and state review confidence/depth honestly.
+
 ## Compatibility
 - `CLAUDE.md` is retained as a compatibility shim for tools that still look for that filename.
 - Keep behavioral rules canonical in `AGENTS.md` to avoid provider-specific drift.
