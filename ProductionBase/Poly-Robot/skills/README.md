@@ -3,6 +3,7 @@ Use this directory for project-specific Warp skills that automate repeatable wor
 
 ## Available skills
 - `qa-agent.md`: code-quality + security + UX QA procedure for PR validation.
+- `repo-orientation.md`: map repository structure, constraints, commands, and safe edit surfaces before implementation.
 
 ## Skill authoring standard
 Each skill should include:

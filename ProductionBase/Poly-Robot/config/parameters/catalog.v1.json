@@ -423,6 +423,54 @@
       }
     },
     {
+      "key": "exit.cap_pressure_exposure_threshold",
+      "type": "number",
+      "required": false,
+      "default": 1.1,
+      "minimum": 0.5,
+      "maximum": 1.1,
+      "unit": "fraction",
+      "mutability": "tunable",
+      "owner": "risk",
+      "description": "Portfolio exposure fraction at which cap-pressure exit triggers activate. Set above 1.0 to disable.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "exit.cap_pressure_trigger_hours",
+      "type": "number",
+      "required": false,
+      "default": 18.0,
+      "minimum": 1.0,
+      "maximum": 48.0,
+      "unit": "hours",
+      "mutability": "tunable",
+      "owner": "risk",
+      "description": "Holding hours threshold for cap-pressure inventory derisk trigger.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "risk"
+      }
+    },
+    {
+      "key": "exit.cap_pressure_force_exit_hours",
+      "type": "number",
+      "required": false,
+      "default": 24.0,
+      "minimum": 2.0,
+      "maximum": 72.0,
+      "unit": "hours",
+      "mutability": "tunable",
+      "owner": "risk",
+      "description": "Holding hours threshold for forced exit under cap pressure.",
+      "change_control": {
+        "ticket_prefix": "CFG-",
+        "approval_group": "risk"
+      }
+    },
+    {
       "key": "ops.fee_rate_bps",
       "type": "integer",
       "required": true,
