@@ -1,7 +1,7 @@
 # ADR-002: Operator / AgentOperator Separation
 
-**Status**: Proposed
-**Date**: 2026-05-04
+**Status**: Accepted
+**Date**: 2026-05-05
 **Context**: Poly-Robot architecture upgrade plan
 
 ## Decision

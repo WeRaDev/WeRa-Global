@@ -1,7 +1,7 @@
 {
   "baseline_name": "mvp_test_token_phase_1_freeze",
   "catalog_version": "1.0.0",
-  "frozen_at": "2026-04-25T12:30:00Z",
+  "frozen_at": "2026-05-05T01:00:00Z",
   "values": {
     "scanner.max_markets": 500,
     "scanner.min_price_gap": 0.07,
@@ -26,6 +26,9 @@
     "exit.volume_spike_multiplier": 3.0,
     "exit.stale_hours": 24,
     "exit.stale_price_change_threshold": 0.02,
+    "exit.cap_pressure_exposure_threshold": 1.1,
+    "exit.cap_pressure_trigger_hours": 18.0,
+    "exit.cap_pressure_force_exit_hours": 24.0,
     "runtime.scan_interval_seconds": 60,
     "runtime.healthcheck_interval_seconds": 30,
     "runtime.data_staleness_kill_switch_seconds": 180,
