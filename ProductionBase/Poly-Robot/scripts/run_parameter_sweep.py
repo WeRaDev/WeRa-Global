@@ -108,6 +108,61 @@ def _run_scenario_matrix_for_config(
     )
 
 
+def _run_supervisor_for_config(
+    config: dict[str, Any],
+    *,
+    events_path: Path,
+    calibration_policy_path: Path,
+    scenario_pack_path: Path,
+    cycles: int = 5,
+) -> dict[str, Any]:
+    """Run multi-cycle supervisor in-process for a single configuration."""
+    import tempfile
+
+    from poly_robot.agent_pool import AgentDescriptor, AgentPool
+    from poly_robot.memory_store import MemoryStore
+    from poly_robot.pool_supervisor_adapter import PoolSupervisorAdapter
+    from poly_robot.runtime_supervisor import RuntimeSupervisor
+    from poly_robot.test_token_loop import build_test_token_loop_worker
+
+    profile = config["profile"]
+    profile_values = profile.get("values", {})
+    tmp = Path(tempfile.mkdtemp())
+
+    supervisor = RuntimeSupervisor(
+        journal_path=tmp / "journal.jsonl",
+        state_path=tmp / "state.json",
+    )
+    pool = AgentPool()
+    pool.register(AgentDescriptor(
+        agent_id="sweep-agent", pool_type="alpha", priority=10
+    ))
+    memory = MemoryStore()
+    adapter = PoolSupervisorAdapter(
+        supervisor=supervisor,
+        pool=pool,
+        memory=memory,
+        memory_path=tmp / "memory.json",
+    )
+
+    worker = build_test_token_loop_worker(
+        events_path=events_path,
+        profile_values=profile_values,
+        calibration_policy_path=calibration_policy_path,
+        scenario_pack_path=scenario_pack_path,
+        scenario_name="baseline",
+        cycle_output_dir=tmp / "cycles",
+    )
+
+    result = adapter.run([worker], cycles=cycles, stop_on_failure=False)
+    return {
+        "cycles_completed": result["cycles_completed"],
+        "overall_status": result["overall_status"],
+        "memory_observations": result["memory_observations"],
+        "pool_decisions": result["pool_decisions"],
+    }
+
+
 def _extract_metrics(matrix_result: dict[str, Any]) -> dict[str, Any]:
     """Extract key comparison metrics from a scenario matrix result."""
     outcomes = matrix_result.get("outcomes", [])
@@ -151,6 +206,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output", type=Path, required=True, help="Output comparison report JSON"
     )
+    parser.add_argument(
+        "--execution-mode",
+        choices=["matrix", "supervisor"],
+        default="matrix",
+        help="Execution mode: 'matrix' for single-pass scenario matrix, 'supervisor' for multi-cycle supervisor.",
+    )
+    parser.add_argument(
+        "--cycles",
+        type=int,
+        default=5,
+        help="Number of supervisor cycles per config (only used with --execution-mode supervisor).",
+    )
     args = parser.parse_args(argv)
 
     base_profile = _load_json(args.profile)
@@ -164,16 +231,33 @@ def main(argv: list[str] | None = None) -> int:
         f"{len(sweep_axes)} axes"
     )
 
+    use_supervisor = args.execution_mode == "supervisor"
     results: list[dict[str, Any]] = []
     for idx, config in enumerate(configurations):
         try:
-            matrix_result = _run_scenario_matrix_for_config(
-                config,
-                events_path=args.events,
-                calibration_policy_path=args.calibration_policy,
-                scenario_pack_path=args.scenario_pack,
-            )
-            metrics = _extract_metrics(matrix_result)
+            if use_supervisor:
+                supervisor_result = _run_supervisor_for_config(
+                    config,
+                    events_path=args.events,
+                    calibration_policy_path=args.calibration_policy,
+                    scenario_pack_path=args.scenario_pack,
+                    cycles=args.cycles,
+                )
+                metrics = {
+                    "execution_mode": "supervisor",
+                    "cycles_completed": supervisor_result["cycles_completed"],
+                    "overall_status": supervisor_result["overall_status"],
+                    "pool_decisions": supervisor_result["pool_decisions"],
+                    "memory_observations": supervisor_result["memory_observations"],
+                }
+            else:
+                matrix_result = _run_scenario_matrix_for_config(
+                    config,
+                    events_path=args.events,
+                    calibration_policy_path=args.calibration_policy,
+                    scenario_pack_path=args.scenario_pack,
+                )
+                metrics = _extract_metrics(matrix_result)
             results.append({
                 "config_id": config["config_id"],
                 "overrides": config["overrides"],
@@ -190,14 +274,24 @@ def main(argv: list[str] | None = None) -> int:
         if (idx + 1) % 5 == 0 or idx == len(configurations) - 1:
             print(f"  completed {idx + 1}/{len(configurations)}")
 
-    # Rank by total_trades descending (cadence), then trades_per_scenario
-    ranked = sorted(
-        [r for r in results if r["status"] == "OK"],
-        key=lambda r: (
-            -(r["metrics"]["total_trades"]),
-            -(r["metrics"]["trades_per_scenario"]),
-        ),
-    )
+    # Rank by available metrics
+    ok_results = [r for r in results if r["status"] == "OK"]
+    if use_supervisor:
+        ranked = sorted(
+            ok_results,
+            key=lambda r: (
+                -(r["metrics"].get("cycles_completed", 0)),
+                -(r["metrics"].get("pool_decisions", 0)),
+            ),
+        )
+    else:
+        ranked = sorted(
+            ok_results,
+            key=lambda r: (
+                -(r["metrics"].get("total_trades", 0)),
+                -(r["metrics"].get("trades_per_scenario", 0)),
+            ),
+        )
 
     report = {
         "schema_version": "parameter_sweep_report.v1",
@@ -219,7 +313,11 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(report, indent=2) + "\n", encoding="utf-8"
     )
     best = ranked[0] if ranked else None
-    best_trades = best["metrics"]["total_trades"] if best else 0
+    best_trades = (
+        best["metrics"].get("total_trades", best["metrics"].get("cycles_completed", 0))
+        if best
+        else 0
+    )
     print(
         f"Sweep complete: configs={len(configurations)} "
         f"best_trades={best_trades} "

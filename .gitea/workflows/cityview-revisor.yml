@@ -26,21 +26,21 @@ jobs:
         id: install
         continue-on-error: true
         run: |
-          npm ci 2>&1 | tee /tmp/revisor_install.txt
+          npm ci 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_install.txt
           exit ${PIPESTATUS[0]}
 
       - name: Unit tests (vitest)
         id: tests
         continue-on-error: true
         run: |
-          npm run test 2>&1 | tee /tmp/revisor_tests.txt
+          npm run test 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_tests.txt
           exit ${PIPESTATUS[0]}
 
       - name: Build check (vite)
         id: build
         continue-on-error: true
         run: |
-          npm run build 2>&1 | tee /tmp/revisor_build.txt
+          npm run build 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_build.txt
           exit ${PIPESTATUS[0]}
 
       - name: Post Revisor review comment
@@ -54,6 +54,7 @@ jobs:
           TESTS_RESULT: ${{ steps.tests.outcome }}
           BUILD_RESULT: ${{ steps.build.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REVISOR_PREFIX: /tmp/revisor_${{ github.run_id }}
         run: |
           python3 - <<'PY'
           import json, os, urllib.request
@@ -70,9 +71,9 @@ jobs:
               return "PASS" if outcome == "success" else "FAIL"
 
           checks = [
-              ("npm install",         os.environ["INSTALL_RESULT"], "/tmp/revisor_install.txt"),
-              ("Unit tests (vitest)", os.environ["TESTS_RESULT"],   "/tmp/revisor_tests.txt"),
-              ("Build check (vite)",  os.environ["BUILD_RESULT"],   "/tmp/revisor_build.txt"),
+              ("npm install",         os.environ["INSTALL_RESULT"], f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_install.txt"),
+              ("Unit tests (vitest)", os.environ["TESTS_RESULT"],   f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_tests.txt"),
+              ("Build check (vite)",  os.environ["BUILD_RESULT"],   f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_build.txt"),
           ]
 
           all_pass   = all(o == "success" for _, o, _ in checks)
