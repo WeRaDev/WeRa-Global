@@ -34,21 +34,21 @@ jobs:
         id: lint
         continue-on-error: true
         run: |
-          .revisor-venv/bin/ruff check src/poly_robot tests scripts 2>&1 | tee /tmp/revisor_lint.txt
+          .revisor-venv/bin/ruff check src/poly_robot tests scripts 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_lint.txt
           exit ${PIPESTATUS[0]}
 
       - name: Type check (mypy)
         id: typecheck
         continue-on-error: true
         run: |
-          PYTHONPATH=src .revisor-venv/bin/python -m mypy src/poly_robot 2>&1 | tee /tmp/revisor_mypy.txt
+          PYTHONPATH=src .revisor-venv/bin/python -m mypy src/poly_robot 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_mypy.txt
           exit ${PIPESTATUS[0]}
 
       - name: Unit tests
         id: unittests
         continue-on-error: true
         run: |
-          PYTHONPATH=src .revisor-venv/bin/python -m unittest discover -s tests -p "test_*.py" 2>&1 | tee /tmp/revisor_unittest.txt
+          PYTHONPATH=src .revisor-venv/bin/python -m unittest discover -s tests -p "test_*.py" 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_unittest.txt
           exit ${PIPESTATUS[0]}
 
       - name: Security regression tests
@@ -58,14 +58,14 @@ jobs:
           PYTHONPATH=src .revisor-venv/bin/python -m unittest \
             tests.test_integration_adapters \
             tests.test_llm_policy \
-            tests.test_parameter_governance 2>&1 | tee /tmp/revisor_security.txt
+            tests.test_parameter_governance 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_security.txt
           exit ${PIPESTATUS[0]}
 
       - name: Security static analysis (bandit)
         id: bandit
         continue-on-error: true
         run: |
-          .revisor-venv/bin/bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105 2>&1 | tee /tmp/revisor_bandit.txt
+          .revisor-venv/bin/bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_bandit.txt
           exit ${PIPESTATUS[0]}
 
       - name: UX regression tests
@@ -75,7 +75,7 @@ jobs:
           PYTHONPATH=src .revisor-venv/bin/python -m unittest \
             tests.test_runtime_web_gui \
             tests.test_runtime_supervisor_controls \
-            tests.test_runtime_supervisor_live 2>&1 | tee /tmp/revisor_ux.txt
+            tests.test_runtime_supervisor_live 2>&1 | tee /tmp/revisor_${GITHUB_RUN_ID}_ux.txt
           exit ${PIPESTATUS[0]}
 
       - name: Post Revisor review comment
@@ -92,6 +92,7 @@ jobs:
           BANDIT_RESULT: ${{ steps.bandit.outcome }}
           UX_TEST_RESULT: ${{ steps.ux_tests.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REVISOR_PREFIX: /tmp/revisor_${{ github.run_id }}
         run: |
           python3 - <<'PY'
           import json
@@ -110,12 +111,12 @@ jobs:
               return "PASS" if outcome == "success" else "FAIL"
 
           checks = [
-              ("Lint (ruff)",               os.environ["LINT_RESULT"],          "/tmp/revisor_lint.txt"),
-              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     "/tmp/revisor_mypy.txt"),
-              ("Unit tests",               os.environ["UNITTEST_RESULT"],      "/tmp/revisor_unittest.txt"),
-              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], "/tmp/revisor_security.txt"),
-              ("Security static analysis",  os.environ["BANDIT_RESULT"],        "/tmp/revisor_bandit.txt"),
-              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       "/tmp/revisor_ux.txt"),
+              ("Lint (ruff)",               os.environ["LINT_RESULT"],          f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_lint.txt"),
+              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_mypy.txt"),
+              ("Unit tests",               os.environ["UNITTEST_RESULT"],      f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_unittest.txt"),
+              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_security.txt"),
+              ("Security static analysis",  os.environ["BANDIT_RESULT"],        f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_bandit.txt"),
+              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_ux.txt"),
           ]
 
           all_pass   = all(outcome == "success" for _, outcome, _ in checks)
