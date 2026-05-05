@@ -38,6 +38,7 @@ Use this guide to initialize each `ProductionBase/*` repository to the umbrella 
    - `skills/README.md`
 5. Align project `README.md` to the umbrella README contract.
 6. Register project-specific workflows and quality checks in `CONTRIBUTING.md`.
+7. Include project pull-request review guidance aligned with `revisor-pr-audit` (severity taxonomy + structured review report).
 
 ## Migration from CLAUDE.md to AGENTS.md
 When a project already has `CLAUDE.md`:
@@ -50,6 +51,7 @@ When creating any new `ProductionBase/*` project, initialization is incomplete u
 1. `SOUL.md` is created and explicitly inherits umbrella `SOUL.md`.
 2. `AGENTS.md`, `WARP.md`, and `CONTRIBUTING.md` reference and remain consistent with the project `SOUL.md`.
 3. The project is registered in `ProductionBase/repos.yaml` with baseline policy and CI in place.
+4. Pull-request review workflow is defined and aligned with umbrella `revisor-pr-audit` quality standards.
 
 ## Python asyncio enhancement (systemPY)
 For Python projects with multiple entrypoints or complex startup/shutdown logic:
