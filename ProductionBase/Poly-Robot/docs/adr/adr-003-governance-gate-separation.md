@@ -1,6 +1,6 @@
 # ADR-003: Reliability Gate / Economic-Quality Gate Separation
 
-**Status**: Draft
+**Status**: Accepted
 **Date**: 2026-05-05
 **Context**: Poly-Robot lifecycle gate evolution (Sprint W21)
 

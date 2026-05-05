@@ -115,6 +115,11 @@ def _extract_cycle_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return cycle_rows
 
 
+RELIABILITY_GROUP = "reliability"
+ECONOMIC_QUALITY_GROUP = "economic_quality"
+VALID_GATE_MODES = {"combined", "reliability_only", "economic_only"}
+
+
 def _criterion(
     *,
     name: str,
@@ -122,6 +127,7 @@ def _criterion(
     observed: Any,
     threshold: Any,
     description: str,
+    group: str = RELIABILITY_GROUP,
 ) -> dict[str, Any]:
     return {
         "name": name,
@@ -129,7 +135,32 @@ def _criterion(
         "observed": observed,
         "threshold": threshold,
         "description": description,
+        "group": group,
     }
+
+
+def _compute_group_status(
+    criteria: list[dict[str, Any]], group: str
+) -> str:
+    group_criteria = [c for c in criteria if c.get("group") == group]
+    if not group_criteria:
+        return "PASS"
+    return "PASS" if all(c["passed"] for c in group_criteria) else "FAIL"
+
+
+def _compute_overall_status(
+    reliability_status: str,
+    economic_quality_status: str,
+    gate_mode: str,
+) -> str:
+    if gate_mode == "reliability_only":
+        return reliability_status
+    if gate_mode == "economic_only":
+        return economic_quality_status
+    # combined (default)
+    if reliability_status == "FAIL" or economic_quality_status == "FAIL":
+        return "FAIL"
+    return "PASS"
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -234,6 +265,9 @@ def main(argv: list[str] | None = None) -> int:
     minimum_mean_expected_value_after_execution_cost = float(
         gate_config.get("minimum_mean_expected_value_after_execution_cost", 0.0)
     )
+    gate_mode = str(gate_config.get("gate_mode", "combined")).strip()
+    if gate_mode not in VALID_GATE_MODES:
+        gate_mode = "combined"
 
     journal_rows = _load_jsonl(args.journal_path)
     cycle_rows = _extract_cycle_rows(journal_rows)
@@ -303,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
             observed=round(runtime_duration_hours, 6),
             threshold={"minimum": min_runtime_hours},
             description="Runtime evidence must cover at least the required duration.",
+            group=RELIABILITY_GROUP,
         ),
         _criterion(
             name="profitability_metrics_present",
@@ -318,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             },
             threshold={"required": require_profitability_metrics},
             description="Latest cycle must expose profitability metrics.",
+            group=RELIABILITY_GROUP,
         ),
         _criterion(
             name="expected_value_after_execution_cost",
@@ -334,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Latest expected value after execution cost must meet profitability "
                 "threshold."
             ),
+            group=ECONOMIC_QUALITY_GROUP,
         ),
         _criterion(
             name="expected_net_edge_value_on_fills",
@@ -350,6 +387,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Latest expected net edge value on fills must be non-negative (or "
                 "configured minimum)."
             ),
+            group=ECONOMIC_QUALITY_GROUP,
         ),
         _criterion(
             name="mean_expected_value_after_execution_cost",
@@ -373,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Mean expected value after execution cost across all cycles must "
                 "meet rolling-window profitability threshold (0.0 disables check)."
             ),
+            group=ECONOMIC_QUALITY_GROUP,
         ),
         _criterion(
             name="net_pnl_reported",
@@ -389,9 +428,15 @@ def main(argv: list[str] | None = None) -> int:
                 "Net PnL must be present; sign is optional unless explicitly "
                 "disallowed by gate config."
             ),
+            group=RELIABILITY_GROUP,
         ),
     ]
 
+    reliability_status = _compute_group_status(criteria, RELIABILITY_GROUP)
+    economic_quality_status = _compute_group_status(criteria, ECONOMIC_QUALITY_GROUP)
+    overall_status = _compute_overall_status(
+        reliability_status, economic_quality_status, gate_mode
+    )
     incidents = [
         {
             "code": f"criterion_failed:{criterion['name']}",
@@ -399,16 +444,19 @@ def main(argv: list[str] | None = None) -> int:
             "summary": criterion["description"],
             "observed": criterion["observed"],
             "threshold": criterion["threshold"],
+            "group": criterion.get("group", RELIABILITY_GROUP),
         }
         for criterion in criteria
         if not criterion["passed"]
     ]
-    overall_status = "PASS" if not incidents else "FAIL"
 
     report = {
         "schema_version": "trl4_profitability_report.v1",
         "generated_at": _utc_now_iso(),
         "overall_status": overall_status,
+        "reliability_status": reliability_status,
+        "economic_quality_status": economic_quality_status,
+        "gate_mode": gate_mode,
         "gate_config_path": str(args.gate_config),
         "inputs": {
             "journal_path": str(args.journal_path),
