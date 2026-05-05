@@ -21,7 +21,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           github-server-url: http://127.0.0.1:3000
-          submodules: recursive
+
+      - name: Materialize Poly-Robot source at PR gitlink
+        working-directory: .
+        env:
+          WERA_GITEA_TOKEN: ${{ secrets.WERA_GITEA_TOKEN }}
+        run: |
+          set -eu
+          SUBMODULE_SHA="$(git ls-tree HEAD ProductionBase/Poly-Robot | awk '{print $3}')"
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$WERA_GITEA_TOKEN" | base64 | tr -d '\n')"
+          rm -rf ProductionBase/Poly-Robot
+          git -c "http.http://127.0.0.1:3000/.extraheader=Authorization: Basic ${AUTH_HEADER}" clone --no-checkout http://127.0.0.1:3000/wera-global/Poly-Robot.git ProductionBase/Poly-Robot
+          git -C ProductionBase/Poly-Robot fetch --depth 1 origin "$SUBMODULE_SHA"
+          git -C ProductionBase/Poly-Robot checkout --detach "$SUBMODULE_SHA"
 
       - name: Set up Python venv
         run: python3 -m venv .revisor-venv
