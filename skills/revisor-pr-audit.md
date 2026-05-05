@@ -81,7 +81,7 @@ Provide a structured, evidence-based pull-request audit standard for WeRa Global
 # Revisor structured output contract
 Use this response scaffold for every substantial PR review:
 
-```text path=null start=null
+```text
 # Code Review: <PR title>
 
 ## Summary
