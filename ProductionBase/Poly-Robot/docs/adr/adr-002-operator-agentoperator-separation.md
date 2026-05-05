@@ -68,6 +68,49 @@ From ReactiveBayes/RxInfer and SolarSeed Spirit upgrade path:
 4. Bayesian Orchestration + Self-Improvement
 5. Gamification, Multi-Market, Full Reactive Orchestration
 
+## Phase 1 Module Boundary (Sprint W20)
+
+### Shared interface layer (`src/poly_robot/shared/`)
+Stable data contracts consumed by both Operator and Orchestrator layers:
+- `contracts.py` -- MarketEvent, StrategyDecision, RiskDecision, PortfolioState, etc.
+- `schemas.py` -- schema version constants
+- `reproducibility.py` -- stable_hash and fingerprinting utilities
+
+### Operator layer (supervision, human-facing)
+Modules that serve the human operator via web GUI, CLI dashboards, and control surfaces:
+- `runtime_web_gui.py` -- web dashboard and control API
+- `runtime_supervisor.py` -- cycle supervision, heartbeat, journal, control state
+- `mode_lifecycle.py` -- paper/test/live mode promotion decisions
+- `canary_enablement.py` -- stage enablement approval workflow
+- `canary_readiness.py` -- readiness certification evaluation
+- `canary_rollback_guard.py` -- rollback trigger and incident handoff
+- `stress_certification.py` -- stress campaign certification evaluator
+
+### Orchestrator layer (strategy, risk, execution, agents)
+Modules that implement the trading decision loop and agent coordination:
+- `strategy_baseline.py` -- entry signal generation
+- `risk_engine.py` -- sizing, exposure caps, cost-aware gating
+- `paper_execution.py` -- paper execution adapter
+- `exit_module.py` -- multi-trigger exit logic
+- `test_token_loop.py` -- end-to-end loop orchestration
+- `integration_adapters.py` -- ingestion and execution gateway adapters
+- `agent_operator.py` -- AgentOperator advisory/strategy modes
+- `agent_operator_learning.py` -- agent learning and improvement
+- `probability_oracle.py` -- probability estimation
+- `scenario_pack.py` -- scenario transform definitions
+- `replay_harness.py` -- deterministic replay execution
+- `scenario_matrix.py` -- multi-scenario replay runner
+
+### Governance layer (cross-cutting)
+- `parameter_governance.py` -- catalog/profile validation
+- `llm_policy.py` -- LLM calibration policy enforcement
+
+### Migration approach
+1. Create `src/poly_robot/shared/__init__.py` that re-exports from `contracts`, `schemas`, `reproducibility`.
+2. All existing imports (`from .contracts import ...`) continue to work unchanged.
+3. New code prefers `from poly_robot.shared import ...`.
+4. Full physical move of files into `operator/` and `orchestrator/` subdirectories deferred to Sprint W21 (Phase 1 completion) to keep the change set reviewable.
+
 ## Consequences
 
 - Backward compatible: Phase 1 is pure refactoring, all CI gates pass

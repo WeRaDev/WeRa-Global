@@ -10,13 +10,13 @@ from web3.exceptions import Web3RPCError
 
 load_dotenv()
 
-# Настройки
+# Settings
 PRIVATE_KEY = os.getenv("POLY_PRIVATE_KEY")
 RPC_URL = "https://polygon-rpc.com"
-CHAIN_ID = int(os.getenv("CHAIN_ID", "137"))
+CHAIN_ID = int(os.getenv("CHAIN_ID", "0"))
 GAS_PRICE_MULTIPLIER = float(os.getenv("POLY_GAS_MULTIPLIER", "1.15"))
 
-# Адреса (официальные Polygon / Polymarket)
+# Official Polygon / Polymarket addresses
 USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 EXCHANGE_ADDRESSES: Tuple[Tuple[str, str], ...] = (
@@ -25,7 +25,7 @@ EXCHANGE_ADDRESSES: Tuple[Tuple[str, str], ...] = (
     ("Neg-Risk Adapter", "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"),
 )
 
-# ABI для функций approve и setApprovalForAll
+# ABI for approve and setApprovalForAll
 ERC20_ABI = [
     {
         "constant": False,
@@ -62,7 +62,7 @@ def _suggest_gas_price(w3: Web3) -> int:
 def _send_tx(w3: Web3, tx) -> bool:
     signed = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    print(f"🚀 Tx sent: {tx_hash.hex()}")
+    print(f"Tx sent: {tx_hash.hex()}")
     retries = 0
     while True:
         try:
@@ -80,15 +80,15 @@ def _send_tx(w3: Web3, tx) -> bool:
             )
             if hit_limit and retries < 5:
                 wait_for = 10 + retries * 2
-                print(f"⏳ Rate limit hit; waiting {wait_for}s before retry...")
+                print(f"Rate limit hit; waiting {wait_for}s before retry...")
                 time.sleep(wait_for)
                 retries += 1
                 continue
             raise
     if receipt.status == 1:
-        print("✅ Success")
+        print("Success")
         return True
-    print("❌ Transaction failed")
+    print("Transaction failed")
     return False
 
 
@@ -104,7 +104,7 @@ def _approve_all(
 
     for label, operator in operators:
         gas_price = _suggest_gas_price(w3)
-        print(f"📝 Approving USDC for {label} ({operator})...")
+        print(f"Approving USDC for {label} ({operator})...")
         approve_tx = usdc.functions.approve(operator, max_amount).build_transaction(
             {
                 "from": my_address,
@@ -119,7 +119,7 @@ def _approve_all(
         nonce += 1
 
         gas_price = _suggest_gas_price(w3)
-        print(f"📝 setApprovalForAll for Conditional Tokens → {label}...")
+        print(f"setApprovalForAll for Conditional Tokens -> {label}...")
         ctf_tx = ctf.functions.setApprovalForAll(operator, True).build_transaction(
             {
                 "from": my_address,
@@ -136,19 +136,22 @@ def _approve_all(
 
 def main():
     if not PRIVATE_KEY:
-        print("❌ Ошибка: Нет приватного ключа в .env")
+        print("Error: missing POLY_PRIVATE_KEY in .env")
+        return
+    if CHAIN_ID == 0:
+        print("Error: CHAIN_ID must be set explicitly (e.g. 137 for Polygon mainnet)")
         return
 
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     
     if not w3.is_connected():
-        print("❌ Не удалось подключиться к Polygon RPC")
+        print("Error: unable to connect to Polygon RPC")
         return
 
     account = w3.eth.account.from_key(PRIVATE_KEY)
     my_address = account.address
-    print(f"⚙️  Кошелек: {my_address}")
+    print(f"Wallet: {my_address}")
 
     usdc = w3.eth.contract(address=USDC_ADDRESS, abi=ERC20_ABI)
     ctf = w3.eth.contract(address=CTF_ADDRESS, abi=ERC1155_ABI)

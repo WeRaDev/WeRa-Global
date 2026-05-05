@@ -10,18 +10,18 @@ from web3.middleware import ExtraDataToPOAMiddleware
 
 load_dotenv()
 
-# Настройки
+# Settings
 PRIVATE_KEY = os.getenv("POLY_PRIVATE_KEY")
 RPC_URL = "https://polygon-rpc.com"
-CHAIN_ID = int(os.getenv("CHAIN_ID", "137"))
+CHAIN_ID = int(os.getenv("CHAIN_ID", "0"))
 GAS_PRICE_MULTIPLIER = float(os.getenv("POLY_GAS_MULTIPLIER", "1.15"))
 
-# Адреса (официальные Polygon / Polymarket)
+# Official Polygon / Polymarket addresses
 USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 HASH_ZERO = "0x" + "00" * 32
 
-# Укажи здесь дефолты, чтобы запускать без аргументов в PyCharm
+# Default condition ID for CLI invocation without arguments
 def _default_condition_id() -> str:
     env_val = os.getenv("POLY_REDEEM_CONDITION_ID", "")
     if env_val:
@@ -34,12 +34,11 @@ def _default_condition_id() -> str:
     except Exception:
         return ""
 
-#Entry orders not fully filled yet; stopping to avoid bad averages.
 
 DEFAULT_CONDITION_ID = "0x01ddad254073fc17589bb3cf7830893e7e8aae2e193e1493571e54fe92cf5553"
 DEFAULT_INDEX_SETS = os.getenv("POLY_REDEEM_INDEX_SETS", "2")
 
-# ABI для redeemPositions
+# ABI for redeemPositions
 CTF_ABI = [
     {
         "inputs": [
@@ -65,7 +64,7 @@ def _suggest_gas_price(w3: Web3) -> int:
 def _send_tx(w3: Web3, tx) -> str:
     signed = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    print(f"🚀 Tx sent: {tx_hash.hex()}")
+    print(f"Tx sent: {tx_hash.hex()}")
     retries = 0
     while True:
         try:
@@ -79,15 +78,15 @@ def _send_tx(w3: Web3, tx) -> str:
             )
             if hit_limit and retries < 5:
                 wait_for = 10 + retries * 2
-                print(f"⏳ Rate limit hit; waiting {wait_for}s before retry...")
+                print(f"Rate limit hit; waiting {wait_for}s before retry...")
                 time.sleep(wait_for)
                 retries += 1
                 continue
             raise
     if receipt.status == 1:
-        print("✅ Success")
+        print("Success")
         return tx_hash.hex()
-    raise RuntimeError("❌ Transaction failed")
+    raise RuntimeError("Transaction failed")
 
 
 def redeem_positions(
@@ -97,12 +96,14 @@ def redeem_positions(
     parent_collection_id: str = HASH_ZERO,
 ) -> str:
     if not PRIVATE_KEY:
-        raise RuntimeError("Нет POLY_PRIVATE_KEY в .env")
+        raise RuntimeError("Missing POLY_PRIVATE_KEY in .env")
+    if CHAIN_ID == 0:
+        raise RuntimeError("CHAIN_ID must be set explicitly (e.g. 137 for Polygon mainnet)")
 
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     if not w3.is_connected():
-        raise RuntimeError("Не удалось подключиться к Polygon RPC")
+        raise RuntimeError("Unable to connect to Polygon RPC")
 
     account = w3.eth.account.from_key(PRIVATE_KEY)
     my_address = account.address
@@ -176,11 +177,11 @@ def main() -> None:
     index_sets_raw = args.index_sets or DEFAULT_INDEX_SETS
 
     if not condition_id:
-        raise RuntimeError("condition_id пустой (задай аргумент или DEFAULT_CONDITION_ID)")
+        raise RuntimeError("condition_id is empty (provide argument or set DEFAULT_CONDITION_ID)")
 
     index_sets = _parse_index_sets(index_sets_raw)
     if not index_sets:
-        raise RuntimeError("index_sets пустой")
+        raise RuntimeError("index_sets is empty")
 
     tx_hash = redeem_positions(
         condition_id,
@@ -188,7 +189,7 @@ def main() -> None:
         collateral_token=args.collateral,
         parent_collection_id=args.parent,
     )
-    print(f"✅ Redeem tx: {tx_hash}")
+    print(f"Redeem tx: {tx_hash}")
 
 
 if __name__ == "__main__":

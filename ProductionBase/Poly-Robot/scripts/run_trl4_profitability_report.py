@@ -231,6 +231,9 @@ def main(argv: list[str] | None = None) -> int:
         gate_config.get("require_profitability_metrics", True)
     )
     allow_negative_net_pnl = bool(gate_config.get("allow_negative_net_pnl", True))
+    minimum_mean_expected_value_after_execution_cost = float(
+        gate_config.get("minimum_mean_expected_value_after_execution_cost", 0.0)
+    )
 
     journal_rows = _load_jsonl(args.journal_path)
     cycle_rows = _extract_cycle_rows(journal_rows)
@@ -276,6 +279,12 @@ def main(argv: list[str] | None = None) -> int:
         latest_details.get("expected_net_edge_value_on_fills")
     )
     latest_net_pnl = _as_float(latest_details.get("net_pnl"))
+
+    mean_expected_value_after_execution_cost: float | None = None
+    if expected_value_after_execution_cost_values:
+        mean_expected_value_after_execution_cost = sum(
+            expected_value_after_execution_cost_values
+        ) / len(expected_value_after_execution_cost_values)
 
     metrics_present = (
         latest_expected_value_after_execution_cost is not None
@@ -340,6 +349,29 @@ def main(argv: list[str] | None = None) -> int:
             description=(
                 "Latest expected net edge value on fills must be non-negative (or "
                 "configured minimum)."
+            ),
+        ),
+        _criterion(
+            name="mean_expected_value_after_execution_cost",
+            passed=(
+                minimum_mean_expected_value_after_execution_cost <= 0.0
+                or (
+                    mean_expected_value_after_execution_cost is not None
+                    and mean_expected_value_after_execution_cost
+                    >= minimum_mean_expected_value_after_execution_cost
+                )
+            ),
+            observed=(
+                round(mean_expected_value_after_execution_cost, 6)
+                if mean_expected_value_after_execution_cost is not None
+                else None
+            ),
+            threshold={
+                "minimum": minimum_mean_expected_value_after_execution_cost,
+            },
+            description=(
+                "Mean expected value after execution cost across all cycles must "
+                "meet rolling-window profitability threshold (0.0 disables check)."
             ),
         ),
         _criterion(
