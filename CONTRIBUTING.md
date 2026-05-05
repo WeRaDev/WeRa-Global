@@ -17,8 +17,9 @@ This document defines how to contribute across the umbrella repository and its `
 1. Define scope in `tasks/backlog.md` or a sprint file.
 2. If architecture or policy is affected, create/update an ADR in `docs/adr/`.
 3. Execute using the default flow in `skills/registry.yaml`.
-4. Validate with repository-native checks for touched code.
-5. Update docs and task artifacts in the same change cycle.
+4. For pull requests and review rounds, apply `revisor-pr-audit` for structured, actionable review output.
+5. Validate with repository-native checks for touched code.
+6. Update docs and task artifacts in the same change cycle.
 
 ## Quality requirements
 - Keep changes minimal and traceable to the task objective.
