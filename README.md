@@ -19,6 +19,7 @@ Unified umbrella repository for WeRa Global.
 - Keep `KnowledgeBase/` versioned directly in this umbrella repository.
 - Keep each `ProductionBase/*` project independent, with dedicated instructions and CI.
 - Update `ProductionBase/repos.yaml` whenever project remotes, branches, or ownership change.
+- Poly-Robot is now migrated to an independent delegated repository and tracked here as submodule path `ProductionBase/Poly-Robot`.
 
 ## Development quality framework
 - `AGENTS.md` — canonical provider-agnostic behavioral guardrails for coding agents.

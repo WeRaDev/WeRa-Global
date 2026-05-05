@@ -22,6 +22,19 @@ jobs:
         with:
           github-server-url: http://127.0.0.1:3000
 
+      - name: Materialize Poly-Robot source at PR gitlink
+        working-directory: .
+        env:
+          WERA_GITEA_TOKEN: ${{ secrets.WERA_GITEA_TOKEN }}
+        run: |
+          set -eu
+          SUBMODULE_SHA="$(git ls-tree HEAD ProductionBase/Poly-Robot | awk '{print $3}')"
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$WERA_GITEA_TOKEN" | base64 | tr -d '\n')"
+          rm -rf ProductionBase/Poly-Robot
+          git -c "http.http://127.0.0.1:3000/.extraheader=Authorization: Basic ${AUTH_HEADER}" clone --no-checkout http://127.0.0.1:3000/wera-global/Poly-Robot.git ProductionBase/Poly-Robot
+          git -C ProductionBase/Poly-Robot fetch --depth 1 origin "$SUBMODULE_SHA"
+          git -C ProductionBase/Poly-Robot checkout --detach "$SUBMODULE_SHA"
+
       - name: Set up Python venv
         run: python3 -m venv .revisor-venv
 
@@ -111,12 +124,12 @@ jobs:
               return "PASS" if outcome == "success" else "FAIL"
 
           checks = [
-              ("Lint (ruff)",               os.environ["LINT_RESULT"],          f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_lint.txt"),
-              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_mypy.txt"),
-              ("Unit tests",               os.environ["UNITTEST_RESULT"],      f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_unittest.txt"),
-              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_security.txt"),
-              ("Security static analysis",  os.environ["BANDIT_RESULT"],        f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_bandit.txt"),
-              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_ux.txt"),
+              ("Lint (ruff)",               os.environ["LINT_RESULT"],          f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_lint.txt"),
+              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_mypy.txt"),
+              ("Unit tests",               os.environ["UNITTEST_RESULT"],      f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_unittest.txt"),
+              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_security.txt"),
+              ("Security static analysis",  os.environ["BANDIT_RESULT"],        f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_bandit.txt"),
+              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_ux.txt"),
           ]
 
           all_pass   = all(outcome == "success" for _, outcome, _ in checks)

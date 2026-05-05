@@ -64,8 +64,8 @@ repos:
     default_branch: main
     status: incubation
     role: modular robotics and multi-agent orchestration platform
-    vcs_mode: native
-    baseline_policy: enforced
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: CityView
     path: ProductionBase/CityView
     gitea_url: http://127.0.0.1:3000/wera-global/CityView.git
