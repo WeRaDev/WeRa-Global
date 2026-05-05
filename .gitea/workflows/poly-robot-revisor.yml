@@ -22,42 +22,40 @@ jobs:
         with:
           github-server-url: http://127.0.0.1:3000
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Set up Python venv
+        run: python3 -m venv .revisor-venv
 
       - name: Install dev tooling
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-dev.txt
+          .revisor-venv/bin/pip install --quiet --upgrade pip
+          .revisor-venv/bin/pip install --quiet -r requirements-dev.txt
 
       - name: Lint (ruff)
         id: lint
         continue-on-error: true
         run: |
-          ruff check src/poly_robot tests scripts 2>&1 | tee /tmp/revisor_lint.txt
+          .revisor-venv/bin/ruff check src/poly_robot tests scripts 2>&1 | tee /tmp/revisor_lint.txt
           exit ${PIPESTATUS[0]}
 
       - name: Type check (mypy)
         id: typecheck
         continue-on-error: true
         run: |
-          PYTHONPATH=src python3 -m mypy src/poly_robot 2>&1 | tee /tmp/revisor_mypy.txt
+          PYTHONPATH=src .revisor-venv/bin/python -m mypy src/poly_robot 2>&1 | tee /tmp/revisor_mypy.txt
           exit ${PIPESTATUS[0]}
 
       - name: Unit tests
         id: unittests
         continue-on-error: true
         run: |
-          PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py" 2>&1 | tee /tmp/revisor_unittest.txt
+          PYTHONPATH=src .revisor-venv/bin/python -m unittest discover -s tests -p "test_*.py" 2>&1 | tee /tmp/revisor_unittest.txt
           exit ${PIPESTATUS[0]}
 
       - name: Security regression tests
         id: security_tests
         continue-on-error: true
         run: |
-          PYTHONPATH=src python3 -m unittest \
+          PYTHONPATH=src .revisor-venv/bin/python -m unittest \
             tests.test_integration_adapters \
             tests.test_llm_policy \
             tests.test_parameter_governance 2>&1 | tee /tmp/revisor_security.txt
@@ -67,14 +65,14 @@ jobs:
         id: bandit
         continue-on-error: true
         run: |
-          bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105 2>&1 | tee /tmp/revisor_bandit.txt
+          .revisor-venv/bin/bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105 2>&1 | tee /tmp/revisor_bandit.txt
           exit ${PIPESTATUS[0]}
 
       - name: UX regression tests
         id: ux_tests
         continue-on-error: true
         run: |
-          PYTHONPATH=src python3 -m unittest \
+          PYTHONPATH=src .revisor-venv/bin/python -m unittest \
             tests.test_runtime_web_gui \
             tests.test_runtime_supervisor_controls \
             tests.test_runtime_supervisor_live 2>&1 | tee /tmp/revisor_ux.txt
