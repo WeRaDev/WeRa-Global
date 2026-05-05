@@ -25,6 +25,11 @@ execution_profiles:
     - "quality-gate"
     - "release-readiness"
     - "retro-capture"
+  pr_review_audit_flow:
+    - "repo-orientation"
+    - "revisor-pr-audit"
+    - "quality-gate"
+    - "release-readiness"
   fast_path_small_change:
     - "task-intake"
     - "karpathy-guidelines"
@@ -71,3 +76,7 @@ skills:
     name: "Python systemPY Lifecycle Integration"
     path: "skills/python-systempy-lifecycle.md"
     intent: "Standardize startup, shutdown, and reload behavior for Python asyncio applications using systemPY lifecycle units."
+  - id: "revisor-pr-audit"
+    name: "Revisor PR Audit"
+    path: "skills/revisor-pr-audit.md"
+    intent: "Run structured, evidence-based pull-request review with explicit severity, mentoring-quality feedback, and actionable remediation guidance."

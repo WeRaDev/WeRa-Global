@@ -20,6 +20,12 @@ For most non-trivial work:
 6. `release-readiness` (release-impacting work)
 7. `retro-capture`
 
+For pull-request audit and review quality:
+1. `repo-orientation`
+2. `revisor-pr-audit`
+3. `quality-gate`
+4. `release-readiness`
+
 For small low-risk fixes:
 1. `task-intake`
 2. `karpathy-guidelines`
@@ -35,3 +41,4 @@ For small low-risk fixes:
 ## Quality review baseline
 - `skills/evals/evals.json` stores baseline prompts used to test skill behavior over time.
 - Review prompts should include ambiguity handling, simplicity pressure, surgical diff pressure, and verification requirements.
+- PR-review prompts should also verify severity discipline, actionable findings, and mentorship-quality tone.

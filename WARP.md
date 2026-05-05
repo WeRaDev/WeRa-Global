@@ -173,12 +173,14 @@ Every skill file must define:
 4. `quality-gate`: run project tests, linters, and type checks
 5. `release-readiness`: verify docs, migration notes, and operational impact
 6. `retro-capture`: record outcomes, incidents, and improvements
+7. `revisor-pr-audit`: run structured, evidence-based PR review and developer guidance.
 
 ## Quality and verification policy
 - Never merge unvalidated changes.
 - Prefer repository-native scripts for test/lint/typecheck.
 - If no tests exist, add at least one verification path for changed behavior.
 - Failures must be surfaced with exact command and error context.
+- Non-trivial pull-request reviews should follow the `revisor-pr-audit` skill output contract (verdict, severity taxonomy, actionable findings, confidence/depth declaration).
 
 ## Security and reliability guardrails
 - Do not commit secrets or sensitive customer data.
