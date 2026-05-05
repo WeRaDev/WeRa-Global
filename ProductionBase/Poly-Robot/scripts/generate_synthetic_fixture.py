@@ -47,7 +47,7 @@ MARKET_TEMPLATES = [
 
 
 def _generate_market_variants(
-    templates: list[dict], *, variant_count: int = 5
+    templates: list[dict], rng: random.Random, *, variant_count: int = 5
 ) -> list[dict]:
     """Expand templates with numeric variants to reach target market count."""
     markets: list[dict] = []
@@ -56,8 +56,8 @@ def _generate_market_variants(
             variant = dict(template)
             variant["slug"] = f"{template['slug']}-v{i}"
             variant["question"] = f"{template['question']} (variant {i})"
-            variant["base_liquidity"] = template["base_liquidity"] * random.uniform(0.5, 2.0)
-            variant["base_hours"] = max(4, template["base_hours"] + random.randint(-12, 24))
+            variant["base_liquidity"] = template["base_liquidity"] * rng.uniform(0.5, 2.0)
+            variant["base_hours"] = max(4, template["base_hours"] + rng.randint(-12, 24))
             markets.append(variant)
     return markets
 
@@ -71,7 +71,7 @@ def _generate_events(
 ) -> list[dict]:
     """Generate MarketEvent JSONL rows for each market across time."""
     events: list[dict] = []
-    rng = random.Random(42)
+    rng = random.Random(42)  # nosec B311 - seeded for deterministic fixture generation
 
     for market in markets:
         slug = market["slug"]
@@ -146,8 +146,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     templates = MARKET_TEMPLATES
+    rng = random.Random(42)  # nosec B311 - seeded for deterministic fixture generation
     variant_count = max(1, math.ceil(args.markets / len(templates)))
-    markets = _generate_market_variants(templates, variant_count=variant_count)[
+    markets = _generate_market_variants(templates, rng, variant_count=variant_count)[
         : args.markets
     ]
 
