@@ -78,10 +78,10 @@ class PolymarketLiveProvider:
         return "polymarket_live"
 
     def fetch(self, **kwargs: Any) -> IngestionBatch:
+        timeout = float(kwargs.get("timeout_seconds", self.timeout_seconds))
         adapter = LivePolymarketIngestionAdapter(
             source_url=kwargs.get("source_url", self.source_url),
             max_markets=kwargs.get("max_markets", self.max_markets),
             min_volume_24h=kwargs.get("min_volume_24h", self.min_volume_24h),
-            timeout_seconds=kwargs.get("timeout_seconds", self.timeout_seconds),
         )
-        return adapter.fetch()
+        return adapter.load_markets(timeout_seconds=timeout)
