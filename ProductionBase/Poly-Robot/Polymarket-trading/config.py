@@ -23,4 +23,4 @@ private_key = os.getenv("POLY_PRIVATE_KEY", "").strip()
 host = os.getenv("CLOB_API_URL", "https://clob.polymarket.com").strip()
 if not host:
     host = "https://clob.polymarket.com"
-chain_id: int = int(os.getenv("CHAIN_ID", "137"))
+chain_id: int = int(os.getenv("CHAIN_ID", "0"))
