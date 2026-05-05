@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 2.5 — April 2026
+> **Version**: 2.6 — May 2026
 > **Scope**: Complete machine-readable reference for the WeRa Global project
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media
-> **Changelog v2.5**: Added v3.2 AI-native bridge policy (`33`) classifying AI-native setup instructions as research input, defined KPI-gated autonomy expansion and controlled hybrid-service policy, canonicalized unresolved-question registry path under `kb-governance/docs/open-questions/12-open-questions.md`, and escalated Q31 to emergency closure workflow.
+> **Changelog v2.6**: Recorded repository-governance migration of `ProductionBase/Poly-Robot` from umbrella-native tracking to independent delegated repository registration under `ProductionBase/repos.yaml`, while preserving umbrella `KnowledgeBase/` canonical authority.
 
 ---
 
