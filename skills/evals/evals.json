@@ -37,6 +37,12 @@
       "prompt": "Add rate limiting to API.",
       "expected_output": "Execution is broken into incremental verifiable steps with clear checks.",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Review PR: add CSV export endpoint with auth and streaming.",
+      "expected_output": "Output follows Revisor structured review contract, includes evidence-backed severity labels, actionable fixes for blockers/majors, at least one specific praise item, and explicit confidence/depth.",
+      "files": []
     }
   ]
 }
