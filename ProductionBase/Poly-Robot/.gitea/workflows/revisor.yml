@@ -1,0 +1,181 @@
+name: poly-robot-revisor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  revisor-qa:
+    name: Revisor QA Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dev tooling
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        id: lint
+        continue-on-error: true
+        run: |
+          ruff check src/poly_robot tests scripts 2>&1 | tee /tmp/revisor_lint.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Type check (mypy)
+        id: typecheck
+        continue-on-error: true
+        run: |
+          PYTHONPATH=src python3 -m mypy src/poly_robot 2>&1 | tee /tmp/revisor_mypy.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Unit tests
+        id: unittests
+        continue-on-error: true
+        run: |
+          PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py" 2>&1 | tee /tmp/revisor_unittest.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Security regression tests
+        id: security_tests
+        continue-on-error: true
+        run: |
+          PYTHONPATH=src python3 -m unittest \
+            tests.test_integration_adapters \
+            tests.test_llm_policy \
+            tests.test_parameter_governance 2>&1 | tee /tmp/revisor_security.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Security static analysis (bandit)
+        id: bandit
+        continue-on-error: true
+        run: |
+          bandit -q -r src/poly_robot scripts -s B404,B603,B310,B105 2>&1 | tee /tmp/revisor_bandit.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: UX regression tests
+        id: ux_tests
+        continue-on-error: true
+        run: |
+          PYTHONPATH=src python3 -m unittest \
+            tests.test_runtime_web_gui \
+            tests.test_runtime_supervisor_controls \
+            tests.test_runtime_supervisor_live 2>&1 | tee /tmp/revisor_ux.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Post Revisor review comment
+        if: always()
+        env:
+          WERA_GITEA_TOKEN: ${{ secrets.WERA_GITEA_TOKEN }}
+          GITEA_URL: http://127.0.0.1:3000
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.number }}
+          LINT_RESULT: ${{ steps.lint.outcome }}
+          TYPECHECK_RESULT: ${{ steps.typecheck.outcome }}
+          UNITTEST_RESULT: ${{ steps.unittests.outcome }}
+          SECURITY_TEST_RESULT: ${{ steps.security_tests.outcome }}
+          BANDIT_RESULT: ${{ steps.bandit.outcome }}
+          UX_TEST_RESULT: ${{ steps.ux_tests.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          def read_tail(path, max_chars=2000):
+              try:
+                  text = Path(path).read_text(encoding="utf-8").strip()
+                  return text[-max_chars:] if len(text) > max_chars else text
+              except Exception:
+                  return "(output not available)"
+
+          def icon(outcome):
+              return "PASS" if outcome == "success" else "FAIL"
+
+          checks = [
+              ("Lint (ruff)",                    os.environ["LINT_RESULT"],          "/tmp/revisor_lint.txt"),
+              ("Type check (mypy)",              os.environ["TYPECHECK_RESULT"],     "/tmp/revisor_mypy.txt"),
+              ("Unit tests",                     os.environ["UNITTEST_RESULT"],      "/tmp/revisor_unittest.txt"),
+              ("Security regression tests",      os.environ["SECURITY_TEST_RESULT"], "/tmp/revisor_security.txt"),
+              ("Security static analysis",       os.environ["BANDIT_RESULT"],        "/tmp/revisor_bandit.txt"),
+              ("UX regression tests",            os.environ["UX_TEST_RESULT"],       "/tmp/revisor_ux.txt"),
+          ]
+
+          all_pass   = all(outcome == "success" for _, outcome, _ in checks)
+          any_failed = any(outcome == "failure"  for _, outcome, _ in checks)
+
+          if all_pass:
+              verdict = "PASS"
+          elif any_failed:
+              verdict = "CHANGES REQUIRED"
+          else:
+              verdict = "PASS WITH RISK"
+
+          run_url = os.environ.get("RUN_URL", "")
+          lines = [
+              "## Revisor QA Audit",
+              "",
+              f"**QA Verdict: {verdict}**  ·  [workflow run]({run_url})",
+              "",
+              "| Check | Result |",
+              "|---|---|",
+          ]
+          for name, outcome, _ in checks:
+              lines.append(f"| {name} | {icon(outcome)} |")
+
+          failing = [(name, path) for name, outcome, path in checks if outcome != "success"]
+          if failing:
+              lines += ["", "### Failing check output"]
+              for name, path in failing:
+                  output = read_tail(path)
+                  lines += [
+                      f"<details><summary>{name}</summary>",
+                      "",
+                      "```",
+                      output,
+                      "```",
+                      "</details>",
+                      "",
+                  ]
+
+          body = "\n".join(lines)
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          owner, repo_name = repo.split("/", 1)
+          pr_number = os.environ["PR_NUMBER"]
+          token = os.environ.get("WERA_GITEA_TOKEN", "")
+          gitea_url = os.environ["GITEA_URL"]
+
+          if not token:
+              print("WERA_GITEA_TOKEN not set; skipping comment post")
+          else:
+              url = f"{gitea_url}/api/v1/repos/{owner}/{repo_name}/issues/{pr_number}/comments"
+              payload = json.dumps({"body": body}).encode("utf-8")
+              req = urllib.request.Request(
+                  url,
+                  data=payload,
+                  headers={
+                      "Authorization": f"token {token}",
+                      "Content-Type": "application/json",
+                  },
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      print(f"Revisor comment posted: HTTP {resp.status}")
+                      print(f"Verdict: {verdict}")
+              except Exception as exc:
+                  print(f"Failed to post review comment: {exc}")
+          PY
