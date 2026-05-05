@@ -6,7 +6,9 @@ from pathlib import Path
 
 from poly_robot.data_provider import (
     DataProvider,
+    ManifoldMarketsProvider,
     PolymarketHistoricalProvider,
+    PolymarketLiveProvider,
 )
 from poly_robot.integration_adapters import IngestionBatch
 
@@ -55,6 +57,44 @@ class TestPolymarketHistoricalProvider(unittest.TestCase):
         batch = provider.fetch(path=str(FIXTURE_PATH))
         # Override may still fail if retry exhausts; accept OK, DEGRADED, or FAILED
         self.assertIsInstance(batch, IngestionBatch)
+
+
+class TestManifoldMarketsProvider(unittest.TestCase):
+    def test_satisfies_protocol(self) -> None:
+        provider = ManifoldMarketsProvider()
+        self.assertIsInstance(provider, DataProvider)
+
+    def test_source_id(self) -> None:
+        provider = ManifoldMarketsProvider()
+        self.assertEqual(provider.source_id, "manifold_markets")
+
+    def test_fetch_unreachable_returns_failed(self) -> None:
+        provider = ManifoldMarketsProvider(
+            api_url="http://127.0.0.1:1/nonexistent",
+            timeout_seconds=1.0,
+        )
+        batch = provider.fetch()
+        self.assertEqual(batch.status, "FAILED")
+        self.assertIn("manifold_api_unavailable", batch.reasons)
+
+class TestPolymarketLiveProvider(unittest.TestCase):
+    def test_satisfies_protocol(self) -> None:
+        provider = PolymarketLiveProvider(
+            source_url="http://127.0.0.1:1/nonexistent",
+            timeout_seconds=1.0,
+        )
+        self.assertIsInstance(provider, DataProvider)
+
+    def test_fetch_unreachable_returns_failed(self) -> None:
+        provider = PolymarketLiveProvider(
+            source_url="http://127.0.0.1:1/nonexistent",
+            max_markets=1,
+            min_volume_24h=0.0,
+            timeout_seconds=1.0,
+        )
+        batch = provider.fetch()
+        self.assertEqual(batch.status, "FAILED")
+        self.assertIn("source_unavailable", batch.reasons)
 
 
 if __name__ == "__main__":
