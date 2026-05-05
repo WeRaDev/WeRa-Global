@@ -35,6 +35,7 @@ from poly_robot.strategy_baseline import BaselineStrategy  # noqa: F401
 # ADR-002 Phase 2: Data provider abstraction
 from poly_robot.data_provider import (  # noqa: F401
     DataProvider,
+    ManifoldMarketsProvider,
     PolymarketHistoricalProvider,
     PolymarketLiveProvider,
 )
