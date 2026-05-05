@@ -66,3 +66,11 @@ repos:
     role: modular robotics and multi-agent orchestration platform
     vcs_mode: native
     baseline_policy: enforced
+  - id: CityView
+    path: ProductionBase/CityView
+    gitea_url: http://127.0.0.1:3000/wera-global/CityView.git
+    default_branch: main
+    status: incubation
+    role: gamified observer/mainframe UI for City of Light operations
+    vcs_mode: native
+    baseline_policy: enforced
