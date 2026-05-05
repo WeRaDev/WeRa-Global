@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           github-server-url: http://127.0.0.1:3000
+          submodules: recursive
 
       - name: Set up Python venv
         run: python3 -m venv .revisor-venv
@@ -111,12 +112,12 @@ jobs:
               return "PASS" if outcome == "success" else "FAIL"
 
           checks = [
-              ("Lint (ruff)",               os.environ["LINT_RESULT"],          f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_lint.txt"),
-              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_mypy.txt"),
-              ("Unit tests",               os.environ["UNITTEST_RESULT"],      f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_unittest.txt"),
-              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_security.txt"),
-              ("Security static analysis",  os.environ["BANDIT_RESULT"],        f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_bandit.txt"),
-              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       f"{os.environ.get(\'REVISOR_PREFIX\', \'/tmp/revisor\')}_ux.txt"),
+              ("Lint (ruff)",               os.environ["LINT_RESULT"],          f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_lint.txt"),
+              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_mypy.txt"),
+              ("Unit tests",               os.environ["UNITTEST_RESULT"],      f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_unittest.txt"),
+              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_security.txt"),
+              ("Security static analysis",  os.environ["BANDIT_RESULT"],        f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_bandit.txt"),
+              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       f"{os.environ.get('REVISOR_PREFIX', '/tmp/revisor')}_ux.txt"),
           ]
 
           all_pass   = all(outcome == "success" for _, outcome, _ in checks)
