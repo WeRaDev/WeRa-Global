@@ -85,7 +85,7 @@ class ManifoldMarketsProvider:
     def fetch(self, **kwargs: Any) -> IngestionBatch:
         """Fetch markets from Manifold Markets API and convert to MarketEvent."""
         import json as _json
-        from datetime import UTC, datetime
+        from datetime import datetime, timezone
         from urllib.error import URLError
         from urllib.request import Request, urlopen
 
@@ -115,7 +115,7 @@ class ManifoldMarketsProvider:
 
         from .shared.schemas import EVENT_SCHEMA_VERSION
 
-        now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         events = []
         for market in raw:
             if not isinstance(market, dict):
@@ -131,7 +131,7 @@ class ManifoldMarketsProvider:
             close_time = market.get("closeTime")
             hours_to_res = 48.0
             if isinstance(close_time, (int, float)) and close_time > 0:
-                remaining_ms = close_time - datetime.now(UTC).timestamp() * 1000
+                remaining_ms = close_time - datetime.now(timezone.utc).timestamp() * 1000
                 hours_to_res = max(1.0, remaining_ms / 3_600_000)
 
             midpoint = max(0.01, min(0.99, float(prob)))
@@ -189,6 +189,7 @@ class PolymarketLiveProvider:
             source_url=kwargs.get("source_url", self.source_url),
             max_markets=kwargs.get("max_markets", self.max_markets),
             min_volume_24h=kwargs.get("min_volume_24h", self.min_volume_24h),
-            timeout_seconds=kwargs.get("timeout_seconds", self.timeout_seconds),
         )
-        return adapter.fetch()
+        return adapter.load_markets(
+            timeout_seconds=kwargs.get("timeout_seconds", self.timeout_seconds)
+        )
