@@ -3,6 +3,8 @@ name: poly-robot-revisor
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - "ProductionBase/Poly-Robot/**"
 
 permissions:
   contents: read
@@ -11,9 +13,14 @@ jobs:
   revisor-qa:
     name: Revisor QA Audit
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ProductionBase/Poly-Robot
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          github-server-url: http://127.0.0.1:3000
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -105,12 +112,12 @@ jobs:
               return "PASS" if outcome == "success" else "FAIL"
 
           checks = [
-              ("Lint (ruff)",                    os.environ["LINT_RESULT"],          "/tmp/revisor_lint.txt"),
-              ("Type check (mypy)",              os.environ["TYPECHECK_RESULT"],     "/tmp/revisor_mypy.txt"),
-              ("Unit tests",                     os.environ["UNITTEST_RESULT"],      "/tmp/revisor_unittest.txt"),
-              ("Security regression tests",      os.environ["SECURITY_TEST_RESULT"], "/tmp/revisor_security.txt"),
-              ("Security static analysis",       os.environ["BANDIT_RESULT"],        "/tmp/revisor_bandit.txt"),
-              ("UX regression tests",            os.environ["UX_TEST_RESULT"],       "/tmp/revisor_ux.txt"),
+              ("Lint (ruff)",               os.environ["LINT_RESULT"],          "/tmp/revisor_lint.txt"),
+              ("Type check (mypy)",         os.environ["TYPECHECK_RESULT"],     "/tmp/revisor_mypy.txt"),
+              ("Unit tests",               os.environ["UNITTEST_RESULT"],      "/tmp/revisor_unittest.txt"),
+              ("Security regression tests", os.environ["SECURITY_TEST_RESULT"], "/tmp/revisor_security.txt"),
+              ("Security static analysis",  os.environ["BANDIT_RESULT"],        "/tmp/revisor_bandit.txt"),
+              ("UX regression tests",       os.environ["UX_TEST_RESULT"],       "/tmp/revisor_ux.txt"),
           ]
 
           all_pass   = all(outcome == "success" for _, outcome, _ in checks)
