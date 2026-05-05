@@ -1,5 +1,6 @@
 {
   "schema_version": "trl4_profitability_gate.v1",
+  "gate_mode": "combined",
   "min_runtime_hours": 24.0,
   "runtime_hours_per_cycle": 0.0,
   "minimum_expected_value_after_execution_cost": 0.01,
