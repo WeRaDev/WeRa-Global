@@ -31,6 +31,7 @@ Unified umbrella repository for WeRa Global.
 - `skills/registry.yaml` — canonical index and recommended skill execution flow.
 - `skills/evals/evals.json` — baseline prompts for periodic skill quality review.
 - `docs/adr/` — architecture decision record system and templates.
+- `docs/trl4-sync-automation.md` — continuous local→TRL4 Gitea synchronization runbook.
 - `tasks/` — backlog, sprint template, and weekly execution workspace.
 
 ## Development kickoff
