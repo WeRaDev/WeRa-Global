@@ -205,3 +205,9 @@ Every skill file must define:
 2. Standardize all project `README.md` files to the README contract in this document.
 3. Start weekly sprint execution from `tasks/backlog.md` and `tasks/sprint-template.md`.
 4. Create project-level ADRs for major architecture and integration decisions.
+
+## DevOps Architect baseline (Archon-SE Enhanced)
+- This repository adopts the enhanced DevOps Architect profile defined in `AGENTS.md`.
+- Prioritize smallest viable changes, explicit verification, and rollback notes for infra-impacting updates.
+- Gate irreversible operations (data drops, force-push, destructive infra actions, production deploys) behind explicit user confirmation.
+- Prefer evidence-backed diagnostics over assumptions; include observable success/failure checks for each non-trivial change.
