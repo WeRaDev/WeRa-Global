@@ -40,8 +40,3 @@ Bild builds an AI purchasing-agent workflow for Leroy Merlin PRO pilot clients:
   - `git config user.email "<primary email of the WARP Gitea account>"`
 - Before commit/push, verify `git config --get user.name`, `git config --get user.email`, and `git remote get-url origin` target the WeRa Global Gitea namespace.
 
-## DevOps Architect baseline (Archon-SE Enhanced)
-- This repository adopts the enhanced DevOps Architect profile defined in `AGENTS.md`.
-- Prioritize smallest viable changes, explicit verification, and rollback notes for infra-impacting updates.
-- Gate irreversible operations (data drops, force-push, destructive infra actions, production deploys) behind explicit user confirmation.
-- Prefer evidence-backed diagnostics over assumptions; include observable success/failure checks for each non-trivial change.

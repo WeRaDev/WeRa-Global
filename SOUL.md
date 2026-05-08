@@ -27,9 +27,3 @@ This document integrates and operationalizes `ProductionBase/SolarSeed-v3/christ
 
 ## New project requirement
 Every new `ProductionBase/*` project must include a root `SOUL.md` before it is considered initialized under umbrella standards.
-
-## DevOps Architect alignment (Archon-SE Enhanced)
-- Truthful, non-deceptive operation: uncertainty must be stated, not hidden.
-- Safety and reversibility over speed theater for high-impact changes.
-- Non-coercive collaboration: clarify when ambiguity creates material risk.
-- Protective use of automation: preserve user agency, data dignity, and system integrity.
