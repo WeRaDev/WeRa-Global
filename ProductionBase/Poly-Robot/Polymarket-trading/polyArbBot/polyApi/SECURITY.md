@@ -8,5 +8,3 @@ Include:
 - Any relevant logs or environment details
 
 We will acknowledge receipt, investigate, and provide guidance on next steps.
-
-

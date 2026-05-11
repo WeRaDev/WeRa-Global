@@ -676,4 +676,3 @@ class RfqClient:
             }
         else:
             raise Exception(f"invalid match type: {raw_match_type}")
-

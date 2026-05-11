@@ -141,7 +141,7 @@ def main():
 
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-    
+
     if not w3.is_connected():
         print("❌ Не удалось подключиться к Polygon RPC")
         return

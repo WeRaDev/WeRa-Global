@@ -5,14 +5,14 @@ from py_clob_client.rfq.rfq_types import MatchType
 from py_clob_client.order_builder.constants import BUY, SELL
 
 class TestCreateAcceptQuotePayload(TestCase):
-    
+
     def test_complementary(self):
         client = RfqClient(parent=None)
         quote = {
             "matchType": "COMPLEMENTARY",
             "side": BUY,
             "token": "tokenA",
-            "sizeIn": "100", 
+            "sizeIn": "100",
             "sizeOut": "50",
             "price": "0.5",
         }

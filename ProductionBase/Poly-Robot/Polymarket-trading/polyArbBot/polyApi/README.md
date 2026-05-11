@@ -16,8 +16,8 @@ pip install py-clob-client
 ```
 ## Usage
 
-> **Note**  
-> `AsyncClobClient` is the new async-first interface. All methods are `await`-able and can be used in any async event loop (FastAPI, aiohttp, etc.).  
+> **Note**
+> `AsyncClobClient` is the new async-first interface. All methods are `await`-able and can be used in any async event loop (FastAPI, aiohttp, etc.).
 > For quick blocking scripts you can still import `ClobClient` or `SyncClobClient`, which wrap the async client under the hood.
 
 The examples below are short and copy‑pasteable.

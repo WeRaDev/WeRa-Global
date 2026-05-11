@@ -8,5 +8,3 @@ Thanks for helping improve `py-clob-client`.
 - Open a PR with a clear description of the change and motivation.
 
 For security issues, please see `SECURITY.md`.
-
-

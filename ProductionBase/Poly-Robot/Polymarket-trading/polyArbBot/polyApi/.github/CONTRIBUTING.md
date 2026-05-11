@@ -26,4 +26,3 @@ Name your branch with the format `{fix | feat | refactor | chore }/{ description
 - A `feat` adds new functionality/interface surface area
 - A `refactor` changes no business logic or interfaces, but improves implementation
 - A `chore` addresses minor improvements or configuration changes
-

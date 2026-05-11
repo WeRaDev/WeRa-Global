@@ -99,7 +99,7 @@ def main():
     print(f"Host: {host}")
     print(f"Chain ID: {chain_id}")
     print("=" * 60)
-    
+
     # ============================================
     # Step 1: Requester creates RFQ request
     # ============================================
@@ -124,7 +124,7 @@ def main():
     print("Request created successfully!")
     print(f"  Request ID: {request_id}")
     print(f"  Full response: {rfq_request_response}")
-    
+
     # ============================================
     # Step 2: Quoter creates quote for the request
     # ============================================
@@ -158,7 +158,7 @@ def main():
     print(f"  Quote ID: {quote_id}")
     print(f"  Request ID: {request_id}")
     print(f"  Full response: {rfq_quote_response}")
-    
+
     # ============================================
     # Step 3: Requester accepts the quote
     # ============================================
@@ -177,7 +177,7 @@ def main():
     print("Quote accepted successfully!")
     print(f"  Request ID: {request_id}")
     print(f"  Quote ID: {quote_id}")
-    
+
     # ============================================
     # Step 4: Quoter approves the order
     # ============================================
@@ -194,7 +194,7 @@ def main():
     print("Order approved successfully!")
     print(f"  Request ID: {request_id}")
     print(f"  Quote ID: {quote_id}")
-    
+
     # ============================================
     # Summary
     # ============================================
