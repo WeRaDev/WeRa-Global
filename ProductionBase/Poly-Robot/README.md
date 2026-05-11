@@ -32,6 +32,7 @@ Poly-Robot is an incubation-stage WeRa Global sub-project focused on modular rob
 - `scripts/run_canary_stage_enablement.py`: canary stage promotion gate runner that emits ALLOW/DENY decisions from certification + approval records and appends enablement audit evidence.
 - `scripts/run_canary_rollback_guard.py`: rollback enforcement runner that evaluates canary artifacts + cycle telemetry and emits machine-readable incident handoff evidence.
 - `scripts/run_canary_lifecycle_gate.py`: lifecycle orchestration runner that executes readiness certification, stage enablement decisioning, and rollback guard evaluation in one deterministic gate sequence.
+- `scripts/check_py_clob_client_layout.py`: guardrail check ensuring `py_clob_client` has a single canonical location.
 - `src/poly_robot/`: governance, replay, strategy, risk, execution, and policy modules.
 - `src/poly_robot/integration_adapters.py`: hardened historical/live ingestion + execution gateway adapters for bounded retries/timeouts/degraded mode.
 - `src/poly_robot/exit_module.py`: multi-trigger exit engine for target-capture, volume-spike, and stale-thesis confirmations.
@@ -154,6 +155,11 @@ python3 scripts/run_test_token_loop.py \
 Run static type check (auto-installs missing dev tooling when needed):
 ```bash
 python3 scripts/run_typecheck.py
+```
+
+Run `py_clob_client` layout guard (fails if duplicate client tree is present):
+```bash
+python3 scripts/check_py_clob_client_layout.py
 ```
 
 Run C1 runtime supervisor:

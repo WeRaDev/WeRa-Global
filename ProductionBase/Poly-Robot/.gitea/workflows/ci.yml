@@ -28,6 +28,9 @@ jobs:
           test -f CONTRIBUTING.md
           test -d tasks
           test -d skills
+      - name: py_clob_client layout guard
+        run: |
+          python3 scripts/check_py_clob_client_layout.py
       - name: Lint check
         run: |
           ruff check src/poly_robot tests scripts
