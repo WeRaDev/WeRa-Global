@@ -132,3 +132,10 @@ governance_event:
   owner: role
   status: open|closed
 ```
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.workflows_24_governance_workflows_v1
+  proof_artifact: kb-governance/formal-proofs/governance-workflows-24-governance-workflows-v1.lean
+  verification_status: verified

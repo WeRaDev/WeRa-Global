@@ -43,3 +43,10 @@ Closure of sprint `2026-17` follow-up (`FOLLOW-01`) and progression review for r
 - Mark `FOLLOW-01` as completed and phase-advance evidence as recorded.
 - Continue with parser-hardening before broadening strict metadata enum enforcement to legacy-normalized documents.
 - Keep contradiction routing item `Q31` under existing owner/due-action governance path.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.events_2026_04_18_follow_01_runner_ci_phase_advance_review
+  proof_artifact: kb-governance/formal-proofs/governance-events-2026-04-18-follow-01-runner-ci-phase-advance-review.lean
+  verification_status: verified

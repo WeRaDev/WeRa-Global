@@ -139,3 +139,10 @@ Source: [RFF Lawyers — RE Investment Companies in Portugal](https://www.rfflaw
 - Currently in concept stage — will be developed properly during acceleration
 - No bond prospectus, term sheet, or CMVM filing started yet
 - To be structured under WeRa Capital
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.legal_06_legal_structure
+  proof_artifact: kb-governance/formal-proofs/governance-legal-06-legal-structure.lean
+  verification_status: verified

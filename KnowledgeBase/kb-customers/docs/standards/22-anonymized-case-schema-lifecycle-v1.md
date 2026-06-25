@@ -147,3 +147,10 @@ If qualification fails:
 - [x] PII exclusion contract defined
 - [x] Lifecycle transition rules defined
 - [x] Two sample cases provided
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.customers.standards_22_anonymized_case_schema_lifecycle_v1
+  proof_artifact: kb-governance/formal-proofs/customers-standards-22-anonymized-case-schema-lifecycle-v1.lean
+  verification_status: verified

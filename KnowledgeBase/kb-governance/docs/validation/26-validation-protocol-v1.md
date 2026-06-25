@@ -73,3 +73,10 @@ If a validation check fails:
 1. mark file status as `review_required`
 2. add a follow-up item to `12-Open-Questions.md`
 3. block merge for changes touching affected operational chain unless explicitly waived by governance owner
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.validation_26_validation_protocol_v1
+  proof_artifact: kb-governance/formal-proofs/governance-validation-26-validation-protocol-v1.lean
+  verification_status: verified

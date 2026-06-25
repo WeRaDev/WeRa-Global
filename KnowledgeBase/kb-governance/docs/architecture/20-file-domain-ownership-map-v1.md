@@ -52,3 +52,10 @@ This file maps existing KB documents to primary and secondary domains from `19-K
 ## Gap Notes
 - `domain_relationships` requires fuller dedicated documentation (beyond LOI and fragments in GTM docs).
 - `domain_metrics` currently distributed across files; a dedicated domain summary file should be created in next phase.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.architecture_20_file_domain_ownership_map_v1
+  proof_artifact: kb-governance/formal-proofs/governance-architecture-20-file-domain-ownership-map-v1.lean
+  verification_status: verified

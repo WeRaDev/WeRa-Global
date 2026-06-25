@@ -44,3 +44,10 @@ REALIGN-11 governance review for the migrated pilot chain after single-repositor
 ## Required Follow-ups
 - [Action] Enable wiki endpoint and publish seed pages | [Owner] governance steward | [Due] next sprint week 1
 - [Action] Materialize Gitea workflow files from CI spec v2 and run dry-run | [Owner] technical steward | [Due] next sprint week 1
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.events_2026_04_17_realign_11_canonical_pilot_chain_review
+  proof_artifact: kb-governance/formal-proofs/governance-events-2026-04-17-realign-11-canonical-pilot-chain-review.lean
+  verification_status: verified

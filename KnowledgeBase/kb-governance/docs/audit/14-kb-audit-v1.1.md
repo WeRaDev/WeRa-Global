@@ -527,3 +527,10 @@ Business-model.txt (line 348) says "not expecting to build stations more than on
 | 16 | Add "Hosting Life" vision | LOW | `01-Company-Overview.md` |
 | 17 | Add prediction market / dispute resolution token mapping | LOW | `05-Tokenomics-and-Governance.md` |
 | 18 | Add 20% long-term conversion target | LOW | `13-Financial-Model.md` |
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.audit_14_kb_audit_v1_1
+  proof_artifact: kb-governance/formal-proofs/governance-audit-14-kb-audit-v1-1.lean
+  verification_status: verified

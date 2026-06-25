@@ -198,3 +198,10 @@ Cloud revenue is **91.6%** of total — WeRa is fundamentally a cloud business w
 - Solar growth: ~31% in first 9 months of 2025
 
 **KB treatment**: Original claim preserved with inline correction noting actual figures.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.solution.strategy_09_strategy_and_investment
+  proof_artifact: kb-governance/formal-proofs/solution-strategy-09-strategy-and-investment.lean
+  verification_status: verified

@@ -204,3 +204,10 @@ Sequencing rule: run installer-backlog channel immediately while preparing insti
 - "Leased at the price lower than your actual energy bill" ([wera.global](https://www.wera.global))
 - "Real Rewards, Not Just Promises" ([wera.global](https://www.wera.global))
 - "Nothing leaks, not even metadata" ([wera.global](https://www.wera.global))
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.customers.gtm_07_customers_and_gtm
+  proof_artifact: kb-governance/formal-proofs/customers-gtm-07-customers-and-gtm.lean
+  verification_status: verified

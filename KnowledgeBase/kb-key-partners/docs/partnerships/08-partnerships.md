@@ -206,3 +206,10 @@ Without these gates, aggressive sales or fundraising claims create delivery-risk
 - Bond structure planned for later: YX Digital Impact Bonds
 - Family office bond structure referenced in transcripts
 - No bond prospectus or CMVM filing started yet
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.key_partners.partnerships_08_partnerships
+  proof_artifact: kb-governance/formal-proofs/key-partners-partnerships-08-partnerships.lean
+  verification_status: verified

@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-06-22",
+  "conflict_count": 1,
+  "queue": [
+    {
+      "order": 1,
+      "source": "Strategy/Business-Model/current-business-model.md",
+      "target": "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md",
+      "similarity_to_target": 0.014,
+      "source_heading_count": 67,
+      "target_heading_count": 20,
+      "source_only_headings_sample": [
+        "# WeRa — Полное системное описание текущей бизнес-модели",
+        "## 1. Каноническая формулировка объекта",
+        "### 1.1 Что WeRa строит сейчас",
+        "### 1.2 Что является первым sellable object",
+        "### 1.3 Что бизнес обещает клиенту",
+        "## 2. Проблема, которую решает модель",
+        "### 2.1 Проблема клиента",
+        "### 2.2 Проблема installer-side",
+        "### 2.3 Зачем нужен WeRa-layer",
+        "## 3. Границы модели",
+        "### 3.1 Что входит в current baseline",
+        "### 3.2 Что optional, но допустимо как следующий слой"
+      ],
+      "target_only_headings_sample": [
+        "# 03 — Business Model",
+        "## Consolidation provenance",
+        "## SPLIT-09 Metadata Contract",
+        "## Revenue Streams",
+        "### Stream 1: Physical — SolarSeed Leasing",
+        "### Stream 2: Digital — WERA Cloud Subscriptions",
+        "### Stream 3: Tokenization Services",
+        "### Stream 4: Bond Returns (Funding Mechanism)"
+      ],
+      "resolution_options": [
+        "replace_target_with_source_and_reapply_canonical_provenance",
+        "append_source_as_new_related_doc_and_keep_target",
+        "split_source_sections_into_target_plus_companion_doc"
+      ],
+      "status": "default_applied_due_no_user_override",
+      "default_action_applied": "split_target_and_companion",
+      "applied_changes": {
+        "canonical_target_preserved": "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md",
+        "companion_imported": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Business-Model/current-business-model.md",
+        "target_cross_link_added": true
+      },
+      "resolution_note": "User skipped override prompts; preserving canonical 03 and annex companion as default split strategy."
+    }
+  ]
+}

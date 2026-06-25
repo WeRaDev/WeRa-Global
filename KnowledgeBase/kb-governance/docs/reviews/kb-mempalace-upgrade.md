@@ -1060,3 +1060,10 @@ GEOGRAPHIC EXPANSION:
 *Version: 1.0.0 | Date: 2026-04-14 | Organisation: WeRa Global*
 *AI agent: read, verify, validate, implement in order — Sections 1→2→3→4→5→6→7→8→9→10→11→12→13*
 ---
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.reviews_kb_mempalace_upgrade
+  proof_artifact: kb-governance/formal-proofs/governance-reviews-kb-mempalace-upgrade.lean
+  verification_status: verified

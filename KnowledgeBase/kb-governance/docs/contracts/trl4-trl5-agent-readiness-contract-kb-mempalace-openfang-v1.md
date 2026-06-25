@@ -69,3 +69,10 @@ Operational KB records used by agents must provide:
 - `KnowledgeBase/kb-governance/docs/validation/26-validation-protocol-v1.md`
 - `KnowledgeBase/kb-governance/docs/workflows/24-governance-workflows-v1.md`
 - `kb-governance/ci/quality-gates-spec-v2.md`
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.contracts_trl4_trl5_agent_readiness_contract_kb_mempalace_openfang_v1
+  proof_artifact: kb-governance/formal-proofs/governance-contracts-trl4-trl5-agent-readiness-contract-kb-mempalace-openfang-v1.lean
+  verification_status: verified

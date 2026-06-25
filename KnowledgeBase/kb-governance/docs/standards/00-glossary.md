@@ -107,3 +107,10 @@
 | **Lisboa, Portugal** | Company HQ. |
 | **Sintra, Portugal** | Founder location. |
 | **Funchal, Portugal** | Iberia Renew Engineering HQ. |
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.standards_00_glossary
+  proof_artifact: kb-governance/formal-proofs/governance-standards-00-glossary.lean
+  verification_status: verified

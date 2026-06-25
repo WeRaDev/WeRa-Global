@@ -21,6 +21,13 @@
   - review_status: `pending-entity-review`
 - chain_link: `revenue -> metrics`
 
+## Source-sync companion (merge prep 2026-06-22)
+- Imported companion source:
+  - `kb-governance/docs/annex/source-sync/Strategy/Business-Model/current-business-model.md`
+- Current merge strategy:
+  - Keep this file as canonical revenue-mechanics baseline.
+  - Resolve expanded operating/legal/governance deltas from the companion through conflict-by-conflict review.
+
 ---
 
 ## Revenue Streams
@@ -188,3 +195,10 @@ The three-entity structure (Swiss Foundation, Dutch STAK, Portuguese CIC) is des
 - Dutch STAK separates voting rights from economic interests, enabling flexible token governance
 - Swiss Foundation provides impact-focused tax treatment
 - Full details in `06-Legal-Structure.md`
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.revenue_streams.model_03_business_model
+  proof_artifact: kb-governance/formal-proofs/revenue-streams-model-03-business-model.lean
+  verification_status: verified

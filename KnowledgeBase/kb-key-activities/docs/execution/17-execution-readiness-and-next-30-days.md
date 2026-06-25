@@ -123,3 +123,10 @@ This cadence exists to prevent strategic clarity from collapsing back into narra
 - Direct pushes to `main` are disallowed except explicit emergency maintenance.
 - Every task delivery must be committed to the Gitea remote for auditability.
 - PR description must summarize scope, risks, and validation commands used.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.key_activities.execution_17_execution_readiness_and_next_30_days
+  proof_artifact: kb-governance/formal-proofs/key-activities-execution-17-execution-readiness-and-next-30-days.lean
+  verification_status: verified

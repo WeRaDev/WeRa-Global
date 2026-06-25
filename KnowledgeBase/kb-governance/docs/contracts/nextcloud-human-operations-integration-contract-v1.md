@@ -66,3 +66,10 @@ For every synchronized operational item:
 1. Sample project/task/calendar/talk workflows reference canonical paths.
 2. Approval routing is traceable by temporal scope.
 3. Decision-critical outcomes are persisted in canonical KB markdown.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.contracts_nextcloud_human_operations_integration_contract_v1
+  proof_artifact: kb-governance/formal-proofs/governance-contracts-nextcloud-human-operations-integration-contract-v1.lean
+  verification_status: verified

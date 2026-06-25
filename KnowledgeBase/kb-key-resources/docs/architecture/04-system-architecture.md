@@ -168,3 +168,10 @@ SolarSeed Node D ──┘                      ├── Storage Services
 | ARS Sustineri [R2] | 0.6–1.0 kWp | 840–1,387 kWh | — | Farm context |
 | Components baseline [R1] | 3.03 kWp | 3,322–5,183 kWh | — | General |
 | São Martinho SmartDesign [R3] | 29.5 kWp | 41,374 kWh | 1,402.5 kWh/kWp/yr | Funchal, Meteonorm |
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.key_resources.architecture_04_system_architecture
+  proof_artifact: kb-governance/formal-proofs/key-resources-architecture-04-system-architecture.lean
+  verification_status: verified

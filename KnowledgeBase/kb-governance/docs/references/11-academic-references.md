@@ -89,3 +89,10 @@
 - Strong academic validation for: blockchain energy communities, token-based PV ownership transfer, DePIN solar forecasting, federated energy management
 - Gaps: limited academic work specifically on combined solar+cloud+token models (WeRa's unique positioning)
 - Most relevant single paper: Surmann et al. (2022) on token-based PV asset transfer in energy communities — directly mirrors WeRa's mutual leasing + tokenization approach
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.references_11_academic_references
+  proof_artifact: kb-governance/formal-proofs/governance-references-11-academic-references.lean
+  verification_status: verified
