@@ -91,3 +91,10 @@ Excluded from completion scope (deferred):
 1. Treat this document as canonical completion decision for the current KB-upgrade thread.
 2. Execute deferred items through normal sprint/governance cadence.
 3. When deferred items are resolved, update `12` and publish a governance event if scope or policy shifts.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.status_32_kb_upgrade_completion_deferral_policy_2026_04_15
+  proof_artifact: kb-governance/formal-proofs/governance-status-32-kb-upgrade-completion-deferral-policy-2026-04-15.lean
+  verification_status: verified

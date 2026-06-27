@@ -293,3 +293,10 @@ Cloud revenue dominates at 91.6% of total — the business is fundamentally a cl
 - **Cash cliff at Q2Y2**: €38,980 remaining — Series A timing is critical
 - **Rented capacity scaling**: Rented cloud costs scale linearly; need SolarSeed deployment to keep pace
 - **Valuation jumps**: €4.2M → €200M → €1.25B in 2 years — aggressive; requires exceptional traction proof
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.metrics.financial_13_financial_model
+  proof_artifact: kb-governance/formal-proofs/metrics-financial-13-financial-model.lean
+  verification_status: verified

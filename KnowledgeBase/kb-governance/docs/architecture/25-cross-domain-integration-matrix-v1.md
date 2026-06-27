@@ -62,3 +62,10 @@ Interpretation:
 - Business model defines pricing/qualification logic
 - Financial model defines measurable performance outcomes
 - Open questions capture unresolved risk and validation backlog
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.architecture_25_cross_domain_integration_matrix_v1
+  proof_artifact: kb-governance/formal-proofs/governance-architecture-25-cross-domain-integration-matrix-v1.lean
+  verification_status: verified

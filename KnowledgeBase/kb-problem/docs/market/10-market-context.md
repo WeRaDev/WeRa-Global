@@ -142,3 +142,10 @@ Source: [Nadcab](https://www.nadcab.com/blog/depin-growth-projections)
 | Combined solar+cloud+token | **Unique positioning** | No direct comparable |
 
 WeRa's key differentiator is the combination of all three verticals in a single product (SolarSeed), which no competitor currently offers.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.problem.market_10_market_context
+  proof_artifact: kb-governance/formal-proofs/problem-market-10-market-context.lean
+  verification_status: verified

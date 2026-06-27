@@ -55,3 +55,10 @@ Sprint `2026-20` execution of carry-over `FOLLOW19-01`, focused on durable conta
   - revert checkout override changes in `.gitea/workflows/kb-canonical-validate.yml` and `.gitea/workflows/kb-governance-routing.yml`,
   - restore prior runner configuration from `/Users/mikhailananyin/.act_runner_wera_global/config.yaml.bak.sprint202620.20260419182434`,
   - re-run host-mode verification workflows before further infra changes.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.events_2026_04_19_follow19_01_container_checkout_pilot_review
+  proof_artifact: kb-governance/formal-proofs/governance-events-2026-04-19-follow19-01-container-checkout-pilot-review.lean
+  verification_status: verified

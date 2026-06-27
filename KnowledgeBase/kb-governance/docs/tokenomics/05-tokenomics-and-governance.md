@@ -217,3 +217,10 @@ The bond is a **funding mechanism** designed for institutional investors, not a 
 - Projected €500B in tokenized real estate by 2027 (ECB estimates)
 - Global tokenized RWAs reached ~$33B in 2025 (excluding stablecoins)
 - Source: [CryptoverseLawyers MiCA 2026](https://www.cryptoverselawyers.io/mica-rwa-tokenization-eu-2026/)
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.tokenomics_05_tokenomics_and_governance
+  proof_artifact: kb-governance/formal-proofs/governance-tokenomics-05-tokenomics-and-governance.lean
+  verification_status: verified

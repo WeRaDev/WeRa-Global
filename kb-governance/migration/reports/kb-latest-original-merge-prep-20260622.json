@@ -1,0 +1,301 @@
+{
+  "generated_at": "2026-06-27",
+  "scope": {
+    "source_root": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original",
+    "source_included_prefixes": [
+      "Strategy/",
+      "Outputs/PM-Reviews/"
+    ],
+    "target_root": "KnowledgeBase/"
+  },
+  "summary": {
+    "source_doc_count": 32,
+    "direct_add_missing_target": 16,
+    "annex_add": 15,
+    "already_aligned_target": 0,
+    "conflict_existing_target": 1,
+    "target_collisions": 0
+  },
+  "target_collisions": {},
+  "conflict_queue": [
+    {
+      "source": "Strategy/Business-Model/current-business-model.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/current-business-model.md",
+      "classification": "conflict_existing_target",
+      "target": "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md",
+      "similarity_to_target": 0.014,
+      "notes": []
+    }
+  ],
+  "rows": [
+    {
+      "source": "Strategy/Business-Model/2026-05-21-project-note-v1-anti-crisis-decision-pack.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/2026-05-21-project-note-v1-anti-crisis-decision-pack.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Business-Model/2026-05-21-project-note-v1-anti-crisis-decision-pack.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/2026-05-21-smart-proxy-concept-note-v2.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/2026-05-21-smart-proxy-concept-note-v2.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Business-Model/2026-05-21-smart-proxy-concept-note-v2.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/2026-05-21-working-note-v2-anti-crisis-strategy.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/2026-05-21-working-note-v2-anti-crisis-strategy.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Business-Model/2026-05-21-working-note-v2-anti-crisis-strategy.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/2026-06-07-working-note-v3-anti-crisis-human-center.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/2026-06-07-working-note-v3-anti-crisis-human-center.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Business-Model/2026-06-07-working-note-v3-anti-crisis-human-center.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/README.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/README.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Business-Model/README.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/SolarSeed.pilot.tv.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/SolarSeed.pilot.tv.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-customers/docs/cases/46-torres-vedras-runtime-evidence-brief-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/UTS.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/UTS.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/standards/34-unified-term-sheet-uts-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/capital-architecture.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/capital-architecture.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-revenue-streams/docs/model/39-capital-architecture-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/claim-register.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/claim-register.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/validation/36-claim-register-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/current-business-model.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/current-business-model.md",
+      "classification": "conflict_existing_target",
+      "target": "KnowledgeBase/kb-revenue-streams/docs/model/03-business-model.md",
+      "similarity_to_target": 0.014,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/executed-vs-designed.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/executed-vs-designed.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/validation/37-executed-vs-designed-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/open-gates.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/open-gates.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/open-questions/38-open-gates-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/starter-drr.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/starter-drr.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/standards/35-starter-drr-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/torres-vedras-pilot-memorialisation-pack.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/torres-vedras-pilot-memorialisation-pack.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/legal/47-torres-vedras-memorialisation-pack-recommendation-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Business-Model/torres-vedras-pilot-questionnaire.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Business-Model/torres-vedras-pilot-questionnaire.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-customers/docs/cases/45-torres-vedras-pilot-questionnaire-v2.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Digital-RnD/2026-05-18-concept-note-wera-cloud-rnd.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Digital-RnD/2026-05-18-concept-note-wera-cloud-rnd.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Digital-RnD/2026-05-18-concept-note-wera-cloud-rnd.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Fundraising/2026-05-19-grants-and-farmer-support-plan.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Fundraising/2026-05-19-grants-and-farmer-support-plan.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Fundraising/2026-05-19-grants-and-farmer-support-plan.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Fundraising/README.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Fundraising/README.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Fundraising/README.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/README.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/README.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Legal/README.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/legal-operating-description-draft.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/legal-operating-description-draft.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Legal/legal-operating-description-draft.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/miguel-track-a-torres-vedras-memo.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/miguel-track-a-torres-vedras-memo.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/legal/41-miguel-track-a-torres-vedras-memo-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/miguel-track-b-baseline-memo.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/miguel-track-b-baseline-memo.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Legal/miguel-track-b-baseline-memo.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/miguel-track-b1-energy-contract-memo.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/miguel-track-b1-energy-contract-memo.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/legal/42-miguel-track-b1-energy-contract-memo-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/miguel-track-b2-consumer-credit-memo.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/miguel-track-b2-consumer-credit-memo.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/legal/43-miguel-track-b2-consumer-credit-memo-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/miguel-track-b3-corporate-structure-memo.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/miguel-track-b3-corporate-structure-memo.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/legal/44-miguel-track-b3-corporate-structure-memo-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/references/README.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/references/README.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Legal/references/README.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Legal/regulatory-routing-and-power-tier-matrix.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Legal/regulatory-routing-and-power-tier-matrix.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/legal/40-regulatory-routing-power-tier-matrix-v1.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/README.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/README.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/README.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Strategy/Scenarios/README.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Strategy/Scenarios/README.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Strategy/Scenarios/README.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Outputs/PM-Reviews/2026-04-27-action-plan-and-roadmap.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Outputs/PM-Reviews/2026-04-27-action-plan-and-roadmap.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/status/49-action-plan-roadmap-2026-04-27.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Outputs/PM-Reviews/2026-04-27-project-review.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Outputs/PM-Reviews/2026-04-27-project-review.md",
+      "classification": "direct_add_missing_target",
+      "target": "KnowledgeBase/kb-governance/docs/status/48-project-review-deep-audit-2026-04-27.md",
+      "similarity_to_target": null,
+      "notes": []
+    },
+    {
+      "source": "Outputs/PM-Reviews/2026-05-25-anton-solarseed-deal-review.md",
+      "source_path": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original/Outputs/PM-Reviews/2026-05-25-anton-solarseed-deal-review.md",
+      "classification": "annex_add",
+      "target": "KnowledgeBase/kb-governance/docs/annex/source-sync/Outputs/PM-Reviews/2026-05-25-anton-solarseed-deal-review.md",
+      "similarity_to_target": null,
+      "notes": []
+    }
+  ],
+  "formal_proof_gate": {
+    "checked_at_utc": "2026-06-27T10:59:00Z",
+    "scan_scope": "operational-kb-docs-only",
+    "status": "passed",
+    "decision": "hardened_full_scope",
+    "reason": "All operational KB docs under KnowledgeBase/kb-*/docs include formal_proof blocks with valid Lean artifacts; non-operational KB markdown is intentionally excluded from this gate.",
+    "excluded_scopes": [
+      "KnowledgeBase/*.md compatibility stubs and top-level index files",
+      "KnowledgeBase/templates/**",
+      "KnowledgeBase/**/README.md"
+    ]
+  },
+  "mapping_generated_at": "2026-06-22"
+}

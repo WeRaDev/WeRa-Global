@@ -350,3 +350,10 @@ SolarSeed installed → Energy generated → Powers WERA Cloud node (COGS = €0
 - **[R1]** `docs/reference/components.csv` — Base configuration BOM
 - **[R2]** `docs/reference/ARS Sustineri.odt` — S-Profile origin model
 - **[R3]** `docs/reference/São Martinho 9000-273 Funchal 4_Design One_20260309-192243.pdf` — L-Profile benchmark (29.5 kWp, Funchal, ~1,402.5 kWh/kWp/yr specific yield)
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.value_proposition.products_02_products
+  proof_artifact: kb-governance/formal-proofs/value-proposition-products-02-products.lean
+  verification_status: verified

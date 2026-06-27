@@ -343,3 +343,10 @@ This value is recognised on the WeRa balance sheet as internally developed softw
 ---
 
 *Last updated: April 2026 — v3.0.6*
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.key_activities.platform_16_filantropiasolar_platform
+  proof_artifact: kb-governance/formal-proofs/key-activities-platform-16-filantropiasolar-platform.lean
+  verification_status: verified

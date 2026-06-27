@@ -150,3 +150,10 @@ Acceptance:
 - All strategic/technical claims have explicit evidence status.
 - Agent write operations are permissioned and reviewable.
 - The architecture is executable in WeRa’s actual environment, not only in abstract specification.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.reviews_18_mempalace_critical_review_action_plan
+  proof_artifact: kb-governance/formal-proofs/governance-reviews-18-mempalace-critical-review-action-plan.lean
+  verification_status: verified

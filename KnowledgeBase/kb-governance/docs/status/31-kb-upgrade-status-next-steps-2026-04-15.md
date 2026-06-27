@@ -74,3 +74,10 @@ Execution transition is now governed by `33-KB-AI-Native-Bridge-v3.2-2026-04-24.
 ## Exit Condition for This Upgrade Thread
 - KB-upgrade completion decision is documented (`32`) and indexed (`README`).
 - `12`, `31`, `24`, and `27` remain policy-consistent on deferred unresolved items and hardened benchmark controls.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.status_31_kb_upgrade_status_next_steps_2026_04_15
+  proof_artifact: kb-governance/formal-proofs/governance-status-31-kb-upgrade-status-next-steps-2026-04-15.lean
+  verification_status: verified

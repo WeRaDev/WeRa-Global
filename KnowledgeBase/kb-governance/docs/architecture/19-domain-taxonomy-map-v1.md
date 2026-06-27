@@ -59,3 +59,10 @@ Conclusion: current structure is content-rich but governance-light for a case-op
 - [x] Governance layer explicit
 - [ ] Domain stewards assigned by role/person
 - [ ] Migration of all documents to domain-front-matter complete
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.architecture_19_domain_taxonomy_map_v1
+  proof_artifact: kb-governance/formal-proofs/governance-architecture-19-domain-taxonomy-map-v1.lean
+  verification_status: verified

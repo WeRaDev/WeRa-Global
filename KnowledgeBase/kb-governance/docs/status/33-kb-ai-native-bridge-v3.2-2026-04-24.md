@@ -67,3 +67,10 @@ Each approval package must include:
 - KPI gates and low-risk AI boundary are codified in governance policy.
 - Controlled hybrid services approval protocol is active.
 - Q31 emergency closure package is published and tracked with owner and due date.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.status_33_kb_ai_native_bridge_v3_2_2026_04_24
+  proof_artifact: kb-governance/formal-proofs/governance-status-33-kb-ai-native-bridge-v3-2-2026-04-24.lean
+  verification_status: verified

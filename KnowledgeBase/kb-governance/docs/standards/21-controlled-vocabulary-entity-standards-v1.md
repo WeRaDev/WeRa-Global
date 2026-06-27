@@ -83,3 +83,10 @@ Rule: deprecated aliases may appear only in historical notes with explicit “al
 - `review_status`
 
 Without these fields, entry is draft-only and cannot be treated as KB fact.
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.governance.standards_21_controlled_vocabulary_entity_standards_v1
+  proof_artifact: kb-governance/formal-proofs/governance-standards-21-controlled-vocabulary-entity-standards-v1.lean
+  verification_status: verified

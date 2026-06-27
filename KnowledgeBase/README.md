@@ -1,9 +1,9 @@
 # WeRa Global — Project Knowledge Base
 
-> **Version**: 2.6 — May 2026
+> **Version**: 2.7 — June 2026
 > **Scope**: Complete machine-readable reference for the WeRa Global project
 > **Sources**: Project transcripts, wera.global website, SolarSeed technical description, WeRa financials (4 CSVs), web research, academic literature, social media
-> **Changelog v2.6**: Recorded repository-governance migration of `ProductionBase/Poly-Robot` from umbrella-native tracking to independent delegated repository registration under `ProductionBase/repos.yaml`, while preserving umbrella `KnowledgeBase/` canonical authority.
+> **Changelog v2.7**: Added source-sync merge-prep ingestion lane from `KB-latest-original` for Strategy and PM review artifacts, including canonical additions `34`-`49` and annex preservation under `kb-governance/docs/annex/source-sync/`.
 
 ---
 
@@ -85,9 +85,26 @@
 | 31 | `kb-governance/docs/status/31-kb-upgrade-status-next-steps-2026-04-15.md` | KB-upgrade completion-state status and post-upgrade handoff summary |
 | 32 | `kb-governance/docs/status/32-kb-upgrade-completion-deferral-policy-2026-04-15.md` | Canonical completion decision, unresolved-question deferral policy, and TRL4-scoped MemPalace integration rule |
 | 33 | `kb-governance/docs/status/33-kb-ai-native-bridge-v3.2-2026-04-24.md` | v3.2 bridge from AI-native research proposal to KPI-gated operational rollout policy |
+| 34 | `kb-governance/docs/standards/34-unified-term-sheet-uts-v1.md` | Source-synced UTS contract for risky terminology control and canonical object boundaries |
+| 35 | `kb-governance/docs/standards/35-starter-drr-v1.md` | Source-synced decision/rationale/revisit register for baseline selection governance |
+| 36 | `kb-governance/docs/validation/36-claim-register-v1.md` | Source-synced claim-status register with owner, evidence carrier, and next-test controls |
+| 37 | `kb-governance/docs/validation/37-executed-vs-designed-v1.md` | Source-synced executed-vs-designed separator for anti-overclaim governance |
+| 38 | `kb-governance/docs/open-questions/38-open-gates-v1.md` | Source-synced load-bearing gate register for legal/financial execution readiness |
+| 39 | `kb-revenue-streams/docs/model/39-capital-architecture-v1.md` | Source-synced stage-wise CAPEX and financing architecture baseline |
+| 40 | `kb-governance/docs/legal/40-regulatory-routing-power-tier-matrix-v1.md` | Source-synced regulator routing and power/grid-status matrix baseline |
+| 41 | `kb-governance/docs/legal/41-miguel-track-a-torres-vedras-memo-v1.md` | Source-synced Track A legal memo lane for Torres Vedras retrospective qualification |
+| 42 | `kb-governance/docs/legal/42-miguel-track-b1-energy-contract-memo-v1.md` | Source-synced Track B.1 legal memo lane for energy contract qualification |
+| 43 | `kb-governance/docs/legal/43-miguel-track-b2-consumer-credit-memo-v1.md` | Source-synced Track B.2 legal memo lane for consumer-credit/intermediation qualification |
+| 44 | `kb-governance/docs/legal/44-miguel-track-b3-corporate-structure-memo-v1.md` | Source-synced Track B.3 legal memo lane for corporate/securities/tax structure |
+| 45 | `kb-customers/docs/cases/45-torres-vedras-pilot-questionnaire-v2.md` | Source-synced Torres Vedras pilot fact-sheet baseline |
+| 46 | `kb-customers/docs/cases/46-torres-vedras-runtime-evidence-brief-v1.md` | Source-synced Torres Vedras runtime evidence brief |
+| 47 | `kb-governance/docs/legal/47-torres-vedras-memorialisation-pack-recommendation-v1.md` | Source-synced memorialisation pack recommendation for pilot legal closure |
+| 48 | `kb-governance/docs/status/48-project-review-deep-audit-2026-04-27.md` | Source-synced deep-audit status verdict and critical finding registry |
+| 49 | `kb-governance/docs/status/49-action-plan-roadmap-2026-04-27.md` | Source-synced action plan and gate-sequenced roadmap baseline |
 | — | `WARP.md` | Dedicated KnowledgeBase operating rules, reflection outcomes, and mandatory PR checklist |
 | — | `kb-governance/docs/open-questions/12-open-questions.md` | Canonical unresolved-question register for governance execution |
 | — | `kb-governance/docs/events/2026-04-24-q31-emergency-closure-kickoff.md` | Emergency governance kickoff event for Q31 closure package |
+| — | `kb-governance/docs/annex/source-sync/` | Full Strategy and PM-review source-sync annex lane from `KB-latest-original` for evidence-preserving merge prep |
 | — | `tools/run_mempalace_longmemeval_docker.sh` | Docker-only LongMemEval dry-run runner for Q29 evidence collection |
 | — | `tools/security_checks_onnx.sh` | ONNX version/pattern security checks for CVE risk controls |
 | — | `templates/LOI-SolarSeed-Template.md` | Letter of Intent template for customer pre-assessment |

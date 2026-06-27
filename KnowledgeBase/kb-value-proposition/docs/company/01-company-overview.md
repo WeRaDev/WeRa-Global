@@ -110,3 +110,10 @@ The long-term vision extends beyond energy and cloud:
 - **Equipment marketplace** — leasing any appliance (fridges, stoves, industrial equipment, gaming consoles) through the SolarSeed platform
 
 Source: strategy.overal.txt
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.value_proposition.company_01_company_overview
+  proof_artifact: kb-governance/formal-proofs/value-proposition-company-01-company-overview.lean
+  verification_status: verified

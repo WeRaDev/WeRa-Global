@@ -349,3 +349,10 @@ This creates a moat that is physically embedded — competitors cannot replicate
 ---
 
 *Last updated: 2026-04-08 | Author: WeRa Knowledge Base System | Status: Internal — Commercial in Confidence*
+
+formal_proof:
+  engine: ml-hilbert
+  trl_phase: TRL6
+  obligation_id: kb.key_resources.suppliers_15_sunified_quantum_resistance
+  proof_artifact: kb-governance/formal-proofs/key-resources-suppliers-15-sunified-quantum-resistance.lean
+  verification_status: verified
