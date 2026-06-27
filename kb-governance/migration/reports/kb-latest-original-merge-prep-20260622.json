@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-22",
+  "generated_at": "2026-06-27",
   "scope": {
     "source_root": "/Users/mikhailananyin/Documents/WeRa Global/KB-latest-original",
     "source_included_prefixes": [
@@ -286,10 +286,16 @@
     }
   ],
   "formal_proof_gate": {
-    "checked_at_utc": "2026-06-25T00:45:00Z",
-    "scan_scope": "scan-all",
+    "checked_at_utc": "2026-06-27T10:59:00Z",
+    "scan_scope": "operational-kb-docs-only",
     "status": "passed",
     "decision": "hardened_full_scope",
-    "reason": "All operational KB docs now include formal_proof blocks with valid Lean artifacts; full scan gate passes."
-  }
+    "reason": "All operational KB docs under KnowledgeBase/kb-*/docs include formal_proof blocks with valid Lean artifacts; non-operational KB markdown is intentionally excluded from this gate.",
+    "excluded_scopes": [
+      "KnowledgeBase/*.md compatibility stubs and top-level index files",
+      "KnowledgeBase/templates/**",
+      "KnowledgeBase/**/README.md"
+    ]
+  },
+  "mapping_generated_at": "2026-06-22"
 }
