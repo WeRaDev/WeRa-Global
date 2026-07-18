@@ -22,3 +22,6 @@
 	path = ProductionBase/Poly-Robot
 	url = http://127.0.0.1:3000/wera-global/Poly-Robot.git
 	branch = main
+[submodule "ProductionBase/SolarState"]
+	path = ProductionBase/SolarState
+	url = http://127.0.0.1:3000/wera-global/SolarState.git

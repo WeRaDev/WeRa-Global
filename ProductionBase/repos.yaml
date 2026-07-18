@@ -74,3 +74,11 @@ repos:
     role: gamified observer/mainframe UI for City of Light operations
     vcs_mode: native
     baseline_policy: enforced
+  - id: SolarState
+    path: ProductionBase/SolarState
+    gitea_url: http://127.0.0.1:3000/wera-global/SolarState.git
+    default_branch: main
+    status: active
+    role: global analytics, network map, and cityview-global operator UI layer
+    vcs_mode: submodule
+    baseline_policy: delegated
