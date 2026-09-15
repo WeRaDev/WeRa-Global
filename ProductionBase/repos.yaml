@@ -72,8 +72,8 @@ repos:
     default_branch: main
     status: incubation
     role: gamified observer/mainframe UI for City of Light operations
-    vcs_mode: native
-    baseline_policy: enforced
+    vcs_mode: submodule
+    baseline_policy: delegated
   - id: SolarState
     path: ProductionBase/SolarState
     gitea_url: http://127.0.0.1:3000/wera-global/SolarState.git
