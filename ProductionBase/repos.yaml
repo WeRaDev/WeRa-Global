@@ -82,3 +82,11 @@ repos:
     role: global analytics, network map, and cityview-global operator UI layer
     vcs_mode: submodule
     baseline_policy: delegated
+  - id: HumanCenter
+    path: ProductionBase/HumanCenter
+    gitea_url: http://127.0.0.1:3000/wera-global/HumanCenter.git
+    default_branch: main
+    status: active
+    role: AI-automation consultancy (inteligente.site)
+    vcs_mode: native
+    baseline_policy: enforced
