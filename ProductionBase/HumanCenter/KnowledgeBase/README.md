@@ -4,9 +4,10 @@ Machine- and human-readable reference for the Human Center consultancy, structur
 ## Quick reference
 - Name: Human Center
 - Website: `www.inteligente.site`
-- Focus: AI-driven business-process automation consultancy for SMEs and independent professionals
-- Legal entity: unconfirmed (see `kb-governance/docs/legal/11-legal-structure.md`)
-- Stage: pre-pilot; knowledgebase seeded from desk research (`../Resources/Documents/Research/`), not yet client-validated
+- Legal entity: **Inteligente Razão — Unipessoal LDA** (Lisboa, Portugal) — verified (see `kb-governance/docs/legal/11-legal-structure.md`); commercial-registry/VAT number still unconfirmed
+- Product 1 — "Shrinking AI" (B2B, primary, researched): human-facilitated AI-adoption sessions (free empathy call -> paid RCGFC session -> optional retainer) for SMEs, independent professionals, and AI-frustrated consultants/freelancers in Western Europe and the Nordics
+- Product 2 — "Career Development" (B2C, not yet researched): kept strictly separate from Product 1 in nav/tone/CTAs
+- Stage: pre-pilot; Shrinking AI's paid-session price is undocumented anywhere (highest-priority gap); no proof assets produced yet; knowledgebase largely validated from desk research (`../Resources/Documents/Research/`), not yet from real client engagements
 
 ## Naming conventions
 - Each Business-Model-Canvas / Lean-Canvas block is a top-level `kb-<domain>/` folder.
@@ -29,9 +30,9 @@ Machine- and human-readable reference for the Human Center consultancy, structur
 | 07 | Revenue streams | `kb-revenue-streams/docs/model/07-revenue-streams.md` |
 | 08 | Cost structure | `kb-cost-structure/docs/model/08-cost-structure.md` |
 | 09 | Key metrics | `kb-metrics/docs/financial/09-key-metrics.md` |
+| 10 | Unfair advantage | `kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` |
+| 11 | Channels | `kb-channels/docs/gtm/11-channels.md` |
 | 11 | Legal structure | `kb-governance/docs/legal/11-legal-structure.md` |
-| — | Channels | `kb-channels/README.md` (thin; no dedicated document yet) |
-| — | Unfair advantage | `kb-unfair-advantage/README.md` (thin; no dedicated document yet) |
 
 Note: numbering is per-domain (matches the umbrella KB convention of grouping numbered docs by domain rather than one global sequence).
 
