@@ -21,19 +21,19 @@ Define Human Center's Product 1 ("Shrinking AI") service flow, the primary, acti
 
 ## Scope
 - In scope: the validated Shrinking AI session flow and its conversion funnel.
-- Out of scope: Product 2 ("Career Development"); pricing of the paid session (see Open Actions and `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`).
+- Out of scope: Product 2 ("Career Development"); Product 3 ("Automation Center", see `03-automation-center.md`); pricing of the paid session (see Open Actions and `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`).
 
 ## Current State
 Shrinking AI's sellable object is a **session flow**, not a workflow-automation build:
 1. **Free 15-minute empathy call** — removes the primary trust barrier (fear of being sold to) before any paid ask is made; no pitch, just a conversation about what's not working.
 2. **Paid structured session** — produces a concrete, AI-ready problem statement and instruction set for the client, using the **Role, Context, Goal, Format, Constraints (RCGFC)** structured-input framework (see `../../../kb-solution/docs/strategy/02-solution.md`).
 3. **2-hour deliverable** — the promised turnaround for the structured-session output.
-4. **Optional retainer or implementation support** — a follow-on path for clients who want ongoing help, not a mandatory upsell.
+4. **Optional retainer or implementation support** — a follow-on path for clients who want ongoing help, not a mandatory upsell. This may be referred to Product 3 ("Automation Center", see `03-automation-center.md`) if the client wants an actual workflow built, but the two products remain independently sellable and priced.
 
 The validated core value message is: *"we will help you get better results for the same money and keep your people happy."*
 
 ## Decisions / Rules
-- Do not conflate Shrinking AI with generic workflow-automation-agency pricing/packaging (n8n/Make builds, email/accounting automation) — that is a separate, less-validated research thread (`HumanCenter.Pricing.md`); Shrinking AI sells human-facilitated clarity, not built automations.
+- Do not conflate Shrinking AI with workflow-automation-agency pricing/packaging (n8n/Make builds, email/accounting automation) — that is Product 3 ("Automation Center")'s own validated positioning and pricing (`HumanCenter.Pricing.md`, `03-automation-center.md`); Shrinking AI sells human-facilitated clarity, not built automations.
 - CTA and copy must never imply the buyer or their team is "behind," "resistant," or "doing it wrong" (see `../../../kb-problem/docs/market/01-problem.md`).
 - Every session output must remain a bounded, client-owned artifact (problem statement + instruction set), not an open-ended engagement, to preserve the "low-commitment entry point" positioning.
 

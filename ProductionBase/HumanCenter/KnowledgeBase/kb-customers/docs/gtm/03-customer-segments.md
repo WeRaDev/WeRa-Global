@@ -21,7 +21,7 @@ Define Human Center's validated target customer segments for Product 1 ("Shrinki
 
 ## Scope
 - In scope: the four scored B2B segments validated for Shrinking AI.
-- Out of scope: Product 2 ("Career Development") segments; enterprise/PE-fund direct clients (see Decisions / Rules).
+- Out of scope: Product 2 ("Career Development") segments; Product 3 ("Automation Center") segments, which are broader and not yet scored — see `04-automation-center-segments.md`; enterprise/PE-fund direct clients (see Decisions / Rules).
 
 ## Current State
 Four B2B segments were scored across six weighted criteria (pain intensity 25%, readiness to act 20%, willingness to pay 20%, channel efficiency 15%, upgrade potential 10%, case-study quality 10%):

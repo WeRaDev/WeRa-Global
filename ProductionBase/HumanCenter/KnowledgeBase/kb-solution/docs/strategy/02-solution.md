@@ -21,7 +21,7 @@ Describe Human Center's Product 1 ("Shrinking AI") solution approach to the prob
 
 ## Scope
 - In scope: the human-facilitated, session-based solution model for Product 1.
-- Out of scope: workflow-automation builds (n8n/Make/Zapier); Product 2 ("Career Development"); automating tax-return filing or other high-risk unsupervised financial/legal decisions.
+- Out of scope: workflow-automation builds (n8n/Make/Zapier) — that is Product 3 ("Automation Center"), see `03-automation-center-solution.md`; Product 2 ("Career Development"); automating tax-return filing or other high-risk unsupervised financial/legal decisions.
 
 ## Current State
 - **Positioning: the "human interaction quality layer."** Shrinking AI occupies the white space between tool-level IT/automation consulting (too generic/self-serve, produces a "digital graveyard" of disconnected point solutions) and strategy-level change management (too enterprise-scoped, slow, expensive). No identified competitor sits at the intersection of enterprise-grade credibility signaling, SME-level low-commitment entry, and high human/emotional facilitation — see `../../../kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` for the full positioning map.

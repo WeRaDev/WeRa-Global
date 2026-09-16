@@ -21,7 +21,7 @@ Document Human Center's validated differentiation for Product 1 ("Shrinking AI")
 
 ## Scope
 - In scope: positioning-map white space and trust-design mechanisms validated by desk/competitive research.
-- Out of scope: unvalidated claims of technical/proprietary moat (none currently exists).
+- Out of scope: unvalidated claims of technical/proprietary moat (none currently exists); Product 3 ("Automation Center")'s own differentiation, see `11-automation-center-unfair-advantage.md`.
 
 ## Current State
 **Positioning map (technical depth vs. human/emotional facilitation):** competitors cluster into two poles — high technical depth (McKinsey, Accenture, Kresto Labs, Agentyis: enterprise strategy or technical AI builds) and low technical depth (Hartz AI, AI Jungle: training/workflow clarity, but shallow facilitation). **No competitor occupies the intersection of enterprise-level credibility signaling, SME-level low-commitment entry, and high emotional/human facilitation.** This is Shrinking AI's structural white space.

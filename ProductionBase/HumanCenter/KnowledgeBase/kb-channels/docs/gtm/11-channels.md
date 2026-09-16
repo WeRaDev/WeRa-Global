@@ -21,7 +21,7 @@ Document validated acquisition-channel mechanics for Product 1 ("Shrinking AI").
 
 ## Scope
 - In scope: the booking-page conversion mechanism and the consultant-referral channel hypothesis.
-- Out of scope: paid acquisition/media strategy (not yet researched); Product 2 channels.
+- Out of scope: paid acquisition/media strategy (not yet researched); Product 2 channels; Product 3 ("Automation Center") channels, see `12-automation-center-channels.md`.
 
 ## Current State
 The primary conversion channel is the **website itself**, with a single goal: book a free 15-minute call. Boutique AI-agency booking pages reviewed (AI Jungle's "Book a 30-Min AI Workforce Call," Benian's "Book Your AI Discovery Call," The Automators' "free 30-minute discovery call") converge on a tactical pattern for lightweight B2B scheduling: a single embedded scheduler, one clear CTA, minimal form friction, and a plain-language outcome promise before the click. This is the tactical benchmark for Human Center's own booking mechanism (distinct from the strategic/credibility benchmark set by McKinsey-tier firms, which is for visual/tone credibility only, not conversion mechanics).

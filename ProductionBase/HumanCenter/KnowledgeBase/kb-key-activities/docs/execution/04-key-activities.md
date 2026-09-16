@@ -21,7 +21,7 @@ List Human Center's core delivery activities for Product 1 ("Shrinking AI").
 
 ## Scope
 - In scope: activities required to run the empathy-call-to-deliverable session flow.
-- Out of scope: Product 2 ("Career Development") activities; built-automation delivery (a separate, optional follow-on, not the core activity).
+- Out of scope: Product 2 ("Career Development") activities; built-automation delivery, which is Product 3 ("Automation Center")'s own set of activities — see `05-automation-center-key-activities.md`.
 
 ## Current State
 - **Lead qualification**: a short pre-booking form (2-3 questions) to qualify fit before a call is booked, reducing wasted founder time on unqualified calls.
