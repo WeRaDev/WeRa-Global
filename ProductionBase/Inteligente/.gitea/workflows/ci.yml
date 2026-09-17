@@ -1,0 +1,35 @@
+name: inteligente-ci
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  baseline-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Baseline documentation check
+        run: |
+          cd ProductionBase/Inteligente
+          test -f README.md
+          test -f WARP.md
+          test -f AGENTS.md
+          test -f SOUL.md
+          test -f CONTRIBUTING.md
+          test -d docs/adr
+          test -d tasks
+          test -d skills
+          test -d KnowledgeBase
+  kb-structure-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Knowledgebase structure check
+        run: |
+          cd ProductionBase/Inteligente/KnowledgeBase
+          for dir in kb-*/; do
+            test -f "${dir}README.md" || { echo "Missing README.md in ${dir}"; exit 1; }
+          done
