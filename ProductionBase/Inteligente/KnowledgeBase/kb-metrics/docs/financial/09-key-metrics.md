@@ -27,14 +27,14 @@ Define the metrics Inteligente should track once it begins operating.
 No metrics are instrumented yet. Two tiers of metrics apply:
 
 **Near-term proof-asset targets (from research, concrete and named)** — the research explicitly identifies a lack of proof assets as an operational gap. Named targets to close it:
-- **10+ completed paid sessions** (minimum sample before claiming a track record).
-- **3 case write-ups** (documented client outcomes, suitable for the website/proof section).
-- **A consent evidence pack** (signed client permissions to reference/quote their engagement — required before any case write-up can be published, and a prerequisite for the "demonstrated not claimed" positioning in `../../../kb-unfair-advantage/docs/strategy/10-unfair-advantage.md`).
+- **10+ completed paid sessions** — **2 of 10 complete** as of Sept 2026 (self-published writer, AI for e-book formatting; self-employed tour guide, AI for content creation; both €50/60-min).
+- **3 case write-ups** (documented client outcomes, suitable for the website/proof section) — not yet started; requires consent from the 2 completed clients first.
+- **A consent evidence pack** (signed client permissions to reference/quote their engagement — required before any case write-up can be published, and a prerequisite for the "demonstrated not claimed" positioning in `../../../kb-unfair-advantage/docs/strategy/10-unfair-advantage.md`) — not yet collected for the 2 completed sessions.
 
 **Candidate ongoing operating metrics for Shrinking AI (hypothesis, not yet instrumented)**:
 - Free-empathy-call-to-paid-session conversion rate.
 - Paid-session-to-retainer/implementation-support conversion rate.
-- Average paid-session fee (pending pricing decision, see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`).
+- Average paid-session fee: **€50** (n=2, Sept 2026); too small a sample to be a stable metric yet, see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`.
 - Monthly recurring retainer revenue (for clients who take the optional follow-on).
 - Time-to-delivery per session (target: within the 2-hour session-flow window).
 - Consultant/freelancer (A4) referral rate, once the referral-partner hypothesis in `../../../kb-key-partners/docs/partnerships/06-key-partners.md` is tested.
@@ -62,5 +62,6 @@ No metrics are instrumented yet. Two tiers of metrics apply:
 - Related documents: `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`, `../../../kb-unfair-advantage/docs/strategy/10-unfair-advantage.md`, `../../../kb-key-partners/docs/partnerships/06-key-partners.md`, `../../../kb-solution/docs/strategy/03-automation-center-solution.md`
 
 ## Open Actions
-- Produce the first proof assets (10+ sessions, 3 case write-ups, consent pack), owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-005.
+- Produce the remaining proof assets (8+ more sessions, 3 case write-ups, consent pack — 2 of 10 sessions done), owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-005.
+- Collect consent from the 2 completed Sept 2026 clients so at least one case write-up can begin, owner: Founder/Consultant.
 - Define and instrument ongoing operating-metric measurement before scaling past the first pilots, owner: Founder/Consultant.

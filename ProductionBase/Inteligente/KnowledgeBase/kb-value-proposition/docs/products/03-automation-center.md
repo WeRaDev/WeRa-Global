@@ -46,7 +46,7 @@ Automation Center is a **build-and-operate automation agency service**, sold and
 - Do not position Automation Center as a "private equity AI solution" merely because a client's own clients are investment funds; pricing and scope target the solo consultant/small firm buyer, not the fund itself.
 
 ## Evidence
-- `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — verified, defines the service scope and market-benchmark pricing.
+- `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — the service-scope description is a reasonable synthesis of real agency offerings; the market-benchmark **pricing** is unverified (self-described AI-chat estimate), partially corroborated by independent Sept 2026 research (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md` for the full corroboration note) — treat as directionally plausible, not verified official pricing.
 - `../../../../Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md` — verified, original three-role discovery design.
 - `../../../../Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md` — verified, chatbot-safe redesign (atomic questions, consent, bias controls, escalation).
 - `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, screening-vs-investment separation, evidence grading, benefit classification.

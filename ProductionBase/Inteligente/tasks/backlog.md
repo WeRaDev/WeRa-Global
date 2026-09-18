@@ -11,18 +11,18 @@
 - Acceptance: `docs/adr/000X-site-stack.md` exists and the site is reachable at `www.inteligente.site`.
 
 ## HC-003 Set and document Shrinking AI's paid-session price
-- Problem: Shrinking AI's core paid-session price is undocumented anywhere in research (see `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`) — this is the highest-priority pricing gap. The `HumanCenter.Pricing.md` benchmarks describe a different, unrelated automation-agency offer and must not be used as a substitute.
-- Scope: Build an actual cost model (`kb-cost-structure/`) and set a concrete price for the paid RCGFC session.
-- Acceptance: `kb-revenue-streams/docs/model/07-revenue-streams.md` updated with a documented session price and `evidence_status: verified`.
+- Problem: Shrinking AI's core paid-session price was undocumented anywhere in research. **Resolved (Sept 2026): €50/60-min, established from the first 2 real paid engagements** (self-published writer, self-employed tour guide) — see `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`.
+- Scope (remaining): treat €50/60-min as an introductory rate; test price elasticity once more sessions are booked before deciding whether to hold, raise, or tier the price.
+- Acceptance: `kb-revenue-streams/docs/model/07-revenue-streams.md` updated with a documented session price and `evidence_status: verified` — **done for the initial price**; elasticity testing remains open.
 
 ## HC-004 Confirm commercial-registry number and formalize DPA
-- Problem: The legal entity (Inteligente Razão — Unipessoal LDA) is confirmed, but the Portuguese commercial-registry/VAT (NIF) number is not yet confirmed (see `kb-governance/docs/legal/11-legal-structure.md`).
-- Scope: Confirm the registry number and formalize a DPA template for client engagements handling confidential/financial data.
-- Acceptance: `kb-governance/docs/legal/11-legal-structure.md` Open Actions item closed; DPA template exists.
+- Problem: The legal entity (Inteligente Razão — Unipessoal LDA) is confirmed. **VAT/NIF confirmed (Sept 2026): PT514477580.** The DPA template is not yet built (see `kb-governance/docs/legal/11-legal-structure.md`).
+- Scope (remaining): finalize the sub-processor list (LLM API provider, n8n/Make/Zapier, EU hosting), adapt a GDPR Art. 28(3)-compliant DPA template to that list and to the confirmed VAT/entity details, and get it reviewed by counsel.
+- Acceptance: `kb-governance/docs/legal/11-legal-structure.md` Open Actions item on VAT closed (**done**); DPA template exists (**open**).
 
 ## HC-005 Produce first proof assets
-- Problem: No proof assets exist yet to support the "demonstrated not claimed" positioning (see `kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` and `kb-metrics/docs/financial/09-key-metrics.md`).
-- Scope: Deliver 10+ completed paid sessions, write up 3 client cases, and assemble a consent evidence pack authorizing their use.
+- Problem: No proof assets exist yet to support the "demonstrated not claimed" positioning (see `kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` and `kb-metrics/docs/financial/09-key-metrics.md`). **Progress (Sept 2026): 2 of 10 sessions completed** (self-published writer, self-employed tour guide).
+- Scope: Deliver 8+ more completed paid sessions, write up 3 client cases (pending consent from the 2 completed clients), and assemble a consent evidence pack authorizing their use.
 - Acceptance: 3 case write-ups published (post-consent) and referenced from the site and `kb-metrics/`.
 
 ## HC-006 Build an on-site RCGFC preview
@@ -42,6 +42,7 @@
 
 ## HC-009 Run the Automation Center discovery methodology manually with first prospects
 - Problem: Automation Center's discovery-and-ROI methodology (`KnowledgeBase/kb-solution/docs/strategy/03-automation-center-solution.md`) is fully designed but has never been run with a real prospect, manually or via chatbot.
+- **Status (Sept 2026): ongoing** — actively being worked, not just an open backlog item (see `KnowledgeBase/kb-key-activities/docs/execution/05-automation-center-key-activities.md`).
 - Scope: Conduct the role-routed discovery interview (adviser/operations/compliance) manually with 2-3 real prospects; log which questions/probes worked and produce at least one screening decision (Stop/Measure/Prototype/Pilot).
 - Acceptance: At least one completed, evidence-graded screening decision record exists for a real prospect.
 

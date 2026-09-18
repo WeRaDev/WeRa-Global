@@ -36,7 +36,7 @@ Financial Automation applies Automation Center's general build-and-operate autom
 - Existing sector obligations (e.g. supervision, communications and recordkeeping duties in relevant regulated firms) can remain applicable to AI-assisted activity; findings must be recorded as confirmed, unresolved, or requiring specialist review — never "compliant" merely because a respondent believes it is.
 
 ## Evidence
-- `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — verified, defines the solo-consultant/investment-fund-adjacent persona and security requirements.
+- `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — unverified (self-described AI-chat estimate); its persona and security-requirement framing are directionally useful but not independently confirmed with a real financial-industry prospect yet (see Open Actions and `../../../kb-revenue-streams/docs/model/07-revenue-streams.md` for the pricing corroboration note).
 - `../../../../Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md` — verified, defines the financial-advisory firm persona with distinct adviser/operations/compliance roles.
 - `../../../../Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md` — verified, chatbot-safe redesign applicable to regulated-client discovery.
 - `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, screening-vs-investment separation and evidence grading applied to regulated engagements.

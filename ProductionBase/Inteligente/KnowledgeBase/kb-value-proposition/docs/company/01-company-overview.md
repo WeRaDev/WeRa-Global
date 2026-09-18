@@ -37,14 +37,14 @@ Establish the canonical company identity for Inteligente and its product-line/se
 
 ## Decisions / Rules
 - Human Center and Automation Center, and the services within each, must not share primary navigation, tone, or CTA framing on the website — mixing B2B/B2C register and mixing a diagnostic-only service with a build-and-implement service were both flagged as "consistency and standards" risks.
-- Automation Center may be represented externally as an AI-automation agency (n8n/Make/Zapier workflow builder) with documented, market-benchmark-derived pricing — this is its own validated positioning (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`), not to be confused with Human Center's facilitation-only positioning.
+- Automation Center may be represented externally as an AI-automation agency (n8n/Make/Zapier workflow builder) with documented, market-benchmark-derived pricing — this positioning is directionally corroborated by independent research but not yet validated against a signed client (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`), not to be confused with Human Center's facilitation-only positioning.
 - Empowering Human is hypothesis-stage: it folds in the earlier, unresearched "Career Development" B2C concept and must be labeled `evidence_status: hypothesis` until validated.
 
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified (states the entity name, product structure, and geography directly from project documentation relayed within the research brief).
 - `../../../../Resources/Documents/Research/Shrinking AI (B2B Consultancy) — Desk Research, He.md` — verified, corroborating desk research for Shrinking AI.
-- `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — verified as Automation Center's own market-benchmark pricing research.
-- `../../../../Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md`, `../../../../Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md`, `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, define Automation Center's discovery-and-ROI methodology and Financial Automation's regulated-industry framing.
+- `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — **unverified**. This is a first-person, self-described AI-chat pricing estimate ("I found... my estimate..."), not measured or client-sourced data. An independent web-research pass (Sept 2026) found partial corroboration: FETCHER Solutions' live pricing page matches the cited €600/workflow and €2,800 document/OCR-agent figures exactly, and the broader European/US no-code-automation market (BOVO Digital, Polish agencies, French-market surveys) sits in a comparable €600-€12,000+ range. However, NeuraWeb's own current pricing has drifted materially from the tiers cited in the source document, and one source reports category-wide price declines of 60-75% over 18 months — so treat the benchmark as directionally plausible but stale and due for periodic re-verification (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md` for the full corroboration note), not as "verified official pricing."
+- `../../../../Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md`, `../../../../Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md`, `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, define Automation Center's discovery-and-ROI methodology and Financial Automation's regulated-industry framing (these are methodology/process documents, not pricing sources).
 
 ## Cross-Domain Links
 - Related domains: `kb-governance`, `kb-solution`, `kb-problem`, `kb-customers`
@@ -52,5 +52,4 @@ Establish the canonical company identity for Inteligente and its product-line/se
 
 ## Open Actions
 - Research and validate Empowering Human's target segments and pricing once material exists, owner: Founder/Consultant.
-- Confirm the entity's official registry details (registration number, VAT) for compliance documentation, owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-004.
 - Decide whether Human Center services and Automation Center/Financial Automation are cross-sold to the same prospect (e.g. Shrinking AI session surfacing an Automation Center opportunity) or kept fully independent in sales motion, owner: Founder/Consultant.

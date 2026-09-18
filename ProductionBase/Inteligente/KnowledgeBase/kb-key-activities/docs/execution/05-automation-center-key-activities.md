@@ -23,6 +23,7 @@ List Automation Center's core delivery activities.
 - Out of scope: Human Center's session-flow activities, Shrinking AI (`04-key-activities.md`) and Empowering Human; Financial Automation's compliance-specific activity extensions (see `../../../kb-value-proposition/docs/products/04-financial-automation.md`).
 
 ## Current State
+- **Status (Sept 2026): ongoing.** Running the role-routed discovery interview manually with real prospects (HC-009) is now an active, in-progress effort, not just a backlog item — this is a direct commitment following the critical KB review's recommendation to test the methodology with real prospects before building the chatbot (HC-010).
 - **Role-routed discovery interview**: adviser/owner route (8-12 min), operational-colleague route (10-15 min), compliance/data-owner route (6-10 min, a feasibility gate), optional finance-owner route (only if a financial ROI will be presented). Conducted manually until a chatbot implementation is built and tested.
 - **Evidence grading and benefit classification**: every claimed number is graded A-E and every benefit classified (cash-releasing saving, cost avoidance, incremental margin, released capacity, quality/risk benefit) before any value calculation is presented.
 - **Screening decision**: producing one of Stop / Measure / Prototype / Pilot as a one-page decision record (opportunity statement, baseline, value route, feasibility, uncertainty, recommendation) — never a single-point guaranteed ROI.
@@ -48,6 +49,6 @@ List Automation Center's core delivery activities.
 - Related documents: `../../../kb-solution/docs/strategy/03-automation-center-solution.md`, `../../../kb-key-resources/docs/architecture/06-automation-center-key-resources.md`, `../../../kb-metrics/docs/financial/09-key-metrics.md`
 
 ## Open Actions
-- Run the discovery interview manually with the first few prospects and log which questions/probes work in practice, owner: Founder/Consultant.
+- **Ongoing**: run the discovery interview manually with the first few prospects and log which questions/probes work in practice, owner: Founder/Consultant, tracked as HC-009.
 - Define the standard operating procedure for a measurement sprint (tooling, template, duration), owner: Founder/Consultant.
 - Build and test a chatbot implementation once the manual process is validated, owner: Founder/Consultant.
