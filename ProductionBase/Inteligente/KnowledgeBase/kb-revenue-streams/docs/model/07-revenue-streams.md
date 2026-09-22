@@ -36,6 +36,16 @@ Automation Center's pricing is sourced from named European/US agency comparables
 
 **Net assessment**: treat Automation Center's benchmark pricing as directionally plausible and partially corroborated by live agency pricing pages, but not verified/official pricing, and due for periodic re-benchmarking (already a Decision/Rule below). Financial Automation, as Automation Center's first named service, uses this same benchmark pricing until service-specific pricing is validated.
 
+### Discovery/ROI-screening is free (Sept 2026 decision)
+Unlike Shrinking AI's paid €50/60-min diagnostic, Automation Center's discovery-and-ROI-screening chatbot session is **free** — a qualification and lead-generation step, not a monetized product. Revenue only begins once a screening decision reaches Prototype or Pilot and the client signs an implementation engagement, using the benchmark pricing above. This is a deliberate difference from Shrinking AI: the discovery conversation itself does not need to independently prove willingness-to-pay, because the founder is running it with a named, warm-introduced prospect rather than a cold/anonymous visitor.
+
+### Commercial-model structure (from the MVP research)
+The previously un-cited `financial_advisory_automation_mvp.xlsx` sketches a 4-part commercial model, reconciled here with the free-discovery decision above:
+- **Discovery/measurement**: the xlsx proposes a "fixed fee for assessment, evidence plan and baseline sprint" — **not adopted for now**; discovery stays free per the decision above. Revisit if the free-discovery motion proves too resource-intensive relative to conversion.
+- **Implementation**: milestone fee by deliverable family and bounded scope, consistent with the existing per-project pricing table above.
+- **Recurring service**: platform/hosting/monitoring/support/maintenance/review/governance, consistent with the existing retainer pricing above.
+- **Outcome-linked option**: only with an attributable baseline, a named finance owner, and contractual measurement — never priced from ambiguous "time saved." Not yet used; a future option once a pilot has produced matched pre/post evidence.
+
 **Service-line pricing (Europe / US):**
 
 | Scope | European agency quote | US agency quote |
@@ -66,6 +76,7 @@ Automation Center's pricing is sourced from named European/US agency comparables
 
 ## Decisions / Rules
 - Automation Center (including Financial Automation) may quote using the documented, partially-corroborated benchmark pricing above; Shrinking AI must use its own real €50/60-min price, not the Automation Center benchmark.
+- Automation Center's discovery/ROI-screening chatbot session is free; do not charge for it or imply a screening decision is a paid deliverable.
 - Do not quote Automation Center pricing without a cost-model check (`../../../kb-cost-structure/docs/model/08-cost-structure.md`).
 - Do not price or position Financial Automation like a PE-fund-facing AI vendor; the buyer remains a solo consultant/small firm even when their own clients are funds (see `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`).
 - Re-benchmark Automation Center's pricing periodically as the automation-agency market shifts — the Sept 2026 corroboration pass already found one comparable (NeuraWeb) to have drifted; treat the figures above as current as of this research pass, not permanently fixed.
@@ -75,6 +86,8 @@ Automation Center's pricing is sourced from named European/US agency comparables
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified for the Shrinking AI session-flow structure.
 - **First 2 real paid Shrinking AI engagements (Sept 2026)** — verified, primary evidence establishing the €50/60-min price (self-published writer; self-employed tour guide).
 - `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — unverified (self-described AI-chat estimate), partially corroborated by independent Sept 2026 web research (FETCHER Solutions exact match; broader market range consistent; NeuraWeb tiers stale) — see Current State above for the full corroboration note.
+- `../../../../Resources/Documents/Research/financial_advisory_automation_mvp.xlsx` — verified, source of the 4-part commercial-model structure (discovery, implementation, recurring, outcome-linked).
+- **Founder decision: free discovery (Sept 2026)** — verified as a decision, not yet evidenced against a real conversion outcome.
 
 ## Cross-Domain Links
 - Related domains: `kb-value-proposition`, `kb-cost-structure`, `kb-customers`, `kb-key-activities`

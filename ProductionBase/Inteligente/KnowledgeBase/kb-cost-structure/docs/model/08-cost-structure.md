@@ -27,8 +27,16 @@ Identify Inteligente's cost categories, as input to pricing decisions. These cat
 - Candidate cost categories (Automation Center): LLM/API usage, workflow-orchestration hosting (n8n/Make/Zapier), OCR/document-extraction tooling, EU-hosted storage and backups, founder/delivery time, tooling/subscriptions, marketing and the shared `www.inteligente.site` website.
 - Economy-of-scale note (from pricing research on comparable vendors): shared authentication, hosting, AI API access, logging, and monitoring infrastructure reduces the marginal cost of delivering additional workflow types to the same client, which is why combined packages (e.g. accounting + email) are priced below the sum of their parts.
 
+### Phase 0 (current, Sept 2026): near-zero-cost validation, not the 4-person scenario
+Before any hiring decision is even relevant, the actual near-term plan is materially cheaper than the scenario below and should be evaluated on its own terms first:
+- **Acquisition**: the founder's existing personal/professional network (named prospects already identified) — no paid acquisition cost.
+- **Discovery tool**: an already-partially-built Odoo chatbot, to be deployed on the already-owned TRL4 machine (`wera-ss-pt-sn-1.tailfb390c.ts.net`, Portugal/EU) — no new infrastructure spend, only the founder's remaining configuration time (target: within days).
+- **Delivery**: founder-assisted sessions; no additional headcount.
+- **Marginal cost of this phase**: effectively the founder's own time only. This is the correct basis for judging whether Automation Center has real demand, not the 4-person model below, which assumes a scale of operation with no supporting evidence yet (see Open Actions and the Verdict below).
+- Once Phase 0 produces at least one signed Prototype/Pilot engagement (HC-011), the next real cost question is the **marginal cost of delivering that one engagement** (founder + contractor time, LLM/API usage, any client-specific tooling) — not yet modeled here because no engagement has been signed.
+
 ### Quantified scenario: 4-person Automation Center team (Portugal payroll)
-**This is a hypothesis/scenario model, not a committed hiring plan or a measured actual cost — no one has been hired.** It exists to test whether a 4-person team (Consulting Officer, Operations Officer, Financial Officer, Fullstack Developer) is financially viable against Automation Center's current documented pricing, using Portugal employer-cost rules confirmed via independent research (Sept 2026):
+**This is a hypothesis/scenario model, not a committed hiring plan or a measured actual cost — no one has been hired.** It remains relevant only as a later-stage scale-up check, not as the near-term plan (see Phase 0 above).
 - **Employer Social Security (TSU): 23.75% of gross salary**, uncapped, paid by the employer on top of gross (employee separately pays 11%); confirmed by PwC Portugal's 2026 Tax Guide and cross-checked against 3 independent sources.
 - **14 payments/year**: 12 regular months plus a mandatory holiday subsidy and a mandatory Christmas subsidy, each equal to one month's base salary; TSU applies to all 14 payments.
 - **Working assumption**: fully-loaded annual employer cost = (monthly gross x 14) x ~1.26, where 1.26 approximates TSU (23.75%) plus mandatory labour-accident insurance (~1.75%, required from day one) plus a small administrative buffer. This is a simplified planning multiplier, not a precise payroll calculation.

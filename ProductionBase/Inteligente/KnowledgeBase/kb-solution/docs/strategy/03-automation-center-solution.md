@@ -46,16 +46,20 @@ For financial-advisory or otherwise regulated clients, the compliance/data-owner
 - Route legal/tax/investment-advice requests, credential exposure, suspected breaches, and disputed consent to human escalation immediately; the automated/human-run interview does not resolve these itself.
 - Regulated-client engagements (see Financial Automation) require the compliance/data-owner route to complete before any pilot is proposed.
 
+### Delivery mode (Sept 2026, concrete)
+The methodology above is implemented as a **founder-assisted chatbot session** rather than a fully manual interview or a public self-service tool: a pilot chatbot (Odoo, partially configured with the role-routing questions) is being deployed on the TRL4 machine, and the founder runs or sits alongside the session with a warm-introduced prospect. This is a middle path between "pure manual" and "public automation" — it tests the actual conversational tool while keeping a human present to catch safety/escalation failures before they reach an unsupervised prospect. See `../../../kb-key-resources/docs/architecture/06-automation-center-key-resources.md` and `../../../kb-channels/docs/gtm/12-automation-center-channels.md` for the infrastructure and channel detail, and `../../../../Resources/Documents/Research/financial_advisory_automation_mvp.xlsx` for the implementation-ready version of the script, data model, and ROI formulas summarized above.
+
 ## Evidence
 - `../../../../Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md` — verified, original three-role discovery design and ROI worksheet.
 - `../../../../Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md` — verified, chatbot-safe conversational design, evidence model, escalation triggers.
 - `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, screening-vs-investment separation, benefit classification, evidence grading, financial formulas.
+- `../../../../Resources/Documents/Research/financial_advisory_automation_mvp.xlsx` — verified, implementation-ready chatbot script (turn-by-turn questions, probe triggers, escalation conditions), logical data model, dynamic ROI model, and a 9-phase build/QA/pilot plan; not previously cited in this KB.
 
 ## Cross-Domain Links
-- Related domains: `kb-value-proposition`, `kb-key-activities`, `kb-unfair-advantage`, `kb-customers`
-- Related documents: `../../../kb-value-proposition/docs/products/03-automation-center.md`, `../../../kb-key-activities/docs/execution/05-automation-center-key-activities.md`, `../../../kb-unfair-advantage/docs/strategy/11-automation-center-unfair-advantage.md`, `04-financial-automation-solution.md`
+- Related domains: `kb-value-proposition`, `kb-key-activities`, `kb-unfair-advantage`, `kb-customers`, `kb-key-resources`, `kb-channels`
+- Related documents: `../../../kb-value-proposition/docs/products/03-automation-center.md`, `../../../kb-key-activities/docs/execution/05-automation-center-key-activities.md`, `../../../kb-unfair-advantage/docs/strategy/11-automation-center-unfair-advantage.md`, `04-financial-automation-solution.md`, `../../../kb-key-resources/docs/architecture/06-automation-center-key-resources.md`, `../../../kb-channels/docs/gtm/12-automation-center-channels.md`
 
 ## Open Actions
-- Run the discovery methodology manually (human-led) with the first few prospects before investing in chatbot automation, owner: Founder/Consultant.
-- Build and test a real chatbot implementation once the manual version is validated, owner: Founder/Consultant.
+- Finish configuring and deploy the Odoo chatbot on TRL4, then run founder-assisted sessions with the named warm-network prospects (target: within days), owner: Founder/Consultant.
+- Run the mandatory safety/escalation checks (consent disclosure, sensitive-data detection, human escalation triggers) in the founder-assisted sessions even though a human is present, so the tool is validated for an eventual self-service phase, owner: Founder/Consultant.
 - Define the client-authorized secure channel for redacted artifact collection (the interview design assumes one exists but does not create it), owner: Founder/Consultant.

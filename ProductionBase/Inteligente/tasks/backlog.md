@@ -40,16 +40,21 @@
 - Scope: Run 3-5 discovery calls with the primary ICP segment (A4: AI-frustrated consultants/freelancers); capture findings as evidence in the KB.
 - Acceptance: `kb-problem` and `kb-customers` documents cite findings from at least 3 real discovery calls alongside the existing desk research.
 
-## HC-009 Run the Automation Center discovery methodology manually with first prospects
-- Problem: Automation Center's discovery-and-ROI methodology (`KnowledgeBase/kb-solution/docs/strategy/03-automation-center-solution.md`) is fully designed but has never been run with a real prospect, manually or via chatbot.
-- **Status (Sept 2026): ongoing** — actively being worked, not just an open backlog item (see `KnowledgeBase/kb-key-activities/docs/execution/05-automation-center-key-activities.md`).
-- Scope: Conduct the role-routed discovery interview (adviser/operations/compliance) manually with 2-3 real prospects; log which questions/probes worked and produce at least one screening decision (Stop/Measure/Prototype/Pilot).
-- Acceptance: At least one completed, evidence-graded screening decision record exists for a real prospect.
+## HC-009 Run the Automation Center discovery methodology with first prospects (founder-assisted chatbot)
+- Problem: Automation Center's discovery-and-ROI methodology (`KnowledgeBase/kb-solution/docs/strategy/03-automation-center-solution.md`) is fully designed but has never been run with a real prospect.
+- **Status (Sept 2026): ongoing, concrete plan.** A pilot chatbot exists (Odoo, partially configured with role-routing questions), targeted for deployment on the TRL4 machine (`wera-ss-pt-sn-1.tailfb390c.ts.net`, Portugal/EU) within days. Named prospects already exist, mostly small financial-advisory/consultancy firms with employees, reachable via the founder's personal/professional network (see `KnowledgeBase/kb-customers/docs/gtm/05-financial-automation-segments.md`, `KnowledgeBase/kb-channels/docs/gtm/12-automation-center-channels.md`).
+- Scope: Finish configuring and deploy the Odoo chatbot on TRL4; run founder-assisted discovery sessions (adviser/operations/compliance routes) with named prospects; log which questions/probes worked and produce at least one screening decision (Stop/Measure/Prototype/Pilot).
+- Acceptance: Chatbot deployed and reachable on TRL4; at least one completed, evidence-graded screening decision record exists for a real, named prospect.
 
-## HC-010 Build and test the Automation Center discovery chatbot
-- Problem: No chatbot implementation of the discovery methodology exists yet; it must not be built before the manual process is validated (see HC-009).
-- Scope: Implement the conversational state machine, consent/disclosure, evidence model, adaptive probing limits, and human-escalation triggers defined in `KnowledgeBase/kb-solution/docs/strategy/03-automation-center-solution.md`.
-- Acceptance: Chatbot passes the pre-release adversarial test set (vague answers, sensitive-data attempts, escalation triggers) before any public launch.
+## HC-010 Validate the founder-assisted chatbot, then evaluate a public/self-service deployment
+- Problem: The discovery chatbot (Odoo/TRL4) is being deployed and used founder-assisted for the first cohort; a public/self-service deployment is an explicit later-phase decision, not the current plan (see `KnowledgeBase/kb-channels/docs/gtm/12-automation-center-channels.md`).
+- Scope: Once HC-009's founder-assisted sessions validate the conversational state machine, consent/disclosure, evidence model, adaptive probing limits, and human-escalation triggers in practice, decide whether and when to open the chatbot to self-service prospects.
+- Acceptance: Chatbot passes a pre-release adversarial test set (vague answers, sensitive-data attempts, escalation triggers) before any public/self-service launch is considered.
+
+## HC-015 Isolate the discovery chatbot's data from other TRL4 workloads
+- Problem: The TRL4 machine hosting the Odoo discovery chatbot is shared with other WeRa Global projects (notably SolarSeed); client-identifying or sensitive prospect data must not mix with unrelated workloads on that machine.
+- Scope: Confirm or configure a separate database/instance and access controls for the Odoo deployment before the first real discovery session touches any prospect-identifying information.
+- Acceptance: `KnowledgeBase/kb-key-resources/docs/architecture/06-automation-center-key-resources.md` Open Actions item on TRL4 data isolation closed.
 
 ## HC-011 Validate Automation Center's benchmark pricing with a first signed client
 - Problem: Automation Center's pricing (`KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`) is market-benchmark-derived, not yet tested against a real Inteligente client.
