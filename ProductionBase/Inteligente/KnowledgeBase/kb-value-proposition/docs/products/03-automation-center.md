@@ -23,10 +23,14 @@ Define Automation Center, Inteligente's second product line: a standalone build-
 - Out of scope: Human Center's services, Shrinking AI (`02-services.md`) and Empowering Human (`05-empowering-human.md`); Financial Automation, Automation Center's own named service specialized for the financial industry, see `04-financial-automation.md`.
 
 ## Current State
-Automation Center is a **build-and-operate automation agency service**, sold and delivered independently of Human Center. It targets a broad audience: any professional-services firm or solo consultant needing back-office automation (see `../../../kb-customers/docs/gtm/04-automation-center-segments.md`). Financial Automation is its first named service, specialising this general capability for the financial industry, including investment-fund-adjacent and other more heavily regulated contexts (see `04-financial-automation.md`).
+Automation Center is a **build-and-operate automation agency service**. It targets a broad audience: any professional-services firm or solo consultant needing back-office automation (see `../../../kb-customers/docs/gtm/04-automation-center-segments.md`). Financial Automation is its first named service, specialising this general capability for the financial industry, including investment-fund-adjacent and other more heavily regulated contexts (see `04-financial-automation.md`).
+
+**Cross-sell direction (decided, Sept 2026): Automation Center leads.** A prospect is signed for an Automation Center engagement first; Human Center consultancy (Shrinking AI) is then attached on top of that relationship, not the reverse. This corrects the earlier "sold and delivered independently of Human Center" framing and the open question below.
+
+**Near-term focus (Sept 2026):** Automation Center is currently in the **discovery phase only** — founder-led manual discovery sessions with named prospects (see `../../../kb-solution/docs/strategy/03-automation-center-solution.md`), not yet full build-and-implement delivery. No Automation Center pilot has been signed as of this writing.
 
 **Delivery flow:**
-1. **Chatbot-led discovery and ROI screening** — a role-routed interview (adviser/owner, operational colleague, compliance/data owner, optional finance owner) reconstructs one recent concrete instance of a recurring deliverable, grades the evidence behind every claim (A-E), and classifies benefits as cash-releasing savings, cost avoidance, incremental margin, released capacity (not counted as cash until an owner confirms conversion), or quality/risk benefit. See `../../../kb-solution/docs/strategy/03-automation-center-solution.md`.
+1. **Discovery and ROI screening** (currently founder-led manually, chatbot-assisted for lead capture only — see `../../../kb-solution/docs/strategy/03-automation-center-solution.md`) — a role-routed interview (adviser/owner, operational colleague, compliance/data owner, optional finance owner) reconstructs one recent concrete instance of a recurring deliverable, grades the evidence behind every claim (A-E), and classifies benefits as cash-releasing savings, cost avoidance, incremental margin, released capacity (not counted as cash until an owner confirms conversion), or quality/risk benefit.
 2. **Screening decision** — the process outputs one of four recommendations: Stop, Measure (run a short measurement sprint), Prototype, or Pilot. It never outputs a single-point "guaranteed ROI" figure.
 3. **Build** — workflow automation using n8n/Make/Zapier plus LLM APIs, OCR/document extraction where needed, and integration with the client's accounting/CRM/ERP systems.
 4. **Security, testing, documentation and training** delivered before go-live.
@@ -58,4 +62,4 @@ Automation Center is a **build-and-operate automation agency service**, sold and
 ## Open Actions
 - Build a first working version of the discovery interview (even manually human-run, before chatbot automation), owner: Founder/Consultant.
 - Validate the documented benchmark pricing against the first signed Automation Center client, owner: Founder/Consultant.
-- Decide the cross-sell relationship with Human Center's services (independent vs. referral path), owner: Founder/Consultant.
+- Track conversion evidence for the Automation-Center-leads cross-sell direction (see Decisions/Rules) once the first Automation Center prospect is signed, owner: Founder/Consultant.

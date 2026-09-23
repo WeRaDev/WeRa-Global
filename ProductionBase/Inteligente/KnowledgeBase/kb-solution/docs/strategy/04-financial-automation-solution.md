@@ -50,4 +50,4 @@ See `../../../kb-customers/docs/gtm/05-financial-automation-segments.md` for the
 ## Open Actions
 - Confirm which specific regulatory regimes apply per target jurisdiction before the first Financial Automation pilot; per Sept 2026 decision, treat this generically (GDPR baseline) across Europe for now rather than researching country-specific advisory regulation upfront, owner: Founder/Consultant.
 - Define the client-authorized secure channel for redacted artifact collection for regulated clients, owner: Founder/Consultant.
-- Run the compliance/data-owner route in the founder-assisted Odoo/TRL4 discovery sessions with the named profile-2 prospects (see `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`), owner: Founder/Consultant.
+- Run the compliance/data-owner route in the founder-led manual discovery sessions with the named profile-2 prospects (see `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`); this route cannot yet be delegated to the Odoo chatbot since its governed-interview logic is not built (see `03-automation-center-solution.md`), owner: Founder/Consultant.

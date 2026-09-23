@@ -39,6 +39,8 @@ Establish the canonical company identity for Inteligente and its product-line/se
 - Human Center and Automation Center, and the services within each, must not share primary navigation, tone, or CTA framing on the website — mixing B2B/B2C register and mixing a diagnostic-only service with a build-and-implement service were both flagged as "consistency and standards" risks.
 - Automation Center may be represented externally as an AI-automation agency (n8n/Make/Zapier workflow builder) with documented, market-benchmark-derived pricing — this positioning is directionally corroborated by independent research but not yet validated against a signed client (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`), not to be confused with Human Center's facilitation-only positioning.
 - Empowering Human is hypothesis-stage: it folds in the earlier, unresearched "Career Development" B2C concept and must be labeled `evidence_status: hypothesis` until validated.
+- **Cross-sell direction (decided, Sept 2026): Automation Center leads.** The sales motion signs a prospect for an Automation Center engagement first, then attaches Human Center consultancy (Shrinking AI) on top of that relationship, not the reverse. This replaces the previously open question in Open Actions below.
+- **Near-term focus (Sept 2026):** actively deliver Human Center services (Shrinking AI sessions) while Automation Center remains in the discovery phase only — running founder-led manual discovery sessions with named prospects, not yet full build-and-implement delivery (see `../../../kb-solution/docs/strategy/03-automation-center-solution.md`). Do not represent Automation Center as being in active build/delivery until a Pilot is actually signed.
 
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified (states the entity name, product structure, and geography directly from project documentation relayed within the research brief).
@@ -52,4 +54,4 @@ Establish the canonical company identity for Inteligente and its product-line/se
 
 ## Open Actions
 - Research and validate Empowering Human's target segments and pricing once material exists, owner: Founder/Consultant.
-- Decide whether Human Center services and Automation Center/Financial Automation are cross-sold to the same prospect (e.g. Shrinking AI session surfacing an Automation Center opportunity) or kept fully independent in sales motion, owner: Founder/Consultant.
+- Track conversion evidence for the Automation-Center-leads cross-sell direction once the first Automation Center prospect is signed (does a Human Center consultancy attachment actually materialize), owner: Founder/Consultant.

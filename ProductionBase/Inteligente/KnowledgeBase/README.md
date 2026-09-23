@@ -4,13 +4,13 @@ Machine- and human-readable reference for the Inteligente consultancy, structure
 ## Quick reference
 - Business: Inteligente
 - Website: `www.inteligente.site`
-- Legal entity: **Inteligente Razão — Unipessoal LDA** (Lisboa, Portugal) — verified (see `kb-governance/docs/legal/11-legal-structure.md`); commercial-registry/VAT number still unconfirmed
+- Legal entity: **Inteligente Razão — Unipessoal LDA** (Lisboa, Portugal) — verified (see `kb-governance/docs/legal/11-legal-structure.md`); VAT/NIF confirmed as **PT514477580**
 - Product line: **Human Center** — human-facilitated consultancy services around AI adoption
   - Service — "Shrinking AI" (B2B, researched): human-facilitated AI-adoption sessions (free empathy call -> paid RCGFC session -> optional referral to Automation Center) for SMEs, independent professionals, and AI-frustrated consultants/freelancers in Western Europe and the Nordics
   - Service — "Empowering Human" (B2C, hypothesis-stage): discovery of the most suitable AI applications for business and personal use; folds in the earlier, unresearched "Career Development" concept
 - Product line: **Automation Center** (B2B, researched, standalone): build-and-implement automation service (n8n/Make/Zapier + LLM APIs) for back-office workflows, gated by a proprietary evidence-graded discovery-and-ROI methodology; broader target than Human Center's services (any professional-services firm/solo consultant); has its own documented, market-benchmark pricing
   - Service — "Financial Automation": Automation Center's first named service, specialising in workflow automation for the financial industry, including investment-fund-adjacent and financial-advisory clients
-- Stage: pre-pilot for all product lines/services; Shrinking AI's paid-session price is undocumented anywhere (highest-priority gap); Automation Center's discovery chatbot is designed but not yet built/tested; Empowering Human has no research yet; no proof assets produced for any service; knowledgebase largely validated from desk research (`../Resources/Documents/Research/`), not yet from real client engagements
+- Stage: pre-pilot for all product lines/services; Shrinking AI's paid-session price is documented at €50/60-min (from 2 real engagements, Sept 2026); Automation Center's discovery methodology is fully designed and a live Odoo chatbot exists, but the chatbot currently implements only generic livechat/lead-routing — the governed-interview safety/routing logic is not yet built, so real sessions run manually; Empowering Human has no research yet; no proof assets produced for any service; knowledgebase largely validated from desk research (`../Resources/Documents/Research/`), not yet from real client engagements
 
 ## Naming conventions
 - Each Business-Model-Canvas / Lean-Canvas block is a top-level `kb-<domain>/` folder.

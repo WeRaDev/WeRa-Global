@@ -33,14 +33,14 @@ When automation delivery code is introduced (e.g. for Financial Automation imple
 - Build/test/lint: not yet applicable (no code); this section will be updated once automation delivery code is added.
 
 ## Constraints and known limits
-- **Shrinking AI's paid-session price is undocumented anywhere** — the highest-priority pricing gap for that service; see `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`.
-- **Financial Automation's discovery-and-ROI chatbot has not been built or tested** — the methodology is fully designed but currently must be run manually.
+- **Shrinking AI's paid-session price is €50/60-min**, established from the first 2 real paid engagements (Sept 2026) — treat as an introductory rate pending elasticity testing; see `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`.
+- **A live Odoo chatbot exists for Automation Center/Financial Automation discovery, but currently implements only generic livechat and lead-routing** — none of the governed-interview safety/routing logic (disclosure, consent, sensitive-data interrupt, role routing, evidence grading, stop rules) is built yet, so real discovery sessions must be run manually by the founder in the meantime; see `KnowledgeBase/kb-solution/docs/strategy/03-automation-center-solution.md`.
 - **Empowering Human has no commissioned research yet** — its current-state content is hypothesis-stage only.
 - No lead-qualification gate or booking page exists yet for Shrinking AI, and no proof assets (target: 10+ completed sessions, 3 case write-ups, consent evidence pack) have been produced yet for any service.
 - No signed client contracts exist yet for any service.
-- Legal entity is confirmed (see above); the Portuguese commercial-registry/VAT number is still unconfirmed — see `KnowledgeBase/kb-governance/docs/legal/11-legal-structure.md`.
+- Legal entity is confirmed (see above); the Portuguese commercial-registry/VAT number is confirmed as **PT514477580** — see `KnowledgeBase/kb-governance/docs/legal/11-legal-structure.md`.
 - Human Center's services (Shrinking AI, Empowering Human) and Automation Center's services (Financial Automation) must remain strictly separated in all navigation, tone, and CTAs to avoid brand collision.
-- Financial Automation's benchmark pricing is real market pricing, not yet client-tested; it must not be conflated with Shrinking AI's still-undocumented session price.
+- Financial Automation's benchmark pricing is real market pricing, not yet client-tested; it must not be conflated with Shrinking AI's real but separately-priced €50/60-min session price.
 - Any client automation touching financial/legal/consequential actions requires explicit human approval, audit logging, and EU data residency where applicable; Financial Automation clients with regulated or confidential data require the compliance/data-owner discovery route before any pilot.
 
 ## Contribution and ownership
