@@ -1,0 +1,53 @@
+---
+metadata:
+  primary_domain: value-proposition
+  secondary_domains: [solution, revenue-streams]
+  owner_role: Founder/Consultant
+  temporal_scope: current
+  evidence_status: verified
+  last_reviewed_at: 2026-09-15
+  next_review_due: 2026-12-15
+  provenance:
+    actor: agent-warp
+    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md"
+    confidence: high
+    review_status: draft
+---
+
+# Services
+
+## Purpose
+Define Shrinking AI's service flow, the primary, actively-researched offer within the Human Center product line.
+
+## Scope
+- In scope: the validated Shrinking AI session flow, its conversion funnel, and its now-established introductory price point.
+- Out of scope: Empowering Human, Human Center's other service (see `05-empowering-human.md`); the Automation Center product line (see `03-automation-center.md`).
+
+## Current State
+Shrinking AI's sellable object is a **session flow**, not a workflow-automation build:
+1. **Free 15-minute empathy call** — removes the primary trust barrier (fear of being sold to) before any paid ask is made; no pitch, just a conversation about what's not working.
+2. **Paid structured session** — produces a concrete, AI-ready problem statement and instruction set for the client, using the **Role, Context, Goal, Format, Constraints (RCGFC)** structured-input framework (see `../../../kb-solution/docs/strategy/02-solution.md`). **Priced at €50 for a 60-minute session**, established from the first 2 real, completed, paid engagements (see Evidence) — this is Shrinking AI's first primary (not desk-research-derived) evidence.
+3. **2-hour deliverable** — the promised turnaround for the structured-session output.
+4. **Optional retainer or implementation support** — a follow-on path for clients who want ongoing help, not a mandatory upsell. This may be referred to the Automation Center product line (see `03-automation-center.md`) if the client wants an actual workflow built, but the two remain independently sellable and priced.
+
+The validated core value message is: *"we will help you get better results for the same money and keep your people happy."*
+
+**Note on price maturity**: €50/60-min is an introductory rate set from the first 2 sales, not yet tested for price elasticity (i.e. whether more clients would pay the same, more, or less). Treat it as the current real price, not a permanent one — see Open Actions.
+
+## Decisions / Rules
+- Do not conflate Shrinking AI with workflow-automation-agency pricing/packaging (n8n/Make builds, email/accounting automation) — that is the Automation Center product line's own validated positioning and pricing (`HumanCenter.Pricing.md`, `03-automation-center.md`); Shrinking AI sells human-facilitated clarity, not built automations.
+- CTA and copy must never imply the buyer or their team is "behind," "resistant," or "doing it wrong" (see `../../../kb-problem/docs/market/01-problem.md`).
+- Every session output must remain a bounded, client-owned artifact (problem statement + instruction set), not an open-ended engagement, to preserve the "low-commitment entry point" positioning.
+
+## Evidence
+- `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified, defines the session flow, RCGFC framework, and core value message directly from project documentation.
+- `../../../../Resources/Documents/Research/Shrinking AI (B2B Consultancy) — Desk Research, He.md` — verified, corroborating desk research and competitive framing.
+- **First 2 real paid engagements (Sept 2026)** — verified, primary evidence (actual signed/paid transactions, not desk research): (1) a self-published writer, topic: using AI for e-book formatting; (2) a self-employed tour guide, topic: using AI for content creation. Both paid €50 for a 60-minute session. This is the strongest evidence in the entire KB to date, since it is a real market transaction rather than an estimate.
+
+## Cross-Domain Links
+- Related domains: `kb-solution`, `kb-revenue-streams`, `kb-customers`, `kb-unfair-advantage`, `kb-metrics`
+- Related documents: `../../../kb-solution/docs/strategy/02-solution.md`, `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`, `../../../kb-customers/docs/gtm/03-customer-segments.md`, `../../../kb-metrics/docs/financial/09-key-metrics.md`
+
+## Open Actions
+- Test price elasticity: run further sessions at €50 and, once volume supports it, experiment with a higher price point to see whether demand holds, owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-003.
+- Produce the remaining proof assets: 8+ more completed sessions (2 of 10 done), 3 case write-ups, and a consent evidence pack, owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-005.
