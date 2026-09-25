@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-16
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-25
+  next_review_due: 2026-12-25
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md"
@@ -36,15 +36,22 @@ Automation Center's pricing is sourced from named European/US agency comparables
 
 **Net assessment**: treat Automation Center's benchmark pricing as directionally plausible and partially corroborated by live agency pricing pages, but not verified/official pricing, and due for periodic re-benchmarking (already a Decision/Rule below). Financial Automation, as Automation Center's first named service, uses this same benchmark pricing until service-specific pricing is validated.
 
-### Discovery/ROI-screening is free (Sept 2026 decision)
-Unlike Shrinking AI's paid €50/60-min diagnostic, Automation Center's discovery-and-ROI-screening chatbot session is **free** — a qualification and lead-generation step, not a monetized product. Revenue only begins once a screening decision reaches Prototype or Pilot and the client signs an implementation engagement, using the benchmark pricing above. This is a deliberate difference from Shrinking AI: the discovery conversation itself does not need to independently prove willingness-to-pay, because the founder is running it with a named, warm-introduced prospect rather than a cold/anonymous visitor.
+**Pricing direction (Sept 2026 decision):** set quotes from verified market-average competitor benchmarks and aim to be slightly below comparable providers on a case-by-case basis. Do not promise a fixed discount percentage. Internal delivery costs are a viability guardrail, not the revenue-pricing formula.
+
+### Discovery/ROI-screening fee: decision conflict unresolved
+The existing Sept 2026 decision is that Automation Center's discovery-and-ROI screening is **free** as a qualification/lead-generation step; revenue begins after a client signs an implementation engagement. However, the proposed partner-compensation model also contemplates sharing part of a one-time client-discovery fee. These positions conflict. Until the founder resolves the conflict in writing, do not charge or promise a share of a discovery fee. Shrinking AI's separate €50/60-min paid diagnostic is unaffected.
 
 ### Commercial-model structure (from the MVP research)
-The previously un-cited `financial_advisory_automation_mvp.xlsx` sketches a 4-part commercial model, reconciled here with the free-discovery decision above:
+The `financial_advisory_automation_mvp.xlsx` sketches a 4-part commercial model, reconciled here with the current free-discovery decision and unresolved partner-fee conflict:
 - **Discovery/measurement**: the xlsx proposes a "fixed fee for assessment, evidence plan and baseline sprint" — **not adopted for now**; discovery stays free per the decision above. Revisit if the free-discovery motion proves too resource-intensive relative to conversion.
 - **Implementation**: milestone fee by deliverable family and bounded scope, consistent with the existing per-project pricing table above.
 - **Recurring service**: platform/hosting/monitoring/support/maintenance/review/governance, consistent with the existing retainer pricing above.
 - **Outcome-linked option**: only with an attributable baseline, a named finance owner, and contractual measurement — never priced from ambiguous "time saved." Not yet used; a future option once a pilot has produced matched pre/post evidence.
+
+Do not operationalize a one-time discovery fee or its proposed partner share until the free-vs-paid discovery decision is resolved.
+
+### Proposed partner revenue share (unapproved)
+The founder's proposal is for both the Financial and Operations partners to receive a share from each new financial-industry customer during that customer's active maintenance period. A partner who introduces a specific customer would also receive an additional customer-attributed share of the one-time automation fee. The working basis is collected revenue after agreed direct delivery costs. This is not an agreement: the percentages, allocation between partners, direct-cost definition, attribution rules, duration/cap, and employer/conflict, tax, and legal reviews remain open. Do not promise or pay any share until terms are written and approved. Any proposed share of a one-time client-discovery fee remains blocked by the free-discovery conflict above.
 
 **Service-line pricing (Europe / US):**
 
@@ -76,8 +83,9 @@ The previously un-cited `financial_advisory_automation_mvp.xlsx` sketches a 4-pa
 
 ## Decisions / Rules
 - Automation Center (including Financial Automation) may quote using the documented, partially-corroborated benchmark pricing above; Shrinking AI must use its own real €50/60-min price, not the Automation Center benchmark.
-- Automation Center's discovery/ROI-screening chatbot session is free; do not charge for it or imply a screening decision is a paid deliverable.
-- Do not quote Automation Center pricing without a cost-model check (`../../../kb-cost-structure/docs/model/08-cost-structure.md`).
+- Use market-average competitor benchmarks and a modest case-by-case undercut; do not commit to a fixed discount. Internal costs are viability guardrails, not a cost-plus pricing basis.
+- The current decision is free discovery/ROI screening, but it conflicts with the proposed share of a one-time discovery fee. Do not charge for discovery or promise any discovery-fee share until that conflict is resolved.
+- Check the cost model (`../../../kb-cost-structure/docs/model/08-cost-structure.md`) to confirm delivery viability, not to derive the target price by cost-plus.
 - Do not price or position Financial Automation like a PE-fund-facing AI vendor; the buyer remains a solo consultant/small firm even when their own clients are funds (see `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`).
 - Re-benchmark Automation Center's pricing periodically as the automation-agency market shifts — the Sept 2026 corroboration pass already found one comparable (NeuraWeb) to have drifted; treat the figures above as current as of this research pass, not permanently fixed.
 - Do not raise or lower Shrinking AI's €50/60-min price without at least a handful more sessions at the current price to gauge demand first (see Open Actions).
@@ -86,14 +94,17 @@ The previously un-cited `financial_advisory_automation_mvp.xlsx` sketches a 4-pa
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified for the Shrinking AI session-flow structure.
 - **First 2 real paid Shrinking AI engagements (Sept 2026)** — verified, primary evidence establishing the €50/60-min price (self-published writer; self-employed tour guide).
 - `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — unverified (self-described AI-chat estimate), partially corroborated by independent Sept 2026 web research (FETCHER Solutions exact match; broader market range consistent; NeuraWeb tiers stale) — see Current State above for the full corroboration note.
-- `../../../../Resources/Documents/Research/financial_advisory_automation_mvp.xlsx` — verified, source of the 4-part commercial-model structure (discovery, implementation, recurring, outcome-linked).
+- `../../../../Resources/Documents/Research/Financial Automation/financial_advisory_automation_mvp.xlsx` — verified, source of the 4-part commercial-model structure (discovery, implementation, recurring, outcome-linked).
 - **Founder decision: free discovery (Sept 2026)** — verified as a decision, not yet evidenced against a real conversion outcome.
+- **Founder pricing/partner-model decision (Sept 2026)** — market-average competitor benchmarks with a modest case-by-case undercut; proposed, unapproved partner share from collected revenue after direct delivery costs; fee percentages and terms remain unresolved.
 
 ## Cross-Domain Links
 - Related domains: `kb-value-proposition`, `kb-cost-structure`, `kb-customers`, `kb-key-activities`
 - Related documents: `../../../kb-value-proposition/docs/products/02-services.md`, `../../../kb-value-proposition/docs/products/03-automation-center.md`, `../../../kb-value-proposition/docs/products/04-financial-automation.md`, `../../../kb-cost-structure/docs/model/08-cost-structure.md`, `../../../kb-key-activities/docs/execution/04-key-activities.md`, `../../../kb-key-activities/docs/execution/05-automation-center-key-activities.md`
 
 ## Open Actions
-- Set and document Shrinking AI's actual paid-session price (currently undocumented anywhere) — Human Center's highest-priority pricing gap, owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-003.
-- Validate Automation Center's benchmark pricing against the first signed client engagement, owner: Founder/Consultant.
-- Build a real cost model for Automation Center before finalizing a standard quote (see `../../../kb-cost-structure/docs/model/08-cost-structure.md`), owner: Founder/Consultant.
+- Resolve whether Automation Center discovery remains free or becomes a fee-bearing deliverable; only then decide whether any discovery fee is eligible for partner sharing, owner: Founder/Consultant.
+- Agree and document partner share percentages, allocations, attribution, direct-cost basis, maintenance-period duration/cap, and review terms; obtain required employer/conflict, tax, and legal review, owner: Founder/Consultant.
+- Validate the market-benchmark quote and modest case-by-case undercut against the first paid client; keep internal cost estimates as a viability check, owner: Founder/Consultant.
+- Build a real per-category cost model for Automation Center to evaluate delivery viability and partner-share basis (see `../../../kb-cost-structure/docs/model/08-cost-structure.md`), owner: Founder/Consultant.
+- Continue Shrinking AI price-elasticity testing at the documented introductory rate; see `../../../../tasks/backlog.md` HC-003.

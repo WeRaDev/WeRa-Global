@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: future
   evidence_status: hypothesis
-  last_reviewed_at: 2026-09-18
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-25
+  next_review_due: 2026-12-25
   provenance:
     actor: agent-warp
     source: analysis; Portugal payroll-cost web research (PwC Portugal 2026 Tax Guide, teamed.global, remotepass.com, PayMetric Labs) and Portugal salary-benchmark web research (Sept 2026)
@@ -30,9 +30,9 @@ Identify Inteligente's cost categories, as input to pricing decisions. These cat
 ### Actual current resource base (Sept 2026) — the real starting point
 This supersedes the earlier "Phase 0" framing with confirmed, real figures rather than a directional description:
 - **1 employee**: a **Consulting Officer**, paid **€604.05 net/month**. Gross salary and full employer-loaded cost (TSU, subsidies) are not yet documented here — see Open Actions.
-- **2 dedicated servers with AI tooling**, already owned/operating, costing **€71.54/month combined** for internet connectivity. These are the **Frank** and **SolarSeed** machines (see `../../../kb-key-resources/docs/architecture/06-automation-center-key-resources.md`): Frank hosts Inteligente's own dedicated automation framework/platform; the SolarSeed machine is earmarked to host the first signed client's automation instance. This is existing infrastructure, not new spend.
+- **2 dedicated servers with AI tooling**, already owned/operating, costing **€71.54/month combined** for internet connectivity. These are the **Frank** and **SolarSeed** machines (see `../../../kb-key-resources/docs/architecture/06-automation-center-key-resources.md`). The current generic Odoo chatbot is on Frank; stage 1 of the Discovery Pilot is Odoo Online, stage 2 is a local Odoo/local-model MVP on Frank after pilot validation, and the SolarSeed TRL5 machine is intended for the first paying customer's dedicated account/agent after readiness and isolation checks. The two servers are existing infrastructure, not new spend.
 - **"Operations Officer" and "Financial Officer" are not employees and carry no payroll cost.** They are external **partner relationships**: the Operations partner works within a network of financial companies; the Financial partner works at a small financial-advisory firm. Both are candidate sources of Financial Automation deal flow (see `../../../kb-key-partners/docs/partnerships/06-key-partners.md`), not headcount to be hired. Their compensation model (referral fee, revenue share, in-kind, or none yet) is undefined — see Open Actions.
-- **Total known fixed monthly cost: ≈ €675.59/month** (€604.05 net salary + €71.54 hosting), before employer social-security add-ons on the salary and before any partner compensation.
+- **Total known fixed monthly cost: ≈ €675.59/month** (€604.05 net salary + €71.54 hosting), before employer social-security add-ons on the salary and before any partner compensation. This excludes any Odoo Online subscription and GPT-4o/provider usage for the pilot; confirm actual quotes and usage before rollout.
 - **Resource-acquisition principle (explicit business rule, Sept 2026)**: only acquire an additional resource — headcount, server, tool, or subscription — when a specific, evidenced business requirement justifies it. Do not pre-provision for hypothetical scale. This governs every Decision/Rule and Open Action below.
 - Once at least one Prototype/Pilot engagement is signed (HC-011), the next real cost question is the **marginal cost of delivering that one engagement** (any contractor time, LLM/API usage, client-specific tooling) — not yet modeled here because no engagement has been signed.
 
@@ -65,8 +65,9 @@ Using Automation Center's benchmark pricing (see `../../../kb-revenue-streams/do
 **Verdict**: A 4-person, ~€150k-168k/year fully-loaded team is **not currently profitable or safely sustainable** at Automation Center's documented pricing and with a single-developer delivery capacity, given zero validated deal flow. The model implicitly assumes a sales/delivery velocity (2+ signed projects/month, sustained) with no supporting evidence. **This concern is significantly less pressing than it sounds once compared against the actual current resource base above**: the real fixed cost today is roughly €676/month plus undefined partner compensation, not €12,700-14,000/month — there is no burn from 3 of the 4 modeled roles because they either don't exist as payroll (Operations/Financial Officer) or already exist as a single, already-affordable hire (Consulting Officer). Recommendation: do not use this illustrative scenario to justify hiring; instead, add any new paid resource only when a specific, evidenced requirement appears (per the resource-acquisition principle above) — e.g. a Fullstack Developer only once signed deal volume exceeds what the Consulting Officer and partners can deliver personally.
 
 ## Decisions / Rules
-- Do not finalize pricing tiers in `../../../kb-revenue-streams/docs/model/07-revenue-streams.md` until an actual, non-scenario cost model exists.
+- Use cost data as a delivery-viability guardrail and to understand direct delivery costs; do not set customer revenue by cost-plus. Market-average competitor benchmarks with a modest case-by-case undercut remain the pricing direction (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`).
 - Do not hire any additional employee, and do not formalize Operations/Financial Officer as paid roles, until a specific, evidenced business requirement justifies it (resource-acquisition principle above) — the illustrative 4-person scenario must not be read as a hiring plan.
+- Partner compensation remains an unapproved proposal, not a current cost or payroll item. If agreed, calculate shares from collected customer revenue after explicitly agreed direct delivery costs; percentages, allocation, duration/cap, and approvals remain open.
 - Re-run the illustrative scenario with real payroll quotes (e.g. from a Portuguese accountant or EOR) before treating any of its salary figures as more than a rough planning assumption.
 - Track the Consulting Officer's actual gross salary and fully-loaded employer cost (TSU, subsidies) as the one real, current payroll data point — do not substitute the illustrative Consulting Officer figure (€2,200/mo gross assumption) for the real €604.05 net figure in any actual accounting.
 
@@ -82,7 +83,7 @@ Using Automation Center's benchmark pricing (see `../../../kb-revenue-streams/do
 
 ## Open Actions
 - Get the Consulting Officer's actual gross salary and fully-loaded employer cost (TSU, holiday/Christmas subsidies) from payroll records, to replace the €604.05 net-only figure with a real fully-loaded cost, owner: Founder/Consultant.
-- Define (or explicitly confirm as none, for now) a compensation model for the Operations and Financial partner relationships — referral fee, revenue share, in-kind, or unpaid — so future revenue-share commitments are documented rather than assumed, owner: Founder/Consultant.
-- Build an actual, non-payroll, per-category cost model (LLM/API usage, hosting, OCR tooling, storage) with real vendor quotes rather than the current €1,200-1,800/month placeholder from the illustrative scenario, owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-003.
+- Agree and document partner-share percentages, allocations, attribution, direct-cost basis, duration/cap, and required employer/conflict, tax, and legal approvals before treating any share as a cost or payment obligation, owner: Founder/Consultant.
+- Build an actual, non-payroll, per-category cost model (Odoo Online and GPT-4o pilot usage, hosting, workflow/OCR tooling, storage) from real vendor quotes to test delivery viability and direct-cost attribution; do not use it as a cost-plus pricing formula, owner: Founder/Consultant.
 - Get a real payroll/EOR quote from a Portuguese provider before ever treating the illustrative scenario's salary figures as more than a rough planning assumption, owner: Founder/Consultant.
 - Do not act on the illustrative 4-person scenario until Automation Center has at least 1 signed client (HC-011) and evidence of sustained deal flow; re-run the breakeven math using real figures once that evidence exists, owner: Founder/Consultant.

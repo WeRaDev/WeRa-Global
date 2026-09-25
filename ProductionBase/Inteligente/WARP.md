@@ -8,9 +8,9 @@ Inteligente (`Inteligente Razao - Unipessoal LDA`, `www.inteligente.site`) is an
 - Keep every consequential (financial/legal) action subject to explicit human approval.
 
 ## Current maturity
-- Stage: pre-development / consultancy and knowledgebase initialization.
+- Stage: the partner-led Financial Automation Discovery Pilot was formally initiated in Sept 2026; no first session or result is yet confirmed. Stages are Odoo Online pilot → local MVP on Frank (TRL4, `wera-ss-pt-sn-1`) → first paying customer on the SolarSeed TRL5 host (`wera-ss-pt-tv-1`), subject to readiness and isolation checks.
 - Source baseline: `Resources/Documents/Research/` (desk research, pricing benchmarks, problem framing).
-- Priority: validate the problem/solution framing with real discovery calls, then scope the first pilot package. Empowering Human has no commissioned research yet.
+- Priority: validate the deliverable-first interview, evidence-graded ROI output, and commercial buying decision with the partner pilot. Empowering Human has no commissioned research yet.
 
 ## Delivery standards
 - Keep changes small and reviewable.

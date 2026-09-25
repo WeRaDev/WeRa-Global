@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: hypothesis
-  last_reviewed_at: 2026-09-17
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-25
+  next_review_due: 2026-12-25
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; Inteligente/Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md"
@@ -33,20 +33,26 @@ Like Automation Center generally, **no weighted ICP scoring model exists yet** f
 ### Real-world reach signal (Sept 2026)
 Both profiles remain in scope, but the founder's actual reachable pipeline is concentrated in **profile 2 (small financial-advisory/consultancy firms with employees)**: named prospects/relationships already exist, reachable via the founder's personal/professional network (warm introduction), not cold outbound or paid channels (see `../../../kb-channels/docs/gtm/12-automation-center-channels.md`). This is still a hypothesis about product-market fit, but it is no longer a hypothesis about reachability — there is a concrete, warm path to real discovery sessions with this profile specifically. Profile 1 (solo consultant/investment-fund-adjacent) has no equivalent named pipeline yet.
 
+### Discovery Pilot customer and validator
+The Financial Automation Discovery Pilot was formally initiated in Sept 2026, but no first-session date or result is confirmed. The **Financial partner acts as the customer**, using only aggregated metrics from their own firm after written authorization and cloud/privacy review; the **Operations partner validates** the interview method and output. After the method is validated, the Operations partner is expected to share the chatbot with its network of small financial firms. That later distribution is a plan, not evidence of adoption or product-market fit.
+
 ## Decisions / Rules
 - Do not price or position Financial Automation as an enterprise/PE-fund-facing AI vendor; the buyer remains a solo consultant or small firm even when their own clients are funds.
 - For any prospect whose data includes regulated financial-advisory activity, run the compliance/data-owner discovery route before proposing a pilot (see `../../../kb-solution/docs/strategy/04-financial-automation-solution.md`).
-- Prioritize scheduling discovery sessions with the named profile-2 prospects first, since that pipeline is real and warm; keep profile 1 as an active but unscheduled hypothesis rather than dropping it.
+- Restrict the partner pilot to aggregated metrics from the Financial partner's own firm after written authorization and cloud/privacy review; do not collect credentials, raw client records, or third-party confidential data.
+- Prioritize the Financial partner's own firm for the first method/commercial pilot, with the Operations partner as validator. Only extend the interview to the Operations partner's network after method and output validation; keep profile 1 as an active but unscheduled hypothesis.
 
 ## Evidence
 - `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — unverified (self-described AI-chat estimate; see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md` for the corroboration note), defines the solo-consultant/investment-fund-adjacent persona and security requirements.
 - `../../../../Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md` — verified, defines the financial-advisory firm persona with distinct adviser/operations/compliance roles.
 - **Founder-reported named prospect pipeline (Sept 2026)** — verified as a reachability fact (real relationships exist), unverified as a product-market-fit fact (no discovery session has occurred yet); mostly profile-2 firms, reachable via personal/professional network.
+- **Founder-approved pilot roles and staged channel (Sept 2026)** — Financial partner is the pilot customer, Operations partner validates, and partner-network sharing follows methodology validation; first session and results are not yet confirmed.
 
 ## Cross-Domain Links
 - Related domains: `kb-value-proposition`, `kb-problem`, `kb-solution`, `kb-governance`, `kb-channels`
 - Related documents: `../../../kb-value-proposition/docs/products/04-financial-automation.md`, `../../../kb-solution/docs/strategy/04-financial-automation-solution.md`, `04-automation-center-segments.md`, `../../../kb-channels/docs/gtm/12-automation-center-channels.md`
 
 ## Open Actions
-- Run discovery interviews with the named profile-2 prospects first, then whatever profile-1 prospects can be found, to build a scored ICP model analogous to Shrinking AI's, owner: Founder/Consultant.
+- Run the partner-led pilot with the Financial partner and capture findings without extending the data scope beyond authorized aggregated metrics from that firm; record the Operations partner's validation and the commercial decision, owner: Founder/Consultant.
+- After validation, use the Operations partner's network introductions to test profile-2 reachability-to-conversion; then pursue profile-1 interviews as capacity allows, owner: Founder/Consultant.
 - Determine whether solo consultants and financial-advisory firms need different marketing/positioning tracks within Financial Automation, owner: Founder/Consultant.

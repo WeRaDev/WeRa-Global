@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-17
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-25
+  next_review_due: 2026-12-25
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md"
@@ -30,7 +30,7 @@ Establish the canonical company identity for Inteligente and its product-line/se
   1. **Human Center** — a consultancy product line offering human-facilitated services around AI adoption:
      - **Shrinking AI** (B2B): a human-facilitated diagnostic service that converts "AI frustration" into a bounded, AI-ready problem statement via a paid RCGFC session. See `../products/02-services.md`.
      - **Empowering Human** (B2C, hypothesis-stage): a discovery service to identify the most suitable AI applications for business and personal use. See `../products/05-empowering-human.md`.
-  2. **Automation Center** — a build-and-implement automation product line (n8n/Make/Zapier + LLM APIs) for back-office workflows, gated by a proprietary chatbot-led, evidence-graded discovery-and-ROI methodology, addressable to any professional-services firm or solo consultant. See `../products/03-automation-center.md`.
+  2. **Automation Center** — a build-and-implement automation product line (n8n/Make/Zapier + LLM APIs) for back-office workflows, gated by a proprietary, deliverable-first and evidence-graded discovery-and-ROI methodology, addressable to any professional-services firm or solo consultant. See `../products/03-automation-center.md`.
      - **Financial Automation**: Automation Center's first named service, specialising in workflow automation for the financial industry, including investment-fund-adjacent and other more heavily regulated contexts. See `../products/04-financial-automation.md`.
 - Geography: Western Europe and the Nordics — targeting companies with budgets for AI and cultures of supporting employees with organisational tools. Automation Center's addressable market is broader than Human Center's Shrinking AI service (see `../../../kb-customers/docs/gtm/04-automation-center-segments.md` and `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`).
 - Ecosystem: developed under `ProductionBase/Inteligente/` within the WeRa Global umbrella repository (`native` vcs_mode, `enforced` baseline_policy per `ProductionBase/repos.yaml`).
@@ -40,7 +40,7 @@ Establish the canonical company identity for Inteligente and its product-line/se
 - Automation Center may be represented externally as an AI-automation agency (n8n/Make/Zapier workflow builder) with documented, market-benchmark-derived pricing — this positioning is directionally corroborated by independent research but not yet validated against a signed client (see `../../../kb-revenue-streams/docs/model/07-revenue-streams.md`), not to be confused with Human Center's facilitation-only positioning.
 - Empowering Human is hypothesis-stage: it folds in the earlier, unresearched "Career Development" B2C concept and must be labeled `evidence_status: hypothesis` until validated.
 - **Cross-sell direction (decided, Sept 2026): Automation Center leads.** The sales motion signs a prospect for an Automation Center engagement first, then attaches Human Center consultancy (Shrinking AI) on top of that relationship, not the reverse. This replaces the previously open question in Open Actions below.
-- **Near-term focus (Sept 2026):** actively deliver Human Center services (Shrinking AI sessions) while Automation Center remains in the discovery phase only — running founder-led manual discovery sessions with named prospects, not yet full build-and-implement delivery (see `../../../kb-solution/docs/strategy/03-automation-center-solution.md`). Do not represent Automation Center as being in active build/delivery until a Pilot is actually signed.
+- **Near-term focus (Sept 2026):** the partner-led Financial Automation Discovery Pilot has been formally initiated on Odoo Online, but no first-session date or result is confirmed and no paid build is signed. The existing live Odoo chatbot on Frank remains generic lead capture and is distinct from the pilot. The stage sequence is Odoo Online partner pilot → local Odoo/local-model MVP on Frank after validation → first paying customer's dedicated account/agent on SolarSeed TRL5 after readiness and isolation checks (see `../../../kb-solution/docs/strategy/03-automation-center-solution.md`). Do not represent Automation Center as having completed a pilot or begun paid client delivery.
 
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified (states the entity name, product structure, and geography directly from project documentation relayed within the research brief).

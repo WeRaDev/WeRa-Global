@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: future
   evidence_status: hypothesis
-  last_reviewed_at: 2026-09-15
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-25
+  next_review_due: 2026-12-25
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; analysis"
@@ -17,14 +17,14 @@ metadata:
 # Key Metrics
 
 ## Purpose
-Define the metrics Inteligente should track once it begins operating.
+Define candidate early-stage metrics, proof-asset targets, and pilot outcomes for Inteligente's current operations.
 
 ## Scope
-- In scope: candidate early-stage metrics, plus concrete near-term proof-asset targets named in research.
-- Out of scope: actual measured values (none exist yet — pre-pilot).
+- In scope: candidate early-stage metrics, concrete near-term proof-asset targets named in research, recorded evidence from completed Shrinking AI sessions, and measurement criteria for the Automation Center pilot.
+- Out of scope: instrumented longitudinal time series or claimed Automation Center pilot results (no pilot session or result is recorded yet).
 
 ## Current State
-No metrics are instrumented yet. Two tiers of metrics apply:
+No operating metrics are instrumented as a series yet. Shrinking AI has two completed paid sessions, while the partner-led Financial Automation Discovery Pilot was formally initiated in Sept 2026 but has no recorded first session or result. Two tiers of metrics apply:
 
 **Near-term proof-asset targets (from research, concrete and named)** — the research explicitly identifies a lack of proof assets as an operational gap. Named targets to close it:
 - **10+ completed paid sessions** — **2 of 10 complete** as of Sept 2026 (self-published writer, AI for e-book formatting; self-employed tour guide, AI for content creation; both €50/60-min).
@@ -41,6 +41,8 @@ No metrics are instrumented yet. Two tiers of metrics apply:
 
 **Candidate metrics for Automation Center (hypothesis, not yet instrumented)**, derived from the discovery-and-ROI methodology:
 - Discovery-interview (or chatbot) completion rate and voluntary-abandonment rate.
+- Pilot-method validation, including required-question coverage, evidence-grade distribution, whether follow-up prompts resolved uncertainty, and founder correction/rejection rate for the draft plan and ROI range.
+- Commercial-pilot outcome: documented buying decision or qualified paid-pilot offer; actual payment is tracked separately.
 - Distribution of qualification outcomes: Stop / Measure / Prototype / Pilot.
 - Evidence-grade distribution (A-E) of intake data, as a proxy for prospect data readiness.
 - Measurement-sprint-to-pilot conversion rate.
@@ -50,7 +52,8 @@ No metrics are instrumented yet. Two tiers of metrics apply:
 
 ## Decisions / Rules
 - Treat the three proof-asset targets as prerequisites for any public-facing credibility claim; do not publish case content without corresponding consent-pack evidence.
-- Ongoing operating metrics remain a candidate list pending the first pilot, for both Shrinking AI and Automation Center.
+- Treat ongoing operating metrics as candidates until definitions and instrumentation are established; the Shrinking AI €50 average is based on only two sessions and is not a trend. Automation Center pilot metrics remain unobserved until the first session.
+- Do not report pilot success until the interview/ROI workflow is validated and a buying decision or qualified paid-pilot offer is documented; payment remains a separate milestone.
 - Automation Center's realized-vs-projected ROI variance must be computed from matched pre/post evidence, never from interview-stage estimates alone.
 
 ## Evidence
@@ -64,4 +67,4 @@ No metrics are instrumented yet. Two tiers of metrics apply:
 ## Open Actions
 - Produce the remaining proof assets (8+ more sessions, 3 case write-ups, consent pack — 2 of 10 sessions done), owner: Founder/Consultant, due: see `../../../../tasks/backlog.md` HC-005.
 - Collect consent from the 2 completed Sept 2026 clients so at least one case write-up can begin, owner: Founder/Consultant.
-- Define and instrument ongoing operating-metric measurement before scaling past the first pilots, owner: Founder/Consultant.
+- Define and instrument ongoing operating-metric measurement before scaling Automation Center beyond the partner pilot and as Shrinking AI adds sessions, owner: Founder/Consultant.
