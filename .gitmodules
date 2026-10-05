@@ -30,3 +30,6 @@
 	path = ProductionBase/CityView
 	url = http://127.0.0.1:3000/wera-global/CityView.git
 	branch = main
+[submodule "ProductionBase/SolarCity"]
+	path = ProductionBase/SolarCity
+	url = http://127.0.0.1:3000/wera-global/SolarCity.git

@@ -87,6 +87,14 @@ repos:
     gitea_url: http://127.0.0.1:3000/wera-global/Inteligente.git
     default_branch: main
     status: active
-    role: AI-automation consultancy (inteligente.site) - product lines Human Center (Shrinking AI, Empowering Human) and Automation Center (Financial Automation)
+    role: AI-automation consultancy (inteligente.site) - product lines Human Center (Shrinking AI, Expanding Human) and Automation Center (Financial Automation)
     vcs_mode: native
     baseline_policy: enforced
+  - id: SolarCity
+    path: ProductionBase/SolarCity
+    gitea_url: http://127.0.0.1:3000/wera-global/SolarCity.git
+    default_branch: main
+    status: active
+    role: City of Light operational framework - gamified operator interface and human-supervised agent operations for SolarSeed machine nodes
+    vcs_mode: submodule
+    baseline_policy: delegated

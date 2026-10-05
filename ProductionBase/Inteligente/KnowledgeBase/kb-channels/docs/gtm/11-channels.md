@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-15
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-29
+  next_review_due: 2026-12-29
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md"
@@ -21,7 +21,7 @@ Document validated acquisition-channel mechanics for Shrinking AI.
 
 ## Scope
 - In scope: the booking-page conversion mechanism and the consultant-referral channel hypothesis.
-- Out of scope: paid acquisition/media strategy (not yet researched); Empowering Human channels (hypothesis-stage); Automation Center channels, see `12-automation-center-channels.md`.
+- Out of scope: paid acquisition/media strategy (not yet researched); Expanding Human channels (hypothesis-stage); Automation Center channels, see `12-automation-center-channels.md`.
 
 ## Current State
 The primary conversion channel is the **website itself**, with a single goal: book a free 15-minute call. Boutique AI-agency booking pages reviewed (AI Jungle's "Book a 30-Min AI Workforce Call," Benian's "Book Your AI Discovery Call," The Automators' "free 30-minute discovery call") converge on a tactical pattern for lightweight B2B scheduling: a single embedded scheduler, one clear CTA, minimal form friction, and a plain-language outcome promise before the click. This is the tactical benchmark for Shrinking AI's own booking mechanism (distinct from the strategic/credibility benchmark set by McKinsey-tier firms, which is for visual/tone credibility only, not conversion mechanics).
