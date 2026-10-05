@@ -5,12 +5,12 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-15
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-29
+  next_review_due: 2026-12-29
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md"
-    confidence: high
+    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; founder-reported anonymized case summaries and outcome follow-up (business-analysis session, 2026-09-29)"
+    confidence: medium
     review_status: draft
 ---
 
@@ -21,11 +21,12 @@ Describe Shrinking AI's solution approach to the problem in `../../../kb-problem
 
 ## Scope
 - In scope: the human-facilitated, session-based solution model for Shrinking AI.
-- Out of scope: workflow-automation builds (n8n/Make/Zapier) — that is the Automation Center product line, see `03-automation-center-solution.md`; Empowering Human, Human Center's other (hypothesis-stage) service; automating tax-return filing or other high-risk unsupervised financial/legal decisions.
+- Out of scope: workflow-automation builds (n8n/Make/Zapier) — that is the Automation Center product line, see `03-automation-center-solution.md`; Expanding Human, Human Center's other (hypothesis-stage) service; automating tax-return filing or other high-risk unsupervised financial/legal decisions.
 
 ## Current State
 - **Positioning: the "human interaction quality layer."** Shrinking AI occupies the white space between tool-level IT/automation consulting (too generic/self-serve, produces a "digital graveyard" of disconnected point solutions) and strategy-level change management (too enterprise-scoped, slow, expensive). No identified competitor sits at the intersection of enterprise-grade credibility signaling, SME-level low-commitment entry, and high human/emotional facilitation — see `../../../kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` for the full positioning map.
 - **Delivery method: the RCGFC framework.** The core facilitation tool is a structured-input framework — **Role, Context, Goal, Format, Constraints** — used during the paid session to convert a client's vague or emotionally-loaded AI frustration into a precise, AI-ready problem statement and instruction set. This mirrors the deliverable Human Center already promises, and a fragment of the framework should be taught/previewed on the website itself as a trust-building preview rather than gating all value behind a call.
+- **Early engagement observation (founder-reported, 2 client accounts):** Client A received contextual requirement extraction, AI configuration, and book pre-print/pre-publication materials, which the client later confirmed using to print and publish the book. This confirms reported use, not that the materials caused publication or changed its quality, timing, or business outcome. Client B received business analysis that shifted the recommended priority from more YouTube content to a website booking path, plus a business-model canvas and business plan for website construction; the client has started building the website. Client A's later, separate paid Expanding Human consultancy (€50/60 minutes) explored business use of AI beyond editing and formatting and produced a business model canvas plus a "marketing scope of AI application." These follow-up deliverables and Client B's build progress show distinct paths beyond the initial sessions, not a standardized Shrinking AI delivery pattern. The case summaries do not establish whether RCGFC was explicitly used in either initial engagement; do not claim that it was. Both clients have expressed Automation Center interest, which is not an order or validation of demand.
 - **Discovery methodology: Design Thinking + Theory of Constraints.** Design Thinking's empathize/define discipline surfaces the client's actual pain and emotional friction before any solution is proposed (avoiding the "generic AI pitch" failure mode). Theory of Constraints reframes the underlying systemic problem: once AI execution is fast and cheap, the binding constraint shifts to "how well can we frame the problem, select what matters, and judge the quality of what AI produces" — i.e., input-quality judgment becomes the bottleneck, not AI capability itself. Shrinking AI's session directly exploits and elevates that specific bottleneck rather than selling more AI tooling.
 - **Delivery principles:** EU-hosted infrastructure, GDPR compliance, no client data used to train public models, human approval required for consequential actions, transparent "early-stage" framing (no fabricated case studies) until real proof assets exist.
 
@@ -33,10 +34,12 @@ Describe Shrinking AI's solution approach to the problem in `../../../kb-problem
 - Every session must map to the client's actual, validated bottleneck (Design Thinking + TOC discovery), not a generic AI pitch (see `../../../../SOUL.md`).
 - The RCGFC framework is the canonical facilitation method; do not substitute ad hoc prompting advice.
 - Do not present Shrinking AI as a workflow-automation build service; the deliverable is a problem statement + instruction set, not built automation (that is a separate, optional "implementation support" follow-on).
+- Use need-based referrals across Human Center and Automation Center in either direction; do not treat the routing strategy or the two unqualified Automation Center interest signals as conversion evidence.
 
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified, defines RCGFC, positioning map, and Design Thinking/TOC-adjacent methodology.
 - `../../../../Resources/Documents/Research/Shrinking AI (B2B Consultancy) — Desk Research, He.md` — verified, positioning map and competitor benchmark corroboration.
+- **Founder-reported anonymized case summaries and outcome follow-up (business-analysis session, 2026-09-29)** — primary, retrospective reports of two interventions, a later paid Expanding Human consultancy, use of the initial materials for publication, website-build progress, and Automation Center interest; independent confirmation, causal attribution, method use, and business impact have not been reviewed.
 - `../../../../Resources/Documents/Research/Design Thinking and Theory of Constraints as Remedies for AI Input-Quality and Productivity Aggregation Problems.md` — unverified/hypothesis academic desk research; used here as the theoretical grounding for why the RCGFC/facilitation approach should work, not as Human Center's own validated methodology yet.
 - `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — unverified, third-party desk research on a separate automation-agency pricing thread; delivery/security posture (EU hosting, human approval, DPA) is still a useful reference even though the service model differs.
 

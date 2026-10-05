@@ -87,6 +87,6 @@ repos:
     gitea_url: http://127.0.0.1:3000/wera-global/Inteligente.git
     default_branch: main
     status: active
-    role: AI-automation consultancy (inteligente.site) - product lines Human Center (Shrinking AI, Empowering Human) and Automation Center (Financial Automation)
+    role: AI-automation consultancy (inteligente.site) - product lines Human Center (Shrinking AI, Expanding Human) and Automation Center (Financial Automation)
     vcs_mode: native
     baseline_policy: enforced

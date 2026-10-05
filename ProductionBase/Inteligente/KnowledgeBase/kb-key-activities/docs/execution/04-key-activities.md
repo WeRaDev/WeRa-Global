@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-15
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-29
+  next_review_due: 2026-12-29
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md"
@@ -21,7 +21,7 @@ List Shrinking AI's core delivery activities.
 
 ## Scope
 - In scope: activities required to run the empathy-call-to-deliverable session flow.
-- Out of scope: Empowering Human activities (hypothesis-stage); built-automation delivery, which is the Automation Center product line's own set of activities — see `05-automation-center-key-activities.md`.
+- Out of scope: Expanding Human activities (hypothesis-stage; no standardized method recorded); built-automation delivery, which is the Automation Center product line's own set of activities — see `05-automation-center-key-activities.md`.
 
 ## Current State
 - **Lead qualification**: a short pre-booking form (2-3 questions) to qualify fit before a call is booked, reducing wasted founder time on unqualified calls.

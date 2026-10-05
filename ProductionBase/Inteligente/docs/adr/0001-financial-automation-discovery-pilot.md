@@ -1,14 +1,17 @@
 # ADR 0001: Financial Automation Discovery Pilot and Staged Delivery
 
 ## Status
-Accepted — 2026-09-25
+Accepted — 2026-09-25; external-pilot-first ordering superseded by ADR 0002 — 2026-09-29
+
+## Current sequencing status
+ADR 0002 changes only the order of validation: Consultancy Automation for Inteligente's own operations must be validated before any external Financial Automation pilot. The partner pilot described here was formally initiated but is deferred, not cancelled; it has no session or result and remains blocked by its existing safety, actionable-human-notification, privacy, data-flow, and authorization gates. The Odoo Online scope, external partner roles, and technical safeguards below remain conditional design requirements. No internal workflow or host is selected by this ADR.
 
 ## Context
 Automation Center’s governed discovery and ROI method has been designed, but no partner pilot session or result is yet confirmed. The Financial partner will act as the pilot customer using only authorized, aggregated metrics from their own firm; the Operations partner will validate the interview method. This is also a commercial pilot: its output should help the customer make a documented buying decision, not merely test the technology.
 
 The existing Odoo Live Chat deployment on Frank has generic lead-capture behavior, not the governed interview. Odoo 19 documentation describes an AI Agent attached to a Live Chat channel rule as taking priority over a scripted chatbot when both are assigned. It does not establish that the scripted interview can invoke the agent only at a later escalation step, nor specify the exact conversation payload, transcript retention, or all provider-side handling. Odoo Online is hosted by Odoo and does not support custom modules.
 
-## Decision
+## Original decision (external sequence; ordering amended by ADR 0002)
 Deliver the work in three gated stages:
 
 1. **Discovery Pilot — Odoo Online.** Use a structured, deliverable-first interview and the Odoo AI Agent stack (GPT-4o is the founder-reported model and must be verified in the pilot database). The Financial partner is the customer; the Operations partner validates the method. The analyst is intended to receive only a minimized, schema-allowed question/answer context after explicit escalation and to suggest a targeted follow-up. Before enabling automatic handoff, test that the supported Odoo configuration preserves the scripted-chatbot-first sequence and verify the context sent, storage/processing locations, and transcript/log retention. If that boundary cannot be verified, the founder will manually invoke the analyst on the single permitted question/answer during this partner pilot. Prompts and instructions alone are not proof of data isolation.
@@ -27,11 +30,18 @@ Use current market benchmarks and a modest case-by-case undercut; do not set a f
 - A successful partner pilot does not itself mean a paid client engagement has been signed or paid.
 - The workbook remains at `Resources/Documents/Research/Financial Automation/financial_advisory_automation_mvp.xlsx`; its uncommitted move is user-owned and must not be staged or reverted.
 
+## Implementation status note — 25 September 2026
+
+The founder confirmed that the authorized pilot database runs on Odoo Online. This is a hosting-class confirmation, not verification of region, provider/runtime, API-key mode, actual request context, or retention. The separate pilot chatbot 4 was saved inactive/unassigned and archived after synthetic sensitive-input, legal/tax/investment-advice, and guaranteed-ROI stop tests failed; no partner session or result is confirmed. It remains blocked until safety stops, actionable human notification, and data handling pass in an isolated test.
+
+The existing Human Center `/discovery-interview` route and Agent 5—with CRM Create/Get Lead tools available—are a separate configuration. Public reachability, runtime behavior, and CRM effects remain unaudited; the audit-only task is `tasks/comet-audit-discovery-interview-agent5.md`. Do not conflate this route or pilot chatbot 4 with the previously documented Frank generic bot; their hosting relationship is unresolved.
+
 ## References
 - `KnowledgeBase/kb-solution/docs/strategy/03-automation-center-solution.md`
 - `KnowledgeBase/kb-solution/docs/strategy/04-financial-automation-solution.md`
 - `KnowledgeBase/kb-key-resources/docs/architecture/06-automation-center-key-resources.md`
 - `tasks/backlog.md`
+- `tasks/comet-audit-discovery-interview-agent5.md`
 - [Odoo 19 AI live chat](https://www.odoo.com/documentation/19.0/applications/productivity/ai/live-chat.html)
 - [Odoo 19 AI agents](https://www.odoo.com/documentation/19.0/applications/productivity/ai/agents.html)
 - [Odoo 19 AI API keys](https://www.odoo.com/documentation/19.0/applications/productivity/ai/apikeys.html)

@@ -5,11 +5,11 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-25
-  next_review_due: 2026-12-25
+  last_reviewed_at: 2026-09-29
+  next_review_due: 2026-12-29
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md; Inteligente/Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md; Inteligente/Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md; founder-approved Discovery Pilot decision"
+    source: "Inteligente/Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md; Inteligente/Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md; Inteligente/Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md; founder-approved Discovery Pilot decision; founder-defined Consultancy Automation internal-first decision (2026-09-29)"
     confidence: high
     review_status: draft
 ---
@@ -20,10 +20,11 @@ List Automation Center's core delivery activities.
 
 ## Scope
 - In scope: activities from discovery interview through build, deployment, and support retainer.
-- Out of scope: Human Center's session-flow activities, Shrinking AI (`04-key-activities.md`) and Empowering Human; Financial Automation's compliance-specific activity extensions (see `../../../kb-value-proposition/docs/products/04-financial-automation.md`).
+- Out of scope: Human Center's session-flow activities, Shrinking AI (`04-key-activities.md`) and Expanding Human; Financial Automation's compliance-specific activity extensions (see `../../../kb-value-proposition/docs/products/04-financial-automation.md`).
 
 ## Current State
-- **Status (Sept 2026): partner-led Discovery Pilot formally initiated; not yet run.** No first-session date or results are confirmed. The Financial partner acts as customer and the Operations partner validates the method. The intended stage-1 tool is an Odoo Online scripted interview with escalation-gated AI analysis; use a founder-triggered analyst step until automatic handoff and data boundaries are verified (HC-016).
+- **Status (Sept 2026): Consultancy Automation internal validation first; external partner pilot deferred.** The internal workflow, baseline, measures, and host are not selected. The external partner-led Discovery Pilot was formally initiated but is deferred, not cancelled, until the internal use case is validated and the existing safety/data-flow gates pass. It has no first-session date or result. When resumed, the Financial partner acts as customer and the Operations partner validates the method; the intended platform remains Odoo Online.
+- **Internal Consultancy Automation validation activity (planned):** select a workflow from Inteligente's own consultancy operations, define an appropriate baseline and efficiency/outcome measures, run a bounded internal validation, and record findings before any external Financial Automation pilot. No workflow or host is assumed.
 - **Role-routed, deliverable-first discovery interview**: adviser/owner route (8-12 min), operational-colleague route (10-15 min), compliance/data-owner route (6-10 min, a feasibility gate), optional finance-owner route (only if a financial ROI will be presented). Start from the output to deliver, its owner/recipient, frequency, quality criteria, effort, exceptions, review, and delivery; design a better delivery method rather than copying the existing workflow.
 - **Evidence grading and benefit classification**: every claimed number is graded A-E and every benefit classified (cash-releasing saving, cost avoidance, incremental margin, released capacity, quality/risk benefit) before any value calculation is presented.
 - **Screening decision**: producing one of Stop / Measure / Prototype / Pilot as a one-page decision record (opportunity statement, baseline, value route, feasibility, uncertainty, recommendation) — never a single-point guaranteed ROI.
@@ -36,6 +37,8 @@ List Automation Center's core delivery activities.
 
 ## Decisions / Rules
 - Do not propose a build or quote a price before the discovery interview reaches a Prototype or Pilot recommendation.
+- Validate Consultancy Automation within Inteligente's own operations before any external Financial Automation pilot; do not assume its workflow, baseline, hosting, or results.
+- Resume the deferred partner pilot only after internal validation and all existing safety, actionable-human-notification, privacy, data-flow, and authorization gates pass.
 - Do not skip the compliance/data-owner route for any client whose data may be regulated or confidential; this route is mandatory for Financial Automation clients (financial-advisory, investment-fund-adjacent), see `../../../kb-solution/docs/strategy/04-financial-automation-solution.md`.
 - Every pilot must define its eligible unit, baseline, and success/guardrail/stop criteria before deployment, per the discovery methodology.
 - For the Odoo Online partner pilot, use only authorized aggregated metrics from the Financial partner's own firm after cloud/privacy review; do not collect credentials, raw client records, or third-party confidential data. Odoo Online is cloud-hosted, not local-only.
@@ -54,7 +57,8 @@ List Automation Center's core delivery activities.
 - Related documents: `../../../kb-solution/docs/strategy/03-automation-center-solution.md`, `../../../kb-key-resources/docs/architecture/06-automation-center-key-resources.md`, `../../../kb-metrics/docs/financial/09-key-metrics.md`
 
 ## Open Actions
-- Run the first Odoo Online partner-pilot session and record its date, authorized data scope, interview findings, validator feedback, reviewed output, and buying decision or qualified paid-pilot offer; no session/result is confirmed yet, owner: Founder/Consultant, tracked as HC-009.
+- Define, run, and evaluate the internal Consultancy Automation use case before any external pilot; workflow, baseline, and hosting remain undecided, owner: Founder/Consultant, tracked as HC-021.
+- Resume the deferred Odoo Online partner-pilot session only after internal validation and its existing safety/data-flow gates pass; record its date, authorized data scope, interview findings, validator feedback, reviewed output, and buying decision or qualified paid-pilot offer, owner: Founder/Consultant, tracked as HC-009 and HC-016.
 - Define the standard operating procedure for a measurement sprint (tooling, template, duration), owner: Founder/Consultant.
 - Verify the Odoo Online scripted-first/AI-agent handoff and data boundary; use founder-triggered, minimized single-answer analysis if automatic escalation fails the test, owner: Founder/Consultant, tracked as HC-016.
 - After pilot validation, build the local Odoo/local-model MVP on Frank and verify capacity, ingress, access control, and isolation before deployment, owner: Founder/Consultant.

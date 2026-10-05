@@ -5,12 +5,12 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-15
-  next_review_due: 2026-12-15
+  last_reviewed_at: 2026-09-29
+  next_review_due: 2026-12-29
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/Shrinking AI (B2B Consultancy) — Desk Research, He.md"
-    confidence: high
+    source: "Inteligente/Resources/Documents/Research/Shrinking AI (B2B Consultancy) — Desk Research, He.md; founder-defined Expanding Human contextual need (2026-09-29)"
+    confidence: medium
     review_status: draft
 ---
 
@@ -21,7 +21,7 @@ Define the core problem Shrinking AI's target customers face, as the basis for i
 
 ## Scope
 - In scope: the "AI adoption fails without human facilitation" problem for SME/consultant/freelancer buyers; the emotional/trust barrier preventing buyers from seeking help.
-- Out of scope: enterprise-scale AI transformation programs; Empowering Human, Human Center's other (hypothesis-stage) service.
+- Out of scope: enterprise-scale AI transformation programs; Expanding Human, Human Center's other (hypothesis-stage) service.
 
 ## Current State
 **Core framing (cross-validated, 3+ independent sources): AI adoption failure is a facilitation/expertise gap, not a technology gap** — "a learning gap, not a tech gap." Key validated statistics:
@@ -42,6 +42,8 @@ Define the core problem Shrinking AI's target customers face, as the basis for i
 **The dominant emotion is embarrassment mixed with sunk-cost frustration, not anger.** Buyers feel exposed for not already understanding AI. This is a hard design/messaging constraint, not just a tone preference.
 
 A broader, complementary research thread (from an earlier, more academic pass) identifies a related mechanism at the model-behavior level: emotionally/rhetorically "dirty" human input (vague, emotionally-loaded, poorly-specified prompts) measurably increases AI output variance and the downstream verification/correction burden, which is one contributor to why individual-level AI productivity gains fail to aggregate into firm-level returns (the "aggregation paradox").
+
+**Adjacent Human Center context (founder-reported, 2026-09-29):** anxiety and confusion about the AI information environment may be relevant when a person or organization is unsure where AI can support its goals or ambitions. This contextual observation informs Expanding Human (`../../../kb-value-proposition/docs/products/05-expanding-human.md`); it is not evidence that the Shrinking AI problem statement or its market prevalence has changed.
 
 ## Decisions / Rules
 - Copy, positioning, and the sales conversation must never imply the buyer or their team is "behind," "resistant," or "doing it wrong" — any framing that feels like a sales pitch or an implicit "you're doing it wrong" triggers defensive disengagement.

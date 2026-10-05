@@ -5,12 +5,12 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-25
-  next_review_due: 2026-12-25
+  last_reviewed_at: 2026-09-29
+  next_review_due: 2026-12-29
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; Inteligente/Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md; Inteligente/Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md; Inteligente/Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md; founder-approved Discovery Pilot decision; Odoo 19.0 AI and Live Chat documentation"
-    confidence: high
+    source: "Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; Inteligente/Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md; Inteligente/Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md; Inteligente/Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md; founder-approved Discovery Pilot decision; founder-defined Consultancy Automation internal-first decision (2026-09-29); Odoo 19.0 AI and Live Chat documentation"
+    confidence: medium
     review_status: draft
 ---
 # Financial Automation
@@ -20,7 +20,7 @@ Define Financial Automation, Automation Center's first named service: workflow a
 
 ## Scope
 - In scope: the finance-specific application of Automation Center's build-and-implement automation service and discovery-and-ROI methodology, including compliance/regulatory considerations distinct to financial-advisory and investment-fund-adjacent clients.
-- Out of scope: Automation Center's generic, line-level positioning and methodology (`03-automation-center.md`, `../../../kb-solution/docs/strategy/03-automation-center-solution.md`); Human Center's services (Shrinking AI, Empowering Human).
+- Out of scope: Automation Center's generic, line-level positioning and methodology (`03-automation-center.md`, `../../../kb-solution/docs/strategy/03-automation-center-solution.md`); Human Center's services (Shrinking AI, Expanding Human).
 
 ## Current State
 Financial Automation applies Automation Center's general build-and-operate automation capability to clients in the financial industry, where confidential deal/investor information and sector-specific obligations raise the bar on security, compliance, and evidence handling. Two evidenced client profiles ground this service (see `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`):
@@ -30,20 +30,24 @@ Financial Automation applies Automation Center's general build-and-operate autom
 
 **Delivery**: Financial Automation follows Automation Center's standard delivery flow (discovery and ROI screening, build, deployment, monitoring — see `03-automation-center.md`), with the compliance/data-owner discovery route mandatory for every engagement, establishing jurisdiction, permitted data, required approvals, and prohibited actions before any pilot proceeds (see `../../../kb-solution/docs/strategy/04-financial-automation-solution.md`).
 
-**Partner-led Discovery Pilot (formally initiated Sept 2026):** the Financial partner acts as the customer, using only aggregated metrics from their own firm after written authorization and cloud/privacy review; the Operations partner validates the interview method and output. No first-session date or result is confirmed. The pilot is planned on Odoo Online and is cloud-hosted, not local-only. The existing live chatbot on Frank is generic lead capture and is separate from this pilot. Do not use credentials, raw client records, or third-party confidential data.
+**Internal-first prerequisite:** before any external Financial Automation pilot, Consultancy Automation must validate a bounded use case within Inteligente's own consultancy operations and measure efficiency/outcomes. The internal workflow, baseline, measures, and host are not yet selected; this is not a claim that an internal system has been built.
+
+**Partner-led Discovery Pilot (formally initiated Sept 2026; deferred, not cancelled):** the Financial partner acts as the customer, using only aggregated metrics from their own firm after written authorization and cloud/privacy review; the Operations partner validates the interview method and output. No first-session date or result is confirmed. The external pilot cannot proceed until internal Consultancy Automation is validated and the existing safety, actionable-human-notification, privacy, data-flow, and authorization gates pass. Its planned platform is Odoo Online and is cloud-hosted, not local-only. The existing live chatbot on Frank is generic lead capture and is separate from this pilot. Do not use credentials, raw client records, or third-party confidential data.
 
 The intended Odoo AI Agent uses GPT-4o (founder-reported; verify in the pilot database) and should analyze a minimized question/answer only after explicit escalation. Odoo 19 docs state that assigning an AI Agent and scripted chatbot to the same channel prioritizes the agent; verify actual handoff, prompt context, transcript/log retention, and provider handling before automatic invocation. Use founder-triggered analyst prompts if the scripted-first boundary cannot be demonstrated. The draft automation plan and deterministic, evidence-graded ROI range/assumptions require founder review before being presented as a proposal.
 
 After method validation, stage 2 is a local Odoo/local-model MVP on Frank (TRL4), subject to capacity and isolation checks. Stage 3 is the first paying customer's dedicated account and agent on SolarSeed TRL5 after readiness and customer-isolation checks. Pilot success requires a validated interview/ROI workflow plus a documented buying decision or qualified paid-pilot offer; payment is a separate milestone.
 
-The Automation-Center-leads cross-sell direction remains in effect — a Financial Automation engagement, once signed, may be followed by attaching Human Center consultancy, not the reverse (see `03-automation-center.md`).
+**Need-based cross-line referral strategy:** Human Center clients may be referred to Automation Center when they need a defined organizational automation; Automation Center clients may be referred to Shrinking AI or Expanding Human when they need human facilitation or exploration of AI opportunities. This is a strategy, not demonstrated conversion.
 
 ## Decisions / Rules
 - Every Financial Automation engagement triggers the compliance/data-owner discovery route and heightened controls (human approval, audit logging, DPA, EU data residency) before any pilot proceeds.
+- Do not start an external Financial Automation pilot before Consultancy Automation internal validation and passage of the existing safety, human-notification, privacy, data-flow, and authorization gates; the partner pilot is deferred, not cancelled.
 - For the partner pilot, authorize only aggregated metrics from the Financial partner's own firm after privacy/cloud review; no credentials, raw client records, or third-party confidential data. Odoo Online must not be described as local-only.
 - Do not enable automatic analyst handoff until the Odoo Online scripted-first flow, actual context sent, transcript/log retention, and provider handling pass live verification; otherwise the founder triggers minimized single-question/answer analysis.
 - Pilot output is a draft automation plan and evidence-graded ROI range with assumptions, reviewed by the founder; it is not a guaranteed ROI or binding proposal.
 - Do not position Financial Automation as a "private equity AI solution" merely because a client's own clients are investment funds; pricing and scope target the solo consultant/small firm buyer, not the fund itself.
+- Keep cross-line routing need-based and bidirectional; do not record the two Human-Center-originating interest signals as orders or claim Automation-Center-to-Human conversion.
 - Existing sector obligations (e.g. supervision, communications and recordkeeping duties in relevant regulated firms) can remain applicable to AI-assisted activity; findings must be recorded as confirmed, unresolved, or requiring specialist review — never "compliant" merely because a respondent believes it is.
 
 ## Evidence
@@ -59,8 +63,10 @@ The Automation-Center-leads cross-sell direction remains in effect — a Financi
 - Related documents: `03-automation-center.md`, `../../../kb-solution/docs/strategy/04-financial-automation-solution.md`, `../../../kb-customers/docs/gtm/05-financial-automation-segments.md`, `../../../kb-governance/docs/legal/11-legal-structure.md`
 
 ## Open Actions
-- Run the first partner-led Discovery Pilot session; record the session date, authorization, allowed data scope, validator findings, reviewed output, and buying decision or qualified paid-pilot offer, owner: Founder/Consultant.
+- Define and validate the internal Consultancy Automation workflow, baseline, and efficiency/outcome measures before any external pilot; hosting remains undecided, owner: Founder/Consultant, see `../../../../tasks/backlog.md` HC-021.
+- Run the deferred partner-led Discovery Pilot only after internal validation and all existing safety/data-flow gates pass; then record the session date, authorization, allowed data scope, validator findings, reviewed output, and buying decision or qualified paid-pilot offer, owner: Founder/Consultant, see `../../../../tasks/backlog.md` HC-009 and HC-016.
 - Verify Odoo Online's scripted-first AI escalation and data-handling boundary; use founder-triggered analysis if automatic handoff cannot be demonstrated, owner: Founder/Consultant.
 - Confirm which specific regulatory regimes apply per target jurisdiction (Western Europe and the Nordics primary), owner: Founder/Consultant.
 - Validate the documented benchmark pricing against the first signed Financial Automation client, owner: Founder/Consultant.
+- Track need-based referrals and actual conversion evidence between Human Center and Automation Center in both directions; keep interest, proposal, order, delivery, and payment distinct, owner: Founder/Consultant.
 - After pilot validation, verify Frank capacity/isolation for the local MVP and SolarSeed TRL5 readiness/isolation before any paying-customer deployment, owner: Founder/Consultant.
