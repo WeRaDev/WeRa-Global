@@ -1,0 +1,34 @@
+# Default-deny project-root artifacts; admission to this list is not staging approval.
+/*
+!/.gitignore
+!/README.md
+!/WARP.md
+!/AGENTS.md
+!/SOUL.md
+!/CONTRIBUTING.md
+!/.gitea/
+!/docs/
+!/tasks/
+!/skills/
+!/scripts/
+!/security/
+!/ci/
+!/tests/
+
+# Preserve private working material locally, never in source control.
+/Input/
+/Output/
+/Result/
+/.venv*/
+/.verify*/
+/.agent-baseline-ci/
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.env.*
+.secrets/
+*.pem
+*.key
+*.p12
+*.pfx

@@ -98,3 +98,12 @@ repos:
     role: City of Light operational framework - gamified operator interface and human-supervised agent operations for SolarSeed machine nodes
     vcs_mode: submodule
     baseline_policy: delegated
+  - id: DreamMakers
+    path: ProductionBase/DreamMakers
+    agent_security_manifest: security/agents/manifest.yaml
+    agent_security_policy: wera-agent-baseline-0.1
+    default_branch: main
+    status: incubation
+    role: self-publishing and marketing agency; current implementation provides PDF/EPUB production workflows
+    vcs_mode: native
+    baseline_policy: enforced

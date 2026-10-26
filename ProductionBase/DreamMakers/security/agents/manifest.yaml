@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "project_id": "DreamMakers",
+  "purpose": "Self-publishing and marketing agency; current implementation provides PDF/EPUB production workflows.",
+  "owners": {
+    "business": "mika",
+    "technical": "mika",
+    "review_status": "pending"
+  },
+  "profile": "dev-sandbox",
+  "admission": "pending",
+  "runtime": {
+    "status": "unassessed",
+    "rationale": "Source-only bootstrap; actual runtime and ownership require independent inventory.",
+    "agents": []
+  },
+  "constraints": [
+    "No new live authority, production credentials, automatic merge or deployment.",
+    "Synthetic fixtures only; preserve stricter project approval and SOUL rules.",
+    "Preserve original manuscripts and source assets; automated checks use synthetic fixtures only.",
+    "No manuscript or client-data uploads, publication, marketing sends, purchases or live account changes under this pilot.",
+    "Native registry activation, selected staging and root CI routing remain separately gated."
+  ]
+}

@@ -1,0 +1,34 @@
+name: dreammakers-quality
+"on":
+  pull_request:
+    paths:
+      - "ProductionBase/DreamMakers/**"
+      - "ProductionBase/repos.yaml"
+      - ".gitea/workflows/dreammakers-quality.yml"
+  push:
+    branches: [main, "feat/**", "fix/**", "chore/**"]
+    paths:
+      - "ProductionBase/DreamMakers/**"
+      - "ProductionBase/repos.yaml"
+      - ".gitea/workflows/dreammakers-quality.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-and-synthetic:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ProductionBase/DreamMakers
+    steps:
+      - name: Checkout without persistent credentials or submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          github-server-url: http://host.docker.internal:3000
+          token: ${{ secrets.AGENT_BASELINE_READ_TOKEN }}
+          persist-credentials: false
+          submodules: false
+      - name: Require Python 3.11 or newer
+        run: python3 -B -I -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
+      - name: Check tooling syntax and run synthetic-only quality tests
+        run: python3 -B -I ci/check_source.py --root . --tests

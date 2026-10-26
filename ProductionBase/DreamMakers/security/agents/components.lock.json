@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "scope": "declared-local-composition-only",
+  "components": [
+    {
+      "id": "local:AGENTS.md",
+      "path": "AGENTS.md",
+      "sha256": "640e7a49c350fd9c9ea2b7d017f2c4ab115a83dd8be55de324710279329da197",
+      "source": "local-working-tree",
+      "review_status": "pending"
+    },
+    {
+      "id": "local:SOUL.md",
+      "path": "SOUL.md",
+      "sha256": "3d290e32cfb49618375f86fe872f461453b1c005b46660d4579e50faf6638c0c",
+      "source": "local-working-tree",
+      "review_status": "pending"
+    },
+    {
+      "id": "local:WARP.md",
+      "path": "WARP.md",
+      "sha256": "06584a23a68737c424dd71909b78fda8202540826b1b49d09c19a8de5ba6aa7c",
+      "source": "local-working-tree",
+      "review_status": "pending"
+    },
+    {
+      "id": "local:skills/README.md",
+      "path": "skills/README.md",
+      "sha256": "60cc0782362528203fb7cbb3d2920e28cd70aeba10c9d67c673a9b67b948ebab",
+      "source": "local-working-tree",
+      "review_status": "pending"
+    },
+    {
+      "id": "local:skills/registry.yaml",
+      "path": "skills/registry.yaml",
+      "sha256": "291a288301445c948c00ac208fe5ba2286f918234541917c6522280f8ef630cf",
+      "source": "local-working-tree",
+      "review_status": "pending"
+    },
+    {
+      "id": "local:warp.md",
+      "path": "warp.md",
+      "sha256": "06584a23a68737c424dd71909b78fda8202540826b1b49d09c19a8de5ba6aa7c",
+      "source": "local-working-tree",
+      "review_status": "pending"
+    }
+  ]
+}
