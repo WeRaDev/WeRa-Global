@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-29
-  next_review_due: 2026-12-29
+  last_reviewed_at: 2026-10-05
+  next_review_due: 2027-01-05
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; Inteligente/Resources/Documents/Research/Interview Playbook  Financial-Advisory Automation Discovery.md; Inteligente/Resources/Documents/Research/Chatbot-Led Automation Discovery  Critique and Revised Interview Playbook.md; Inteligente/Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md; founder-approved Discovery Pilot decision; Odoo 19.0 AI and Live Chat documentation; founder-reported anonymized cross-sell outcome follow-up (2026-09-29)"
@@ -25,7 +25,7 @@ Define Automation Center, Inteligente's second product line: a standalone build-
 ## Current State
 Automation Center is a **build-and-operate automation agency service**. It targets a broad audience: any professional-services firm or solo consultant needing back-office automation (see `../../../kb-customers/docs/gtm/04-automation-center-segments.md`). Financial Automation is its first named service, specialising this general capability for the financial industry, including investment-fund-adjacent and other more heavily regulated contexts (see `04-financial-automation.md`).
 
-**Need-based referral strategy (decided Sept 2026): bidirectional, not lead-first.** Refer Human Center clients to Automation Center when they have a defined organizational process-automation need; refer Automation Center clients to Shrinking AI when they need help improving existing AI use, or to Expanding Human when they are exploring where AI could support their goals. The two reported Human-Center-originating Automation Center interest signals remain unqualified: Client A is considering unspecified services after a separate paid Expanding Human consultancy; Client B has started building a booking website and expressed interest in website-administration automation. No Automation Center order or delivery, or Automation-Center-to-Human conversion, has been reported. The routing strategy is not a sales result.
+**Need-based referral strategy (decided Sept 2026): bidirectional, not lead-first.** Refer Human Center clients to Automation Center when they have a defined organizational process-automation need; refer Automation Center clients to Shrinking AI when they need help improving existing AI use, or to Expanding Human when they are exploring where AI could support their goals. The two reported Human-Center-originating Automation Center interest signals remain unqualified: Client A is considering unspecified services after a separate paid Expanding Human consultancy; **InCity** (Invisible City Tours; formerly Client B) has started building a booking website, expressed interest in website-administration automation, and is a **pipeline Automation Center opportunity**. No Automation Center order or delivery, or Automation-Center-to-Human conversion, has been reported. The routing strategy is not a sales result. See `../../../kb-customers/docs/clients/incity.md`.
 
 **Near-term focus (Sept 2026): internal-first Consultancy Automation.** This planned internal product/use case will automate Inteligente's own consultancy operations and measure efficiency/outcomes before wider external rollout. Its workflows, baseline, implementation, and hosting are not yet defined or validated. The external partner-led Financial Automation Discovery Pilot was formally initiated but is **deferred, not cancelled**, until internal validation is complete and all existing safety, actionable-human-notification, privacy, and data-flow gates pass. It has no first-session date or result; the planned external pilot remains Odoo Online. The existing live chatbot on Frank remains generic lead capture and is not this pilot. See `../../../kb-solution/docs/strategy/03-automation-center-solution.md` for the sequence and gates.
 
@@ -67,7 +67,8 @@ Automation Center is a **build-and-operate automation agency service**. It targe
 - `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, screening-vs-investment separation, evidence grading, benefit classification.
 - [Odoo 19 AI live chat](https://www.odoo.com/documentation/19.0/applications/productivity/ai/live-chat.html) — documents AI-agent priority when both an agent and a scripted chatbot are assigned to a channel.
 - [Odoo 19 scripted chatbots](https://www.odoo.com/documentation/19.0/applications/websites/livechat/chatbots.html) — documents structured scripts and storage of free-input answers in chat transcripts.
-- **Founder-reported anonymized cross-sell outcome follow-up (2026-09-29)** — primary, retrospective report that two Human Center client accounts expressed Automation Center interest; requirements, orders, delivery, and payment have not been confirmed.
+- **Founder-reported cross-sell outcome follow-up (2026-09-29; InCity named 2026-10-05)** — primary, retrospective report that two Human Center client accounts expressed Automation Center interest; requirements, orders, delivery, and payment have not been confirmed.
+- `../../../kb-customers/docs/clients/incity.md` — InCity pipeline dossier for website-admin automation.
 - **Founder-defined Consultancy Automation internal-first and bidirectional-routing decisions (2026-09-29)** — primary business-model decisions only; internal validation and cross-line conversion have not been demonstrated.
 
 ## Cross-Domain Links

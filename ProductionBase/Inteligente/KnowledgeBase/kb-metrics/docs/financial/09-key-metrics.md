@@ -5,11 +5,11 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: future
   evidence_status: hypothesis
-  last_reviewed_at: 2026-09-29
-  next_review_due: 2026-12-29
+  last_reviewed_at: 2026-10-05
+  next_review_due: 2027-01-05
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; founder-reported anonymized case summaries and outcome follow-up (business-analysis session, 2026-09-29); analysis"
+    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; founder-reported case summaries and outcome follow-up (business-analysis session, 2026-09-29); InCity client dossier (2026-10-05); analysis"
     confidence: medium
     review_status: draft
 ---
@@ -28,11 +28,11 @@ No operating metrics are instrumented as a series yet. Two initial Shrinking AI 
 
 **Founder-reported outputs and follow-up (2 client accounts; business impact remains unmeasured)**:
 - **Client A, self-publishing writer**: pre-print/pre-publication materials were produced and sent; the client later confirmed using them for printing and publishing the book. Whether they caused publication or changed its quality, timing, or business outcome is unknown. The client then engaged in a separate Expanding Human consultancy (€50, 60 minutes) about AI use in the business beyond editing and formatting, receiving a business model canvas plus a "marketing scope of AI application." Consultant effort and any attributable outcome remain unknown. The client is considering Automation Center services; no order or delivery was reported.
-- **Client B, self-employed tour guide**: a business-model canvas and business plan for website construction were delivered; the client has started building the website and expressed interest in ordering website-administration automation. No order or delivery was reported. Website completion, leads, bookings, and revenue are unknown.
+- **InCity (Invisible City Tours; formerly Client B)**: a business-model canvas and business plan for website construction were delivered; the client has started building the website and expressed interest in ordering website-administration automation (pipeline Automation Center opportunity). No order or delivery was reported. Website completion, leads, bookings, and revenue are unknown. See `../../../kb-customers/docs/clients/incity.md`.
 - The writer's roughly month-long AI experimentation was client effort before consulting, not consultant delivery time. Consultant preparation/live/follow-up hours and elapsed delivery time remain unknown for the initial sessions.
 
 **Near-term proof-asset targets (from research, concrete and named)** — the research explicitly identifies a lack of proof assets as an operational gap. Named targets to close it:
-- **10+ completed paid sessions** — **2 counted of 10** from the initial Shrinking AI sessions (self-published writer, AI for e-book formatting; self-employed tour guide, AI for content creation; both €50/60-min). Client A's separate Expanding Human consultancy is excluded from this Shrinking AI target.
+- **10+ completed paid sessions** — **2 counted of 10** from the initial Shrinking AI sessions (self-published writer, AI for e-book formatting; InCity / Invisible City Tours, AI for content creation; both €50/60-min). Client A's separate Expanding Human consultancy is excluded from this Shrinking AI target.
 - **3 case write-ups** (documented client outcomes, suitable for the website/proof section) — not yet started; requires consent from the 2 completed clients first.
 - **A consent evidence pack** (signed client permissions to reference/quote their engagement — required before any case write-up can be published, and a prerequisite for the "demonstrated not claimed" positioning in `../../../kb-unfair-advantage/docs/strategy/10-unfair-advantage.md`) — not yet collected for the 2 initial Shrinking AI sessions.
 **Expanding Human observation (one reported paid session; not a stable metric)**:
@@ -71,7 +71,7 @@ No operating metrics are instrumented as a series yet. Two initial Shrinking AI 
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified, names the proof-asset gap and target counts.
 - `../../../../Resources/Documents/Research/Critical Review and Revised Chatbot ROI Interview Playbook.md` — verified, defines Automation Center's qualification outcomes, evidence grading, and pilot-monitoring metrics.
-- **Founder-reported anonymized case summaries and outcome follow-up (business-analysis session, 2026-09-29)** — primary, retrospective report of two initial client engagements, one separate paid Expanding Human consultancy, reported use of materials for book publication, website-build start, and Automation Center interest; no independent client artifacts, consultant-effort records, attribution, order, or downstream impact measures were reviewed.
+- **Founder-reported case summaries and outcome follow-up (business-analysis session, 2026-09-29; InCity named 2026-10-05)** — primary, retrospective report of two initial client engagements, one separate paid Expanding Human consultancy, reported use of materials for book publication, website-build start, and Automation Center interest; no independent client artifacts, consultant-effort records, attribution, order, or downstream impact measures were reviewed.
 
 ## Cross-Domain Links
 - Related domains: `kb-revenue-streams`, `kb-customers`, `kb-unfair-advantage`, `kb-key-partners`, `kb-solution`

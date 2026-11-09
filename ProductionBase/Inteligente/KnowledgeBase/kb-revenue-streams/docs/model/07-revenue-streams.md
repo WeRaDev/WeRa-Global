@@ -5,8 +5,8 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-29
-  next_review_due: 2026-12-29
+  last_reviewed_at: 2026-10-05
+  next_review_due: 2027-01-05
   provenance:
     actor: agent-warp
     source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; founder-reported Expanding Human engagement (2026-09-29)"
@@ -25,7 +25,7 @@ Define Inteligente's revenue model across Human Center and Automation Center, ke
 ## Current State
 
 ### Human Center / Shrinking AI: real pricing established
-**Shrinking AI's paid-session price is now documented from real transactions: €50 for a 60-minute session.** This was set from the first 2 completed, paid engagements (Sept 2026): a self-published writer (AI for e-book formatting) and a self-employed tour guide (AI for content creation). The session flow (see `../../../kb-key-activities/docs/execution/04-key-activities.md`) is: (1) free 15-minute empathy call, (2) the €50/60-min paid, structured RCGFC session producing an AI-ready problem statement and instruction set, (3) an optional retainer/implementation-support follow-on (which may be referred to Automation Center). This is the first primary (client-transaction) evidence in the entire KB, replacing what was previously an undocumented pricing gap. It should still be treated as an **introductory** price, not a final one — see Decisions/Rules and Open Actions on price-elasticity testing.
+**Shrinking AI's paid-session price is now documented from real transactions: €50 for a 60-minute session.** This was set from the first 2 completed, paid engagements (Sept 2026): a self-published writer (AI for e-book formatting) and **InCity / Invisible City Tours** (solo tour operator; AI for content creation). The session flow (see `../../../kb-key-activities/docs/execution/04-key-activities.md`) is: (1) free 15-minute empathy call, (2) the €50/60-min paid, structured RCGFC session producing an AI-ready problem statement and instruction set, (3) an optional retainer/implementation-support follow-on (which may be referred to Automation Center). This is the first primary (client-transaction) evidence in the entire KB, replacing what was previously an undocumented pricing gap. It should still be treated as an **introductory** price, not a final one — see Decisions/Rules and Open Actions on price-elasticity testing. Named client dossier: `../../../kb-customers/docs/clients/incity.md`.
 ### Human Center / Expanding Human: one paid observation, no standard price established
 The founder reports that Client A separately paid **€50 for a 60-minute Expanding Human consultancy** on using AI in the business beyond editing and formatting; the deliverables were a business model canvas and a "marketing scope of AI application" (business-analysis session, 2026-09-29). This is one primary, founder-reported transaction (n=1), not an established rate, price-elasticity signal, or validated willingness-to-pay metric. The matching €50/60-minute amount is coincidental evidence from a separate service; do not merge it with Shrinking AI's two-session price basis or count it toward Shrinking AI's session target.
 
@@ -95,7 +95,7 @@ The founder's proposal is for both the Financial and Operations partners to rece
 
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified for the Shrinking AI session-flow structure.
-- **First 2 real paid Shrinking AI engagements (Sept 2026)** — verified, primary evidence establishing the €50/60-min price (self-published writer; self-employed tour guide).
+- **First 2 real paid Shrinking AI engagements (Sept 2026)** — verified, primary evidence establishing the €50/60-min price (self-published writer; InCity / Invisible City Tours).
 - **Founder-reported Expanding Human engagement (2026-09-29)** — primary retrospective report of one €50/60-minute paid consultancy and its deliverables; no stable service price, repeatability, or market willingness-to-pay is established.
 - `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — unverified (self-described AI-chat estimate), partially corroborated by independent Sept 2026 web research (FETCHER Solutions exact match; broader market range consistent; NeuraWeb tiers stale) — see Current State above for the full corroboration note.
 - `../../../../Resources/Documents/Research/Financial Automation/financial_advisory_automation_mvp.xlsx` — verified, source of the 4-part commercial-model structure (discovery, implementation, recurring, outcome-linked).

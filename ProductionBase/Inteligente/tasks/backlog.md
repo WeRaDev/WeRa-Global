@@ -11,7 +11,7 @@
 - Acceptance: `docs/adr/000X-site-stack.md` exists and the site is reachable at `www.inteligente.site`.
 
 ## HC-003 Set and document Shrinking AI's paid-session price
-- Problem: Shrinking AI's core paid-session price was undocumented anywhere in research. **Resolved (Sept 2026): €50/60-min, established from the first 2 real paid engagements** (self-published writer, self-employed tour guide) — see `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`.
+- Problem: Shrinking AI's core paid-session price was undocumented anywhere in research. **Resolved (Sept 2026): €50/60-min, established from the first 2 real paid engagements** (self-published writer; InCity / Invisible City Tours) — see `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md` and `KnowledgeBase/kb-customers/docs/clients/incity.md`.
 - Scope (remaining): treat €50/60-min as an introductory rate; test price elasticity once more sessions are booked before deciding whether to hold, raise, or tier the price.
 - Acceptance: `kb-revenue-streams/docs/model/07-revenue-streams.md` updated with a documented session price and `evidence_status: verified` — **done for the initial price**; elasticity testing remains open.
 
@@ -21,7 +21,7 @@
 - Acceptance: `kb-governance/docs/legal/11-legal-structure.md` Open Actions item on VAT closed (**done**); DPA template exists (**open**).
 
 ## HC-005 Produce first proof assets
-- Problem: No proof assets exist yet to support the "demonstrated not claimed" positioning (see `kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` and `kb-metrics/docs/financial/09-key-metrics.md`). **Progress (Sept 2026): 2 of 10 sessions completed** (self-published writer, self-employed tour guide).
+- Problem: No proof assets exist yet to support the "demonstrated not claimed" positioning (see `kb-unfair-advantage/docs/strategy/10-unfair-advantage.md` and `kb-metrics/docs/financial/09-key-metrics.md`). **Progress (Sept 2026): 2 of 10 sessions completed** (self-published writer; InCity / Invisible City Tours).
 - Scope: Deliver 8+ more completed paid sessions, write up 3 client cases (pending consent from the 2 completed clients), and assemble a consent evidence pack authorizing their use.
 - Acceptance: 3 case write-ups published (post-consent) and referenced from the site and `kb-metrics/`.
 
@@ -100,6 +100,16 @@
 - Problem: The current free-discovery decision conflicts with a proposed partner share of a one-time discovery fee, and the broader partner revenue-share proposal is not approved.
 - Scope: Decide whether Automation Center discovery remains free or becomes fee-bearing; if partner compensation proceeds, document percentages, allocation, attribution, collected-revenue and direct-cost basis, maintenance-period duration/cap, and obtain required employer/conflict, tax, and legal review. Keep Shrinking AI's separate paid diagnostic decision distinct.
 - Acceptance: A written decision resolves the free-versus-paid discovery conflict and approves or rejects the complete partner-compensation terms; `KnowledgeBase/kb-key-partners/docs/partnerships/06-key-partners.md`, `KnowledgeBase/kb-revenue-streams/docs/model/07-revenue-streams.md`, and any affected channel guidance agree. No fee or share is promised before approval.
+
+## HC-022 Qualify InCity Automation Center pipeline (website-admin)
+- Problem: InCity (Invisible City Tours) completed a paid Shrinking AI session, started a booking-website build, and expressed unqualified interest in website-administration automation. No Automation Center scope, systems inventory, budget, authorization, or DPA exists yet (`KnowledgeBase/kb-customers/docs/clients/incity.md`). Booking MVP design (ADR 0003) now prefers a Bókun-class engine before automation.
+- Scope: Run a qualification conversation covering current website stack, willingness to adopt a tour booking engine, budget for subscription + OTA commissions, booking/admin pain, guest/data systems, decision authority, timing, and data boundary. Produce a Stop/Measure/Prototype/Pilot recommendation without promising ROI. Prefer sequencing **HC-023 MVP first**, automation second. Do not access live client accounts without signed authorization and DPA.
+- Acceptance: Dated qualification note linked from `kb-customers/docs/clients/incity.md` records systems, MVP go/no-go, scope hypothesis, decision, and next commercial step (or explicit stop); backlog/metrics keep interest distinct from order/revenue.
+
+## HC-023 Deliver InCity phase-1 brochure website on Frank
+- Problem: InCity needs a public website for presence and lead capture; client conversation (2026-11-09) removed online booking, payments, and tourism-platform integrations from phase 1 (`docs/adr/0004-incity-brochure-website-phase1.md`).
+- Scope: Build and publish brochure + contact/lead site on Frank per `Resources/Documents/Proposals/InCity-website-proposal-v2.html` — social link readiness (YouTube/Facebook/Instagram → site); manual scheduling by guide; **€300** fee; **no subscription**; **3 months free hosting** from go-live. No Bókun/OTA/payments in this task.
+- Acceptance: Public URL live; core pages with InCity content; working contact CTAs; social URL checklist delivered; dossier updated with non-secret URL; free-hosting end date recorded.
 
 ## HC-021 Validate internal Consultancy Automation before external Financial Automation
 - Problem: The external partner-led Financial Automation Discovery Pilot is deferred until Inteligente has validated Consultancy Automation on its own consultancy operations; no internal workflow, baseline, host, or outcome is yet defined.

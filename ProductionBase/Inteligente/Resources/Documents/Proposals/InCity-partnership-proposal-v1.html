@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InCity × Inteligente — Partnership Proposal v1</title>
+  <style>
+    :root {
+      --ink: #1a2332;
+      --muted: #5a6577;
+      --line: #d8dee8;
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --accent: #0b6e4f;
+      --accent-soft: #e6f4ef;
+      --warn: #8a5a00;
+      --warn-bg: #fff6e5;
+      --internal: #3b2f6b;
+      --internal-bg: #f3f0fb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+    header.hero {
+      background: linear-gradient(145deg, #0b3d2e 0%, #0b6e4f 55%, #1a8f6a 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(11, 61, 46, 0.18);
+    }
+    header.hero h1 { margin: 0 0 8px; font-size: 1.75rem; font-weight: 700; }
+    header.hero p { margin: 0; opacity: 0.92; max-width: 62ch; }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      margin-top: 18px; font-size: 0.9rem; opacity: 0.95;
+    }
+    .chip {
+      display: inline-block;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 999px;
+      padding: 4px 12px;
+    }
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 24px;
+    }
+    nav.toc strong { display: block; margin-bottom: 8px; }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    nav.toc ul { margin: 0; padding-left: 18px; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 22px 22px 8px;
+      margin-bottom: 16px;
+    }
+    section h2 {
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+      border-bottom: 2px solid var(--accent-soft);
+      padding-bottom: 8px;
+    }
+    section h3 { margin: 18px 0 8px; font-size: 1.05rem; color: var(--accent); }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--accent-soft); }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: #fafcfe;
+    }
+    .card h4 { margin: 0 0 6px; font-size: 0.98rem; }
+    .card p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+    .price {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      margin: 12px 0 16px;
+    }
+    .price .box {
+      flex: 1 1 200px;
+      background: var(--accent-soft);
+      border: 1px solid #b7d8c8;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .price .box .label { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .price .box .value { font-size: 1.6rem; font-weight: 700; color: var(--accent); margin-top: 4px; }
+    .price .box .note { font-size: 0.88rem; color: var(--muted); margin-top: 6px; }
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      margin: 12px 0 16px;
+    }
+    .callout.warn {
+      border-left-color: var(--warn);
+      background: var(--warn-bg);
+    }
+    .lang-switch {
+      display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap;
+    }
+    .lang-switch a {
+      text-decoration: none;
+      color: var(--ink);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+    }
+    .lang-switch a:hover { border-color: var(--accent); color: var(--accent); }
+    .pt-block { border-top: 3px solid var(--line); margin-top: 28px; padding-top: 8px; }
+    .pt-block > h2.lang-title {
+      background: #eef2f7;
+      margin: 0 0 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      font-size: 1.1rem;
+    }
+    .internal {
+      margin-top: 28px;
+      border: 2px dashed var(--internal);
+      background: var(--internal-bg);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .internal h2 {
+      color: var(--internal);
+      border-bottom-color: #ddd6f3;
+      margin-top: 0;
+    }
+    .internal .badge {
+      display: inline-block;
+      background: var(--internal);
+      color: #fff;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 10px;
+    }
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-align: center;
+    }
+    ul.tight li { margin-bottom: 4px; }
+    .arch {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82rem;
+      background: #0f1720;
+      color: #d7e2ea;
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.4;
+      margin: 12px 0 18px;
+    }
+    .check { list-style: none; padding-left: 0; }
+    .check li::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1>InCity × Inteligente — Partnership Proposal</h1>
+      <p>
+        A practical path to a bookable Invisible City Tours presence online:
+        branded website, central calendar, direct payments, and Viator connection—
+        at a pilot partnership price designed for a solo operator in Sintra.
+      </p>
+      <div class="meta">
+        <span class="chip">SUPERSEDED by v2 brochure scope</span>
+        <span class="chip">Proposal v1.1 — historic draft</span>
+        <span class="chip">Date: 2026-11-09 · rev pricing/hosting</span>
+        <span class="chip">Provider: Inteligente (Inteligente Razão — Unipessoal LDA)</span>
+        <span class="chip">Client codename: InCity / Invisible City Tours</span>
+      </div>
+    </header>
+
+    <div class="lang-switch">
+      <a href="#en">English</a>
+      <a href="#pt">Português</a>
+    </div>
+
+    <!-- ===================== ENGLISH ===================== -->
+    <div id="en">
+      <nav class="toc" aria-label="Contents">
+        <strong>Contents (EN)</strong>
+        <ul>
+          <li><a href="#en-1">1. Project objective</a></li>
+          <li><a href="#en-2">2. Launch scope</a></li>
+          <li><a href="#en-3">3. Booking journey</a></li>
+          <li><a href="#en-4">4. Architecture</a></li>
+          <li><a href="#en-5">5. Deliverables &amp; acceptance</a></li>
+          <li><a href="#en-6">6. Pricing</a></li>
+          <li><a href="#en-7">7. Partnership terms</a></li>
+          <li><a href="#en-8">8. Referral programme</a></li>
+          <li><a href="#en-9">9. Future development (not launch)</a></li>
+          <li><a href="#en-10">10. Information we need from you</a></li>
+          <li><a href="#en-11">11. Next steps</a></li>
+        </ul>
+      </nav>
+
+      <section id="en-1">
+        <h2>1. Project objective</h2>
+        <p><strong>For InCity:</strong> grow online presence and receive more tour bookings through a clear website and connected channels, with one place to manage the calendar and avoid double bookings.</p>
+        <p><strong>For Inteligente:</strong> deliver InCity as the first pilot of a repeatable “website + booking operations” service for tourism businesses (starting in Sintra), under a partnership model that keeps setup affordable.</p>
+        <div class="callout">
+          <strong>Design reference:</strong> structure inspired by established Sintra operators such as Mr. Local (clear packages, guide-centred story, transparent “from” pricing, strong book CTA)—filled with InCity / Invisible City Tours content and Vasco’s real private day-trip offer.
+        </div>
+      </section>
+
+      <section id="en-2">
+        <h2>2. Launch scope (what is included)</h2>
+        <h3>Included at launch</h3>
+        <ul class="check">
+          <li>Odoo-branded public website (EN first; PT/FR/ES can be phased if agreed)</li>
+          <li>Site information architecture inspired by Mr. Local: Home, Tours, About/Guide, Testimonials, Contact</li>
+          <li><strong>3–5 simplified public tour packages</strong> (not the full internal catalogue on day one)</li>
+          <li>Embedded booking experience powered by a professional tour booking engine (default: <strong>Bókun</strong> or equivalent)</li>
+          <li><strong>Instant online book &amp; pay</strong> on the direct website channel</li>
+          <li><strong>Central booking calendar</strong> in the engine (single inventory truth)</li>
+          <li><strong>Viator connection</strong> with shared availability to reduce double-booking risk</li>
+          <li>WhatsApp / phone path retained for custom private requests</li>
+          <li>Basic operator runbook (close days, offline booking entry, daily checks)</li>
+          <li><strong>Basic website copywriting</strong> for launch pages (package blurbs, about, key CTAs)—not unlimited brand campaigns</li>
+          <li>Website hosted on Inteligente-operated infrastructure (<strong>Frank</strong> self-hosted Odoo)</li>
+          <li>Hosting and care under the monthly partnership subscription (see Pricing)</li>
+        </ul>
+        <h3>Explicitly not promised at launch</h3>
+        <ul>
+          <li>A custom “Bókun replacement”, AI tourism agent, or MCP-based multi-platform automation</li>
+          <li>Nextcloud as the live booking system of record (optional later research only)</li>
+          <li>Full multi-OTA day-one set (GetYourGuide, Booking.com Experiences, etc.)—can be phased after Viator is stable</li>
+          <li>Publishing the entire historical tour SKU list</li>
+          <li>Guaranteed booking volume or ROI</li>
+        </ul>
+        <div class="callout warn">
+          <strong>Important:</strong> OTA marketplace <em>commissions</em> (typically a percentage of each OTA booking) are charged by those platforms to the operator as usual. They are <strong>not</strong> removed by this partnership. The monthly fee is designed to cover the booking-engine platform subscription (Bókun-class), not OTA commissions.
+        </div>
+      </section>
+
+      <section id="en-3">
+        <h2>3. Booking journey</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4>A. Direct (website)</h4>
+            <p>Guest opens InCity site → chooses package &amp; date → pays online → instant confirmation → seat blocked in central calendar → operator notified.</p>
+          </div>
+          <div class="card">
+            <h4>B. Viator</h4>
+            <p>Guest books on Viator → booking flows into the same engine calendar → availability updates → operator fulfils as usual (per Viator rules).</p>
+          </div>
+          <div class="card">
+            <h4>C. Instagram / YouTube</h4>
+            <p>Social posts and channel links point to the website checkout (or a specific tour page)—not a separate calendar.</p>
+          </div>
+          <div class="card">
+            <h4>D. Offline / WhatsApp</h4>
+            <p>Custom or phone deals are entered into the central calendar so channels stay consistent.</p>
+          </div>
+        </div>
+        <p class="muted">Payment on direct channel: instant online checkout. Payment and cancellation on OTAs: according to each platform’s rules.</p>
+      </section>
+
+      <section id="en-4">
+        <h2>4. Architecture (launch)</h2>
+        <p>Clear separation of responsibilities—so “central management” is not ambiguous:</p>
+        <table>
+          <thead>
+            <tr><th>Layer</th><th>System</th><th>Responsibility</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Public brand &amp; content</td>
+              <td><strong>Odoo Website</strong> (self-hosted on <strong>Frank</strong>)</td>
+              <td>Pages, story, SEO basics, multilingual content shell, CTAs; basic launch copywriting</td>
+            </tr>
+            <tr>
+              <td>Website hosting</td>
+              <td><strong>Frank</strong> (Inteligente-operated)</td>
+              <td>Server, updates, and operational hosting under the monthly plan</td>
+            </tr>
+            <tr>
+              <td>Inventory &amp; bookings (system of record)</td>
+              <td><strong>Bókun-class engine</strong></td>
+              <td>Availability, confirmations, payments (direct), channel sync, anti double-book</td>
+            </tr>
+            <tr>
+              <td>Checkout on site</td>
+              <td><strong>Engine widget / booking embed</strong></td>
+              <td>Date/pax selection, pay, confirmation</td>
+            </tr>
+            <tr>
+              <td>Distribution (launch)</td>
+              <td><strong>Viator</strong> (+ Tripadvisor discovery hygiene)</td>
+              <td>Marketplace demand with live availability</td>
+            </tr>
+            <tr>
+              <td>Optional later</td>
+              <td>Nextcloud / own engine / agent</td>
+              <td>Not required for launch acceptance</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="arch">Traveller
+   ├─ InCity Odoo website (browse) ──► Bókun widget (book/pay)
+   ├─ Viator ─────────────────────────► Bókun calendar (inventory master)
+   └─ Instagram / YouTube / WhatsApp ─► links or manual entry into Bókun
+
+Operator day-to-day: one Bókun calendar
+Inteligente care: Odoo on Frank + engine configuration under partnership
+Domain: registered and paid by InCity</div>
+      </section>
+
+      <section id="en-5">
+        <h2>5. Deliverables &amp; acceptance criteria</h2>
+        <table>
+          <thead>
+            <tr><th>Deliverable</th><th>Accepted when</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Odoo website live</td>
+              <td>Public URL loads; core pages present; InCity content placed; mobile-usable</td>
+            </tr>
+            <tr>
+              <td>3–5 tour packages</td>
+              <td>Each shows duration, from-price, inclusions summary, book CTA</td>
+            </tr>
+            <tr>
+              <td>Direct booking</td>
+              <td>Test booking completes with payment (live or agreed test mode) and confirmation</td>
+            </tr>
+            <tr>
+              <td>Central calendar</td>
+              <td>Operator can view bookings, block days, add offline booking</td>
+            </tr>
+            <tr>
+              <td>Viator</td>
+              <td>Product(s) connected with inventory sync demonstrated <em>or</em> written deferral date if supplier onboarding is pending</td>
+            </tr>
+            <tr>
+              <td>Handover</td>
+              <td>Short runbook + account ownership map delivered</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="muted">See section 10 for the full list of decisions and materials needed from InCity. Inteligente provides basic launch copywriting from those inputs.</p>
+      </section>
+
+      <section id="en-6">
+        <h2>6. Pricing (partnership pilot)</h2>
+        <div class="price">
+          <div class="box">
+            <div class="label">Setup (one-time)</div>
+            <div class="value">€500</div>
+            <div class="note">Website build/customisation, <strong>basic launch copywriting</strong>, and initial engine &amp; Viator configuration. Reference value of a full bespoke project is ~€5,000; pilot rate is 10% as partnership contribution. Domain registration is paid separately by InCity.</div>
+          </div>
+          <div class="box">
+            <div class="label">Monthly subscription</div>
+            <div class="value">€50 / mo</div>
+            <div class="note">Frank website hosting, maintenance/care, and <strong>Bókun-class engine subscription fee</strong> (~€50 band) covered under this pilot subscription.</div>
+          </div>
+        </div>
+        <h3>What €50 / month includes</h3>
+        <ul>
+          <li>Website hosting on Frank and routine maintenance/care within agreed limits</li>
+          <li>Booking-engine platform subscription (Bókun or equivalent) for this pilot—priced to cover that engine fee</li>
+          <li>Reasonable configuration support for the launch stack</li>
+        </ul>
+        <h3>What €50 / month does <em>not</em> include</h3>
+        <ul>
+          <li><strong>OTA commissions</strong> (e.g. Viator percentage on OTA sales)—paid via those platforms as standard</li>
+          <li>Payment-processor fees on transactions (Stripe/PayPal/etc.), unless explicitly agreed otherwise</li>
+          <li>Major redesigns, new custom features, extra languages beyond launch agreement, or additional OTA onboarding beyond Viator without a change order</li>
+          <li>Paid ads, professional photography shoots, or legal/tax advice</li>
+        </ul>
+        <div class="callout">
+          <strong>Cost path:</strong> the €50 monthly fee is set to cover the Bókun-class engine subscription for this pilot, plus Frank hosting/care. OTA commissions remain outside the fee. If/when Inteligente later operates its own booking engine, provider infrastructure cost may fall—InCity’s published pilot price does not automatically change unless both parties agree in writing.
+        </div>
+      </section>
+
+      <section id="en-7">
+        <h2>7. Partnership terms (summary)</h2>
+        <table>
+          <thead>
+            <tr><th>Topic</th><th>Term</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Reusable product / engine IP</td>
+              <td><strong>Inteligente owns</strong> reusable booking product, templates, automation, and future engine IP.</td>
+            </tr>
+            <tr>
+              <td>Brand &amp; content</td>
+              <td><strong>InCity owns</strong> business brand, tour content, and media InCity provides.</td>
+            </tr>
+            <tr>
+              <td>Domain</td>
+              <td><strong>InCity pays</strong> for domain registration and DNS and <strong>owns</strong> the domain. Inteligente can help configure DNS to the Frank-hosted site.</td>
+            </tr>
+            <tr>
+              <td>Website hosting</td>
+              <td>Odoo website <strong>self-hosted on Frank</strong> by Inteligente under the monthly plan.</td>
+            </tr>
+            <tr>
+              <td>Launch copy</td>
+              <td>Setup includes <strong>basic copywriting</strong> for launch pages; larger content projects are out of scope unless agreed.</td>
+            </tr>
+            <tr>
+              <td>Booking &amp; guest data</td>
+              <td>InCity is the business owner of customer relationships; InCity has <strong>export rights</strong> to booking/guest data from systems used for the service (subject to platform tools and privacy law).</td>
+            </tr>
+            <tr>
+              <td>Accounts</td>
+              <td>Prefer client-owned OTA/engine logins; Inteligente uses least-privilege access when assisting.</td>
+            </tr>
+            <tr>
+              <td>Privacy</td>
+              <td>Guest data processed under applicable GDPR rules; processors include engine, payments, and OTAs. Written processing terms as required before go-live.</td>
+            </tr>
+            <tr>
+              <td>Cancellation</td>
+              <td>Either party may end the monthly service with written notice (suggested: 30 days). Setup fee is non-refundable after work starts unless otherwise agreed.</td>
+            </tr>
+            <tr>
+              <td>No ROI guarantee</td>
+              <td>Bookings depend on market, pricing, reviews, seasonality, and channel performance.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="muted">This HTML is a commercial proposal draft, not a signed contract. Final terms can be confirmed in a short written agreement.</p>
+      </section>
+
+      <section id="en-8">
+        <h2>8. Referral programme</h2>
+        <p>If InCity introduces other tour operators who become <strong>active paying subscribers</strong> of the same Inteligente tourism website+booking service:</p>
+        <ul>
+          <li><strong>Reward:</strong> InCity’s own <strong>€50 monthly subscription becomes free (service credit only)</strong> once <strong>5</strong> referred customers are simultaneously active and paying.</li>
+          <li>Credit applies only to InCity’s subscription—not a cash payout in this v1 rule.</li>
+          <li>A referred customer counts when their subscription is active and not in trial/default.</li>
+          <li>If active referred subscribers fall below 5, the free credit pauses until the threshold is met again (unless a later written rule says otherwise).</li>
+        </ul>
+        <p class="muted">Example: 5 active referred subscribers → InCity pays €0/mo subscription credit; OTA commissions and other exclusions still apply as above.</p>
+      </section>
+
+      <section id="en-9">
+        <h2>9. Future development (not launch scope)</h2>
+        <p>Inteligente may later invest in a proprietary booking layer, assistant/agent integrations, or deeper automation for tourism operators. Those initiatives:</p>
+        <ul>
+          <li>Are <strong>not</strong> acceptance criteria for InCity launch</li>
+          <li>Do not guarantee removal of third-party tools on a fixed date</li>
+          <li>Remain Inteligente product decisions, with migration only by mutual agreement if it affects InCity’s live service</li>
+        </ul>
+      </section>
+
+      <section id="en-10">
+        <h2>10. Information we need from you (InCity)</h2>
+        <p>Please answer these points so we can finalise scope and start build. Items already decided on our side are listed as <em>confirmed</em>.</p>
+        <table>
+          <thead>
+            <tr><th>Topic</th><th>Status</th><th>Your input</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Domain</td>
+              <td><strong>Confirmed</strong></td>
+              <td>You pay for and own the domain. <strong>Please send the exact domain name</strong> you want (or shortlist).</td>
+            </tr>
+            <tr>
+              <td>Website hosting</td>
+              <td><strong>Confirmed</strong></td>
+              <td>Odoo self-hosted on Frank by Inteligente—no decision needed from you.</td>
+            </tr>
+            <tr>
+              <td>Launch copywriting</td>
+              <td><strong>Confirmed</strong></td>
+              <td>Basic launch copy included in setup. Please provide facts/bio notes and approve drafts.</td>
+            </tr>
+            <tr>
+              <td>Public tour packages (3–5)</td>
+              <td><strong>Needed</strong></td>
+              <td>Names, duration, from-price (EUR), inclusions/exclusions, meeting point, max guests.</td>
+            </tr>
+            <tr>
+              <td>Calendar capacity</td>
+              <td><strong>Needed</strong></td>
+              <td>Typical available days/hours, blackout dates, one tour vs multiple same day.</td>
+            </tr>
+            <tr>
+              <td>Photos &amp; media</td>
+              <td><strong>Needed</strong></td>
+              <td>Images you own or may use commercially (tours, guide, vehicle if shown).</td>
+            </tr>
+            <tr>
+              <td>Guide “About” facts</td>
+              <td><strong>Needed</strong></td>
+              <td>Languages spoken, experience highlights, positioning (private day trips—not costume-only).</td>
+            </tr>
+            <tr>
+              <td>Direct payments</td>
+              <td><strong>Needed</strong></td>
+              <td>Preferred payment provider account (e.g. Stripe) for website checkout.</td>
+            </tr>
+            <tr>
+              <td>Viator</td>
+              <td><strong>Needed</strong></td>
+              <td>Do you already have a Viator supplier account or listings? Under which name?</td>
+            </tr>
+            <tr>
+              <td>Languages at launch</td>
+              <td><strong>Needed</strong></td>
+              <td>English is default. Confirm if PT / FR / ES must be live on day one.</td>
+            </tr>
+            <tr>
+              <td>Offline / WhatsApp bookings</td>
+              <td><strong>Needed</strong></td>
+              <td>Who will enter them into the central calendar (you / us during handover training)?</td>
+            </tr>
+            <tr>
+              <td>Extra OTAs at launch</td>
+              <td><strong>Needed</strong></td>
+              <td>Default launch = Viator only. List any must-have extras (e.g. GetYourGuide) for a change order.</td>
+            </tr>
+            <tr>
+              <td>Billing start</td>
+              <td><strong>Needed</strong></td>
+              <td>Preferred start month for the €50 subscription and invoice details (name, NIF/VAT if any, email).</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="en-11">
+        <h2>11. Next steps</h2>
+        <ol>
+          <li>InCity reviews this proposal and returns answers to section 10.</li>
+          <li>Short written agreement + kickoff (€500 setup).</li>
+          <li>You register/pay the domain; we help point DNS to the Frank-hosted site.</li>
+          <li>Build Odoo site (basic copy) + engine configuration + Viator onboarding in parallel.</li>
+          <li>Acceptance test on the checklist in section 5.</li>
+        </ol>
+        <p><strong>Contact (provider):</strong> Inteligente — <span class="muted">www.inteligente.site</span></p>
+      </section>
+    </div>
+
+    <!-- ===================== PORTUGUESE ===================== -->
+    <div id="pt" class="pt-block">
+      <h2 class="lang-title">Versão em português</h2>
+
+      <nav class="toc" aria-label="Índice">
+        <strong>Índice (PT)</strong>
+        <ul>
+          <li><a href="#pt-1">1. Objetivo do projeto</a></li>
+          <li><a href="#pt-2">2. Âmbito de lançamento</a></li>
+          <li><a href="#pt-3">3. Percurso de reserva</a></li>
+          <li><a href="#pt-4">4. Arquitetura</a></li>
+          <li><a href="#pt-5">5. Entregáveis e aceitação</a></li>
+          <li><a href="#pt-6">6. Preçário</a></li>
+          <li><a href="#pt-7">7. Termos da parceria</a></li>
+          <li><a href="#pt-8">8. Programa de referência</a></li>
+          <li><a href="#pt-9">9. Desenvolvimento futuro</a></li>
+          <li><a href="#pt-10">10. Informação necessária da sua parte</a></li>
+          <li><a href="#pt-11">11. Próximos passos</a></li>
+        </ul>
+      </nav>
+
+      <section id="pt-1">
+        <h2>1. Objetivo do projeto</h2>
+        <p><strong>Para a InCity:</strong> reforçar a presença online e receber mais reservas de tours com um website claro e canais ligados, com um sítio central para gerir o calendário e evitar reservas em duplicado.</p>
+        <p><strong>Para a Inteligente:</strong> entregar a InCity como primeiro piloto de um serviço repetível de “website + operações de reserva” para negócios de turismo (começando em Sintra), num modelo de parceria com setup acessível.</p>
+        <div class="callout">
+          <strong>Referência de design:</strong> estrutura inspirada em operadores estabelecidos em Sintra (ex.: Mr. Local)—pacotes claros, história centrada no guia, preços “a partir de”, CTA de reserva—com conteúdo próprio da Invisible City Tours.
+        </div>
+      </section>
+
+      <section id="pt-2">
+        <h2>2. Âmbito de lançamento (o que está incluído)</h2>
+        <h3>Incluído no lançamento</h3>
+        <ul class="check">
+          <li>Website público em Odoo (EN primeiro; PT/FR/ES podem ser faseados se acordado)</li>
+          <li>Arquitetura de páginas inspirada no Mr. Local: Início, Tours, Sobre/Guia, Testemunhos, Contacto</li>
+          <li><strong>3 a 5 pacotes públicos simplificados</strong> (não o catálogo interno completo no primeiro dia)</li>
+          <li>Experiência de reserva incorporada com motor profissional (predefinição: <strong>Bókun</strong> ou equivalente)</li>
+          <li><strong>Reserva e pagamento online imediatos</strong> no canal direto do website</li>
+          <li><strong>Calendário central</strong> no motor (única fonte de verdade do inventário)</li>
+          <li><strong>Ligação à Viator</strong> com disponibilidade partilhada para reduzir double-booking</li>
+          <li>WhatsApp / telefone mantidos para pedidos privados personalizados</li>
+          <li>Guia operativo básico para o guia</li>
+          <li><strong>Copywriting básico</strong> das páginas de lançamento (textos de pacotes, sobre, CTAs principais)—sem campanhas de marca ilimitadas</li>
+          <li>Website alojado em infraestrutura operada pela Inteligente (Odoo <strong>self-host em Frank</strong>)</li>
+          <li>Alojamento e manutenção no âmbito da subscrição mensal</li>
+        </ul>
+        <h3>Explicitamente não prometido no lançamento</h3>
+        <ul>
+          <li>Substituto proprietário da Bókun, agente de IA ou automação MCP multiplataforma</li>
+          <li>Nextcloud como sistema oficial de reservas no lançamento</li>
+          <li>Todas as OTAs no dia um (GetYourGuide, Booking.com Experiences, etc.)</li>
+          <li>Publicação de toda a lista histórica de tours</li>
+          <li>Volume de reservas ou ROI garantido</li>
+        </ul>
+        <div class="callout warn">
+          <strong>Importante:</strong> as <em>comissões</em> das OTAs (percentagem sobre cada reserva na plataforma) continuam a ser cobradas ao operador como é habitual. A mensalidade cobre a subscrição do motor de reservas (tipo Bókun), <strong>não</strong> as comissões das OTAs.
+        </div>
+      </section>
+
+      <section id="pt-3">
+        <h2>3. Percurso de reserva</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4>A. Direto (website)</h4>
+            <p>O visitante escolhe pacote e data → paga online → confirmação imediata → lugar bloqueado no calendário central.</p>
+          </div>
+          <div class="card">
+            <h4>B. Viator</h4>
+            <p>Reserva na Viator → entra no mesmo calendário do motor → disponibilidade atualiza → o guia cumpre a experiência.</p>
+          </div>
+          <div class="card">
+            <h4>C. Instagram / YouTube</h4>
+            <p>Ligações para o checkout do website (ou página do tour)—sem calendário separado.</p>
+          </div>
+          <div class="card">
+            <h4>D. Offline / WhatsApp</h4>
+            <p>Reservas manuais registadas no calendário central para manter consistência.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="pt-4">
+        <h2>4. Arquitetura (lançamento)</h2>
+        <table>
+          <thead>
+            <tr><th>Camada</th><th>Sistema</th><th>Responsabilidade</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Marca e conteúdo</td>
+              <td><strong>Website Odoo</strong> (self-host em <strong>Frank</strong>)</td>
+              <td>Páginas, história, SEO básico, CTAs; copywriting básico de lançamento</td>
+            </tr>
+            <tr>
+              <td>Alojamento do website</td>
+              <td><strong>Frank</strong> (operado pela Inteligente)</td>
+              <td>Servidor, atualizações e hosting no plano mensal</td>
+            </tr>
+            <tr>
+              <td>Inventário e reservas (registo oficial)</td>
+              <td><strong>Motor tipo Bókun</strong></td>
+              <td>Disponibilidade, confirmações, pagamentos diretos, sincronização de canais</td>
+            </tr>
+            <tr>
+              <td>Checkout no site</td>
+              <td><strong>Widget / embed do motor</strong></td>
+              <td>Escolha de data/pessoas, pagamento, confirmação</td>
+            </tr>
+            <tr>
+              <td>Distribuição (lançamento)</td>
+              <td><strong>Viator</strong></td>
+              <td>Procura no marketplace com disponibilidade em tempo real</td>
+            </tr>
+            <tr>
+              <td>Opcional mais tarde</td>
+              <td>Nextcloud / motor próprio / agente</td>
+              <td>Fora da aceitação de lançamento</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pt-5">
+        <h2>5. Entregáveis e critérios de aceitação</h2>
+        <table>
+          <thead>
+            <tr><th>Entregável</th><th>Aceite quando</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Website Odoo no ar</td><td>URL pública; páginas principais; conteúdo InCity; utilizável em telemóvel</td></tr>
+            <tr><td>3–5 pacotes</td><td>Duração, preço a partir de, inclusões, botão de reservar</td></tr>
+            <tr><td>Reserva direta</td><td>Reserva de teste com pagamento e confirmação</td></tr>
+            <tr><td>Calendário central</td><td>Ver reservas, bloquear dias, registar offline</td></tr>
+            <tr><td>Viator</td><td>Produtos ligados com sync demonstrado <em>ou</em> data de adiamento por escrito</td></tr>
+            <tr><td>Handover</td><td>Guia rápido + mapa de contas</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pt-6">
+        <h2>6. Preçário (piloto de parceria)</h2>
+        <div class="price">
+          <div class="box">
+            <div class="label">Setup (único)</div>
+            <div class="value">€500</div>
+            <div class="note">Website, <strong>copywriting básico de lançamento</strong> e configuração inicial do motor e Viator. Valor de referência de projeto completo ~€5.000; taxa piloto = 10% como contribuição de parceria. O registo do domínio é pago à parte pela InCity.</div>
+          </div>
+          <div class="box">
+            <div class="label">Subscrição mensal</div>
+            <div class="value">€50 / mês</div>
+            <div class="note">Hosting do website em Frank, manutenção/cuidado e <strong>taxa de subscrição do motor (Bókun ou equivalente)</strong> (ordem de ~€50) cobertos nesta subscrição piloto.</div>
+          </div>
+        </div>
+        <h3>A mensalidade inclui</h3>
+        <ul>
+          <li>Hosting do website em Frank e manutenção corrente dentro de limites acordados</li>
+          <li>Subscrição do motor de reservas (Bókun ou equivalente) para este piloto—definida para cobrir essa taxa</li>
+          <li>Apoio razoável de configuração do stack de lançamento</li>
+        </ul>
+        <h3>A mensalidade não inclui</h3>
+        <ul>
+          <li><strong>Comissões OTA</strong> (ex.: percentagem Viator)</li>
+          <li>Taxas de processadores de pagamento, salvo acordo escrito</li>
+          <li>Redesigns grandes, novas funcionalidades custom, idiomas extra ou OTAs adicionais sem alteração de âmbito</li>
+          <li>Anúncios pagos, sessões fotográficas profissionais ou aconselhamento jurídico/fiscal</li>
+        </ul>
+      </section>
+
+      <section id="pt-7">
+        <h2>7. Termos da parceria (resumo)</h2>
+        <ul>
+          <li><strong>IP do produto reutilizável / motor:</strong> propriedade da Inteligente.</li>
+          <li><strong>Marca e conteúdo:</strong> propriedade da InCity (incluindo media fornecida pela InCity).</li>
+          <li><strong>Domínio:</strong> a InCity <strong>paga</strong> o registo/DNS e é <strong>titular</strong> do domínio. A Inteligente pode ajudar a apontar o DNS para o site em Frank.</li>
+          <li><strong>Hosting do website:</strong> Odoo <strong>self-host em Frank</strong>, operado pela Inteligente no plano mensal.</li>
+          <li><strong>Textos de lançamento:</strong> o setup inclui <strong>copywriting básico</strong>; projetos editoriais maiores ficam fora de âmbito salvo acordo.</li>
+          <li><strong>Dados de reservas/clientes:</strong> a InCity é dona da relação comercial e tem direitos de exportação (sujeito às ferramentas das plataformas e RGPD).</li>
+          <li><strong>Contas:</strong> preferência por logins da InCity; Inteligente com acesso mínimo necessário.</li>
+          <li><strong>Cancelamento:</strong> aviso escrito sugerido de 30 dias para a mensalidade; setup não reembolsável após início dos trabalhos, salvo acordo.</li>
+          <li><strong>Sem garantia de ROI.</strong></li>
+        </ul>
+      </section>
+
+      <section id="pt-8">
+        <h2>8. Programa de referência</h2>
+        <p>Quando a InCity trouxer outros operadores de tours que sejam <strong>subscritores ativos e a pagar</strong> o mesmo serviço Inteligente:</p>
+        <ul>
+          <li>Com <strong>5</strong> referidos ativos em simultâneo, a mensalidade de €50 da InCity fica <strong>grátis (apenas crédito de serviço)</strong>.</li>
+          <li>Não é pagamento em dinheiro nesta regra v1.</li>
+          <li>Se o número de referidos ativos descer abaixo de 5, o crédito pausa até voltar ao limiar.</li>
+        </ul>
+      </section>
+
+      <section id="pt-9">
+        <h2>9. Desenvolvimento futuro (fora do lançamento)</h2>
+        <p>Motor próprio, agentes/IA ou automação avançada podem ser investidos pela Inteligente mais tarde. Não são critérios de aceitação do lançamento InCity e não têm data garantida de substituição da Bókun.</p>
+      </section>
+
+      <section id="pt-10">
+        <h2>10. Informação necessária da sua parte (InCity)</h2>
+        <p>Responda a estes pontos para fecharmos o âmbito e iniciarmos a construção. O que já está decidido do nosso lado aparece como <em>confirmado</em>.</p>
+        <table>
+          <thead>
+            <tr><th>Tema</th><th>Estado</th><th>O que precisamos de si</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Domínio</td>
+              <td><strong>Confirmado</strong></td>
+              <td>A InCity paga e é dona do domínio. <strong>Indique o nome de domínio</strong> desejado (ou lista curta).</td>
+            </tr>
+            <tr>
+              <td>Hosting do website</td>
+              <td><strong>Confirmado</strong></td>
+              <td>Odoo self-host em Frank pela Inteligente—sem decisão adicional.</td>
+            </tr>
+            <tr>
+              <td>Copywriting de lançamento</td>
+              <td><strong>Confirmado</strong></td>
+              <td>Textos básicos incluídos no setup. Envie factos/bio e aprove rascunhos.</td>
+            </tr>
+            <tr>
+              <td>Pacotes públicos (3–5)</td>
+              <td><strong>Necessário</strong></td>
+              <td>Nomes, duração, preço a partir de (EUR), inclusões/exclusões, ponto de encontro, máximo de pessoas.</td>
+            </tr>
+            <tr>
+              <td>Capacidade / calendário</td>
+              <td><strong>Necessário</strong></td>
+              <td>Dias/horários típicos, bloqueios, um tour vs vários no mesmo dia.</td>
+            </tr>
+            <tr>
+              <td>Fotos e media</td>
+              <td><strong>Necessário</strong></td>
+              <td>Imagens com direitos de uso comercial (tours, guia, viatura se aplicável).</td>
+            </tr>
+            <tr>
+              <td>Texto “Sobre” o guia</td>
+              <td><strong>Necessário</strong></td>
+              <td>Idiomas, destaques de experiência, posicionamento (tours privados de dia—não só personagem).</td>
+            </tr>
+            <tr>
+              <td>Pagamentos diretos</td>
+              <td><strong>Necessário</strong></td>
+              <td>Conta do processador de pagamentos (ex.: Stripe) para o checkout do site.</td>
+            </tr>
+            <tr>
+              <td>Viator</td>
+              <td><strong>Necessário</strong></td>
+              <td>Já tem conta de fornecedor ou listagens Viator? Em que nome?</td>
+            </tr>
+            <tr>
+              <td>Idiomas no lançamento</td>
+              <td><strong>Necessário</strong></td>
+              <td>Inglês por defeito. Confirme se PT / FR / ES têm de estar no ar no dia um.</td>
+            </tr>
+            <tr>
+              <td>Reservas offline / WhatsApp</td>
+              <td><strong>Necessário</strong></td>
+              <td>Quem as regista no calendário central (si / formação de handover)?</td>
+            </tr>
+            <tr>
+              <td>OTAs extra no lançamento</td>
+              <td><strong>Necessário</strong></td>
+              <td>Lançamento padrão = só Viator. Indique extras obrigatórios (ex.: GetYourGuide) para alteração de âmbito.</td>
+            </tr>
+            <tr>
+              <td>Início de faturação</td>
+              <td><strong>Necessário</strong></td>
+              <td>Mês de início da subscrição de €50 e dados de fatura (nome, NIF se houver, email).</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pt-11">
+        <h2>11. Próximos passos</h2>
+        <ol>
+          <li>A InCity revê esta proposta e responde à secção 10.</li>
+          <li>Acordo curto por escrito + kickoff (setup €500).</li>
+          <li>Regista/paga o domínio; ajudamos a apontar o DNS para o site em Frank.</li>
+          <li>Construção do site Odoo (copy básico) + motor + Viator em paralelo.</li>
+          <li>Teste de aceitação (secção 5).</li>
+        </ol>
+      </section>
+    </div>
+
+    <footer>
+      Inteligente · InCity partnership proposal v1.1 · Draft for review · 2026-11-09<br />
+      English and Portuguese sections describe the same commercial offer; if wording differs, English commercial intent prevails until a signed agreement says otherwise.<br />
+      Internal working notes: InCity-partnership-proposal-v1-internal.md (not part of the client send).
+    </footer>
+  </div>
+</body>
+</html>

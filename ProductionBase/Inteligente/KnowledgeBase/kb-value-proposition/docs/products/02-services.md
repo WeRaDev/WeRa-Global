@@ -5,11 +5,11 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-09-29
-  next_review_due: 2026-12-29
+  last_reviewed_at: 2026-10-05
+  next_review_due: 2027-01-05
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; founder-reported anonymized case summaries and outcome follow-up (business-analysis session, 2026-09-29)"
+    source: "Inteligente/Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md; founder-reported case summaries and outcome follow-up (business-analysis session, 2026-09-29); InCity client dossier naming (2026-10-05)"
     confidence: medium
     review_status: draft
 ---
@@ -31,12 +31,12 @@ Shrinking AI's sellable object is a **session flow**, not a workflow-automation 
 4. **Optional retainer or implementation support** — a follow-on path for clients who want ongoing help, not a mandatory upsell. This may be referred to the Automation Center product line (see `03-automation-center.md`) if the client wants an actual workflow built, but the two remain independently sellable and priced.
 
 ### Founder-reported engagement and outcome notes (2 client accounts)
-The founder provided these anonymized, retrospective case summaries and follow-up updates during the 2026-09-29 business-analysis session. They are primary reports, not independently corroborated client outcomes; client artifacts and public-use consent were not reviewed.
+The founder provided these retrospective case summaries and follow-up updates during the 2026-09-29 business-analysis session. They are primary reports, not independently corroborated client outcomes; client artifacts and public-use consent were not reviewed. On 2026-10-05, the former anonymized tour-guide account was named **InCity** (operating brand: Invisible City Tours); see `../../../kb-customers/docs/clients/incity.md`.
 - **Client A — self-publishing writer** (related internal project context: `ProductionBase/DreamMakers`): After roughly a month of self-directed attempts to use AI for book editing/formatting and print/e-book preparation without a satisfactory result, the client sought consulting. The consultant elicited context and goals, translated them into logical requirements, configured AI, generated pre-print/pre-publication materials, and sent the materials to the client. The client later confirmed using those delivered materials for printing and publishing the book; whether they caused the publication or changed its quality, timing, or business outcome is unknown.
   - **Subsequent Expanding Human engagement:** the client paid €50 for a separate 60-minute consultancy asking how AI could support the business beyond editing and formatting. The consultant delivered a business model canvas and a "marketing scope of AI application." Preparation/live/follow-up effort and any attributable business outcome are not recorded. The client is considering ordering Automation Center services; no order or delivery was reported.
   - **Still unknown:** whether the materials caused publication or changed its timing, quality, or business impact.
-- **Client B — self-employed tour guide**: After AI-assisted YouTube content did not produce the expected engagement, the client sought a business outcome. The consultant held a short business-analysis session, recommended prioritizing the website booking path over producing more YouTube content, and delivered a business-model canvas and business plan for website construction intended to capture leads.
-  - **Subsequent update:** the client has started building the website and expressed interest in ordering Automation Center services for website administration. No order or delivery was reported. Website completion, leads/bookings/revenue, and consultant effort remain unknown.
+- **InCity — Invisible City Tours (solo tour operator; formerly "Client B")**: After AI-assisted YouTube content did not produce the expected engagement, the client sought a business outcome. The consultant held a short business-analysis session, recommended prioritizing the website booking path over producing more YouTube content, and delivered a business-model canvas and business plan for website construction intended to capture leads.
+  - **Subsequent update:** the client has started building the website and expressed interest in ordering Automation Center services for website administration. No order or delivery was reported. Website completion, leads/bookings/revenue, and consultant effort remain unknown. Current status: **pipeline Automation Center opportunity** (website-admin automation).
 
 These reports cover two initial Shrinking AI client accounts and one separate paid Expanding Human follow-up. Keep the Shrinking AI target at 2 of 10 sessions; the Expanding Human engagement is one observation (n=1), not part of that count or a repeatable delivery method. The two Automation Center interest signals are not sales or proof of repeatable cross-sell demand.
 
@@ -53,8 +53,9 @@ The validated core value message is: *"we will help you get better results for t
 ## Evidence
 - `../../../../Resources/Documents/Research/Human Center — Product 1  Shrinking AI  Desk Research, Heuristic Evaluation &amp; Competitive Analysis.md` — verified, defines the session flow, RCGFC framework, and core value message directly from project documentation.
 - `../../../../Resources/Documents/Research/Shrinking AI (B2B Consultancy) — Desk Research, He.md` — verified, corroborating desk research and competitive framing.
-- **First 2 real paid engagements (Sept 2026)** — verified, primary evidence (actual signed/paid transactions, not desk research): (1) a self-published writer, topic: using AI for e-book formatting; (2) a self-employed tour guide, topic: using AI for content creation. Both paid €50 for a 60-minute session. This is the strongest evidence in the entire KB to date, since it is a real market transaction rather than an estimate.
-- **Founder-reported anonymized case summaries and outcome follow-up (business-analysis session, 2026-09-29)** — primary, retrospective reports of two client accounts, one subsequent paid consultancy, book publication, website-build start, and Automation Center interest; client confirmation, supporting artifacts, attribution, and business impact have not been reviewed.
+- **First 2 real paid engagements (Sept 2026)** — verified, primary evidence (actual signed/paid transactions, not desk research): (1) a self-published writer, topic: using AI for e-book formatting; (2) InCity / Invisible City Tours (solo tour operator), topic: using AI for content creation. Both paid €50 for a 60-minute session. This is the strongest evidence in the entire KB to date, since it is a real market transaction rather than an estimate.
+- **Founder-reported case summaries and outcome follow-up (business-analysis session, 2026-09-29; InCity named 2026-10-05)** — primary, retrospective reports of two client accounts, one subsequent paid consultancy, book publication, website-build start, and Automation Center interest; client confirmation, supporting artifacts, attribution, and business impact have not been reviewed.
+- `../../../kb-customers/docs/clients/incity.md` and `../../../../Resources/Documents/Research/Clients/InCity/` — named client dossier and sanitized research pack for InCity.
 
 ## Cross-Domain Links
 - Related domains: `kb-solution`, `kb-revenue-streams`, `kb-customers`, `kb-unfair-advantage`, `kb-metrics`

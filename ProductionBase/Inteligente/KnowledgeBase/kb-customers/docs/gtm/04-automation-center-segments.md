@@ -5,11 +5,11 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: hypothesis
-  last_reviewed_at: 2026-09-29
-  next_review_due: 2026-12-29
+  last_reviewed_at: 2026-10-05
+  next_review_due: 2027-01-05
   provenance:
     actor: agent-warp
-    source: "Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; founder-reported anonymized cross-sell outcome follow-up (2026-09-29)"
+    source: "Inteligente/Resources/Documents/Research/HumanCenter.Pricing.md; founder-reported cross-sell outcome follow-up (2026-09-29); InCity client dossier (2026-10-05)"
     confidence: medium
     review_status: draft
 ---
@@ -29,7 +29,7 @@ Financial Automation, the line's first named service, narrows this general targe
 
 Unlike Human Center's Shrinking AI service, **no weighted ICP scoring model exists yet** for Automation Center's audience — this is a hypothesis-stage target definition pending real client interviews.
 
-**Founder-reported early interest signal (2026-09-29; n=2 Human Center client accounts)**: a self-publishing writer is considering Automation Center services, and a self-employed tour guide who has started building a booking website expressed interest in website-administration automation. No order or delivery was reported. These are unqualified interest signals: service requirements, decision authority, budget, timing, and purchase outcome have not been established. They do not validate the broad Automation Center target or any new segment.
+**Founder-reported early interest signal (2026-09-29; n=2 Human Center client accounts; naming update 2026-10-05)**: a self-publishing writer is considering Automation Center services, and **InCity** (Invisible City Tours), which has started building a booking website, expressed interest in website-administration automation and is tracked as a **pipeline Automation Center opportunity**. No order or delivery was reported. These are unqualified interest signals: service requirements, decision authority, budget, timing, and purchase outcome have not been established. They do not validate the broad Automation Center target or any new segment. See `../clients/incity.md`.
 
 **Need-based referral strategy**: Human Center clients may be referred here when they need a defined organizational process automated; Automation Center clients may be referred to Shrinking AI or Expanding Human when their primary need is human facilitation or exploration of AI opportunities. This is a bidirectional strategy, not evidence of conversion; only the two unqualified Human-to-Automation interest signals are currently reported.
 
@@ -39,7 +39,8 @@ Unlike Human Center's Shrinking AI service, **no weighted ICP scoring model exis
 
 ## Evidence
 - `../../../../Resources/Documents/Research/HumanCenter.Pricing.md` — verified, defines the general solo-consultant/professional-services persona and security requirements.
-- **Founder-reported anonymized cross-sell outcome follow-up (2026-09-29)** — primary, retrospective report of two Human Center client accounts expressing Automation Center interest; no client confirmation, qualified requirements, order, or delivery is recorded.
+- **Founder-reported cross-sell outcome follow-up (2026-09-29; InCity named 2026-10-05)** — primary, retrospective report of two Human Center client accounts expressing Automation Center interest; no client confirmation, qualified requirements, order, or delivery is recorded.
+- `../clients/incity.md` — named pipeline record for InCity website-admin automation interest.
 
 ## Cross-Domain Links
 - Related domains: `kb-value-proposition`, `kb-problem`, `kb-solution`

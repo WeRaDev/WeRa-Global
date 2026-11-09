@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InCity × Inteligente — Website Proposal v2</title>
+  <style>
+    :root {
+      --ink: #1a2332;
+      --muted: #5a6577;
+      --line: #d8dee8;
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --accent: #0b6e4f;
+      --accent-soft: #e6f4ef;
+      --warn: #8a5a00;
+      --warn-bg: #fff6e5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+    header.hero {
+      background: linear-gradient(145deg, #0b3d2e 0%, #0b6e4f 55%, #1a8f6a 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(11, 61, 46, 0.18);
+    }
+    header.hero h1 { margin: 0 0 8px; font-size: 1.75rem; font-weight: 700; }
+    header.hero p { margin: 0; opacity: 0.92; max-width: 62ch; }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      margin-top: 18px; font-size: 0.9rem; opacity: 0.95;
+    }
+    .chip {
+      display: inline-block;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 999px;
+      padding: 4px 12px;
+    }
+    .lang-switch { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+    .lang-switch a {
+      text-decoration: none; color: var(--ink); background: var(--card);
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 0.9rem;
+    }
+    .lang-switch a:hover { border-color: var(--accent); color: var(--accent); }
+    nav.toc {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 16px 18px; margin-bottom: 24px;
+    }
+    nav.toc strong { display: block; margin-bottom: 8px; }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    nav.toc ul { margin: 0; padding-left: 18px; }
+    section {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 22px 22px 8px; margin-bottom: 16px;
+    }
+    section h2 {
+      margin: 0 0 12px; font-size: 1.25rem;
+      border-bottom: 2px solid var(--accent-soft); padding-bottom: 8px;
+    }
+    section h3 { margin: 18px 0 8px; font-size: 1.05rem; color: var(--accent); }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 0.95rem; }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: var(--accent-soft); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fafcfe;
+    }
+    .card h4 { margin: 0 0 6px; font-size: 0.98rem; }
+    .card p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+    .price { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0 16px; }
+    .price .box {
+      flex: 1 1 200px; background: var(--accent-soft); border: 1px solid #b7d8c8;
+      border-radius: 12px; padding: 16px;
+    }
+    .price .box .label { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .price .box .value { font-size: 1.6rem; font-weight: 700; color: var(--accent); margin-top: 4px; }
+    .price .box .note { font-size: 0.88rem; color: var(--muted); margin-top: 6px; }
+    .callout {
+      border-left: 4px solid var(--accent); background: var(--accent-soft);
+      padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 12px 0 16px;
+    }
+    .callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+    .check { list-style: none; padding-left: 0; }
+    .check li::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+    .out { list-style: none; padding-left: 0; }
+    .out li::before { content: "× "; color: #a33; font-weight: 700; }
+    .arch {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem;
+      background: #0f1720; color: #d7e2ea; border-radius: 10px; padding: 14px 16px;
+      overflow-x: auto; white-space: pre; line-height: 1.4; margin: 12px 0 18px;
+    }
+    .pt-block { border-top: 3px solid var(--line); margin-top: 28px; padding-top: 8px; }
+    .pt-block > h2.lang-title {
+      background: #eef2f7; margin: 0 0 16px; padding: 12px 16px; border-radius: 10px;
+      border: 1px solid var(--line); font-size: 1.1rem;
+    }
+    footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1>InCity × Inteligente — Website Proposal</h1>
+      <p>
+        A clear online home for Invisible City Tours on Frank: present the guide and tours,
+        capture leads from YouTube, Facebook and Instagram, and let visitors contact the guide
+        so tours can be scheduled manually.
+      </p>
+      <div class="meta">
+        <span class="chip">Proposal v2 — agreed simplified scope</span>
+        <span class="chip">Date: 2026-11-09</span>
+        <span class="chip">Provider: Inteligente</span>
+        <span class="chip">Client: InCity / Invisible City Tours</span>
+      </div>
+    </header>
+
+    <div class="lang-switch">
+      <a href="#en">English</a>
+      <a href="#pt">Português</a>
+    </div>
+
+    <div id="en">
+      <nav class="toc" aria-label="Contents">
+        <strong>Contents (EN)</strong>
+        <ul>
+          <li><a href="#en-1">1. Project objective</a></li>
+          <li><a href="#en-2">2. What is included / excluded</a></li>
+          <li><a href="#en-3">3. How visitors reach you</a></li>
+          <li><a href="#en-4">4. Architecture</a></li>
+          <li><a href="#en-5">5. Deliverables &amp; acceptance</a></li>
+          <li><a href="#en-6">6. Pricing</a></li>
+          <li><a href="#en-7">7. Partnership terms</a></li>
+          <li><a href="#en-8">8. Information we need from you</a></li>
+          <li><a href="#en-9">9. Next steps</a></li>
+          <li><a href="#en-10">10. Later options (not this project)</a></li>
+        </ul>
+      </nav>
+
+      <section id="en-1">
+        <h2>1. Project objective</h2>
+        <p><strong>For InCity:</strong> put a professional website online so tourists who find you on social media can learn about the tours and contact the guide. The guide continues to <strong>schedule tours manually</strong> (phone, WhatsApp, email, or other personal channels).</p>
+        <p><strong>For Inteligente:</strong> deliver a focused brochure + lead-capture site hosted on <strong>Frank</strong>, as the agreed first deliverable after client conversation (2026-11-09).</p>
+        <div class="callout">
+          <strong>Scope change vs earlier draft:</strong> this v2 <em>does not</em> include online booking, payments, or connections to Viator / Tripadvisor / Booking / GetYourGuide. Those remain optional later projects.
+        </div>
+      </section>
+
+      <section id="en-2">
+        <h2>2. What is included / excluded</h2>
+        <h3>Included</h3>
+        <ul class="check">
+          <li>Public website hosted on <strong>Frank</strong> and available on the internet</li>
+          <li>Pages inspired by clear tour-operator structure (e.g. Home, Tours, About/Guide, Contact)—filled with InCity content</li>
+          <li>Presentation of selected tours (informative: description, duration, indicative info—not a live booking cart)</li>
+          <li><strong>Lead capture / communication:</strong> contact paths so visitors can reach the guide (e.g. form and/or WhatsApp / phone / email CTAs)</li>
+          <li><strong>Social lead routing:</strong> website ready so YouTube, Facebook, and Instagram can link/redirect people to the site (profile/bio/link-in-bio, video descriptions, posts)</li>
+          <li>Basic launch copywriting from your facts and photos</li>
+          <li>Guidance checklist for placing links on YouTube, Facebook, and Instagram</li>
+          <li><strong>Free hosting for 3 months</strong> from go-live (see Pricing)</li>
+        </ul>
+        <h3>Excluded (not part of this €300 project)</h3>
+        <ul class="out">
+          <li>Online booking engine or calendar with automatic confirmation</li>
+          <li>Payment channels (Stripe, PayPal, card checkout, etc.)</li>
+          <li>Integration with tourism platforms (Viator, Tripadvisor Experiences, Booking.com, GetYourGuide, etc.)</li>
+          <li>Automatic tour scheduling or multi-channel inventory sync</li>
+          <li>Monthly subscription for this phase (none)</li>
+          <li>Paid ads management, professional photo shoots, or ongoing social media content production</li>
+        </ul>
+      </section>
+
+      <section id="en-3">
+        <h2>3. How visitors reach you</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4>YouTube</h4>
+            <p>Channel / video descriptions and about links point to the website (and ideally a contact or tours page).</p>
+          </div>
+          <div class="card">
+            <h4>Facebook</h4>
+            <p>Page button, about link, and posts send interested people to the website.</p>
+          </div>
+          <div class="card">
+            <h4>Instagram</h4>
+            <p>Link in bio / stories stickers send followers to the website.</p>
+          </div>
+          <div class="card">
+            <h4>On the website</h4>
+            <p>Visitor reads about you and the tours, then contacts the guide. You schedule the tour manually.</p>
+          </div>
+        </div>
+        <p class="muted">“Integration” here means clear, working redirects and CTAs—not API automation of those social platforms.</p>
+      </section>
+
+      <section id="en-4">
+        <h2>4. Architecture</h2>
+        <table>
+          <thead>
+            <tr><th>Layer</th><th>Choice</th><th>Role</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Website</td>
+              <td>Odoo Website (or equivalent stack on Frank if delivery needs a lighter option)</td>
+              <td>Public pages, content, contact/lead CTAs</td>
+            </tr>
+            <tr>
+              <td>Hosting</td>
+              <td><strong>Frank</strong> (Inteligente-operated)</td>
+              <td>Site online for the included free period, then terms to be agreed if continued</td>
+            </tr>
+            <tr>
+              <td>Domain</td>
+              <td>InCity pays &amp; owns (unless otherwise agreed in writing)</td>
+              <td>DNS pointed to Frank-hosted site</td>
+            </tr>
+            <tr>
+              <td>Scheduling</td>
+              <td>Manual by the guide</td>
+              <td>Outside the website automation scope</td>
+            </tr>
+            <tr>
+              <td>Social</td>
+              <td>YouTube, Facebook, Instagram</td>
+              <td>Outbound links to the website for lead capture</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="arch">YouTube / Facebook / Instagram
+        └─ links ─► InCity website (Frank)
+                        └─ contact / WhatsApp / email / phone
+                              └─ Guide schedules tour manually</div>
+      </section>
+
+      <section id="en-5">
+        <h2>5. Deliverables &amp; acceptance</h2>
+        <table>
+          <thead>
+            <tr><th>Deliverable</th><th>Accepted when</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Website live on Frank</td>
+              <td>Public URL loads on desktop and mobile; HTTPS where configured</td>
+            </tr>
+            <tr>
+              <td>Core pages</td>
+              <td>Home, Tours (or Experiences), About, Contact (names may vary) with InCity content</td>
+            </tr>
+            <tr>
+              <td>Lead / communication paths</td>
+              <td>Visitor can contact the guide (working form and/or direct WhatsApp/phone/email CTAs)</td>
+            </tr>
+            <tr>
+              <td>Social link readiness</td>
+              <td>Stable URLs provided for bio/about/description use; short checklist for YT/FB/IG</td>
+            </tr>
+            <tr>
+              <td>Handover</td>
+              <td>How to request content updates during the free hosting window is documented</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="en-6">
+        <h2>6. Pricing</h2>
+        <div class="price">
+          <div class="box">
+            <div class="label">Project fee (one-time)</div>
+            <div class="value">€300</div>
+            <div class="note">Design/build of the brochure + lead-capture website, basic launch copy, Frank go-live, social link checklist.</div>
+          </div>
+          <div class="box">
+            <div class="label">Subscription</div>
+            <div class="value">€0</div>
+            <div class="note">No subscription fee for this phase.</div>
+          </div>
+          <div class="box">
+            <div class="label">Hosting</div>
+            <div class="value">3 months free</div>
+            <div class="note">Free hosting on Frank for three months from go-live. After that, hosting/care terms to be agreed if you continue.</div>
+          </div>
+        </div>
+        <div class="callout warn">
+          <strong>Not included in €300:</strong> domain registration (usually paid by you to a registrar), OTA fees, ad spend, or future booking/payment modules.
+        </div>
+      </section>
+
+      <section id="en-7">
+        <h2>7. Partnership terms (summary)</h2>
+        <ul>
+          <li><strong>Site templates / reusable methods:</strong> Inteligente may reuse general patterns for other clients.</li>
+          <li><strong>Your brand, photos, and tour texts:</strong> remain InCity’s.</li>
+          <li><strong>Domain:</strong> if you pay for it, you own it.</li>
+          <li><strong>Lead messages:</strong> go to channels you control (email/WhatsApp/phone); you own the customer relationship.</li>
+          <li><strong>No online booking liability:</strong> because scheduling is manual, double-booking prevention across OTAs is out of scope for this phase.</li>
+          <li>This HTML is a commercial proposal draft, not a signed contract, until confirmed in writing.</li>
+        </ul>
+      </section>
+
+      <section id="en-8">
+        <h2>8. Information we need from you</h2>
+        <table>
+          <thead>
+            <tr><th>Topic</th><th>Status</th><th>Your input</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Hosting</td>
+              <td><strong>Confirmed</strong></td>
+              <td>Frank, public website—no decision needed.</td>
+            </tr>
+            <tr>
+              <td>Online booking / payments / OTAs</td>
+              <td><strong>Confirmed out</strong></td>
+              <td>Not in this project.</td>
+            </tr>
+            <tr>
+              <td>Price</td>
+              <td><strong>Confirmed</strong></td>
+              <td>€300; no subscription; 3 months free hosting.</td>
+            </tr>
+            <tr>
+              <td>Domain name</td>
+              <td><strong>Needed</strong></td>
+              <td>Preferred domain (or shortlist). Who registers it?</td>
+            </tr>
+            <tr>
+              <td>Tours to show</td>
+              <td><strong>Needed</strong></td>
+              <td>Which 3–5 (or fewer) tours appear, with short descriptions and indicative prices if you want them public.</td>
+            </tr>
+            <tr>
+              <td>Contact channels</td>
+              <td><strong>Needed</strong></td>
+              <td>WhatsApp number, phone, email to publish; preferred primary CTA.</td>
+            </tr>
+            <tr>
+              <td>Social profiles</td>
+              <td><strong>Needed</strong></td>
+              <td>YouTube, Facebook, Instagram URLs (for footer links and the link-out checklist).</td>
+            </tr>
+            <tr>
+              <td>Photos &amp; bio</td>
+              <td><strong>Needed</strong></td>
+              <td>Usable photos + short about-the-guide text/facts.</td>
+            </tr>
+            <tr>
+              <td>Languages</td>
+              <td><strong>Needed</strong></td>
+              <td>Launch language(s): EN only, or also PT/FR/ES?</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="en-9">
+        <h2>9. Next steps</h2>
+        <ol>
+          <li>Confirm this v2 scope and €300 fee in writing.</li>
+          <li>Send answers to section 8 (especially domain, contacts, tours, photos).</li>
+          <li>Build and publish on Frank.</li>
+          <li>You update YouTube / Facebook / Instagram links to the live site.</li>
+          <li>Acceptance check on section 5; free hosting clock starts at go-live.</li>
+        </ol>
+        <p><strong>Contact (provider):</strong> Inteligente — <span class="muted">www.inteligente.site</span></p>
+      </section>
+
+      <section id="en-10">
+        <h2>10. Later options (not this project)</h2>
+        <p>If you later want online booking, payments, or tourism-platform connections (e.g. Viator), that can be scoped separately. Earlier Inteligente research on booking engines remains available as background—not part of this deliverable.</p>
+      </section>
+    </div>
+
+    <div id="pt" class="pt-block">
+      <h2 class="lang-title">Versão em português</h2>
+      <nav class="toc" aria-label="Índice">
+        <strong>Índice (PT)</strong>
+        <ul>
+          <li><a href="#pt-1">1. Objetivo</a></li>
+          <li><a href="#pt-2">2. Incluído / excluído</a></li>
+          <li><a href="#pt-3">3. Como os visitantes chegam</a></li>
+          <li><a href="#pt-4">4. Arquitetura</a></li>
+          <li><a href="#pt-5">5. Entregáveis e aceitação</a></li>
+          <li><a href="#pt-6">6. Preçário</a></li>
+          <li><a href="#pt-7">7. Termos</a></li>
+          <li><a href="#pt-8">8. Informação necessária</a></li>
+          <li><a href="#pt-9">9. Próximos passos</a></li>
+          <li><a href="#pt-10">10. Opções futuras</a></li>
+        </ul>
+      </nav>
+
+      <section id="pt-1">
+        <h2>1. Objetivo do projeto</h2>
+        <p><strong>Para a InCity:</strong> ter um website profissional online para quem o encontra nas redes sociais conhecer os tours e contactar o guia. O guia continua a <strong>marcar os tours manualmente</strong>.</p>
+        <p><strong>Para a Inteligente:</strong> entregar um site de apresentação + captura de contactos alojado em <strong>Frank</strong>, conforme conversa com o cliente (2026-11-09).</p>
+        <div class="callout">
+          <strong>Alteração de âmbito:</strong> esta v2 <em>não</em> inclui reservas online, pagamentos nem ligações a Viator / Tripadvisor / Booking / GetYourGuide.
+        </div>
+      </section>
+
+      <section id="pt-2">
+        <h2>2. O que está incluído / excluído</h2>
+        <h3>Incluído</h3>
+        <ul class="check">
+          <li>Website público em <strong>Frank</strong>, acessível na internet</li>
+          <li>Páginas de apresentação (Início, Tours, Sobre, Contacto—nomes podem variar)</li>
+          <li>Informação sobre tours selecionados (sem carrinho de reservas)</li>
+          <li><strong>Comunicação / leads:</strong> formulário e/ou WhatsApp / telefone / email</li>
+          <li><strong>Redes sociais:</strong> site preparado para YouTube, Facebook e Instagram enviarem visitantes ao website</li>
+          <li>Copywriting básico de lançamento</li>
+          <li>Checklist para colocar links nas redes</li>
+          <li><strong>Hosting grátis por 3 meses</strong> a partir do go-live</li>
+        </ul>
+        <h3>Excluído deste projeto de €300</h3>
+        <ul class="out">
+          <li>Motor de reservas online ou confirmação automática</li>
+          <li>Canais de pagamento</li>
+          <li>Integração com plataformas de turismo (Viator, etc.)</li>
+          <li>Agendamento automático multi-canal</li>
+          <li>Subscrição mensal nesta fase</li>
+          <li>Gestão de anúncios ou produção contínua de conteúdo social</li>
+        </ul>
+      </section>
+
+      <section id="pt-3">
+        <h2>3. Como os visitantes chegam</h2>
+        <p>YouTube, Facebook e Instagram ligam para o website. No site, o visitante lê e contacta o guia. O guia marca o tour manualmente. “Integração” = ligações e CTAs claros, não APIs das redes sociais.</p>
+      </section>
+
+      <section id="pt-4">
+        <h2>4. Arquitetura</h2>
+        <table>
+          <thead>
+            <tr><th>Camada</th><th>Escolha</th><th>Função</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Website</td><td>Odoo Website (ou stack equivalente em Frank se necessário)</td><td>Páginas e contactos</td></tr>
+            <tr><td>Hosting</td><td><strong>Frank</strong></td><td>Site online no período grátis</td></tr>
+            <tr><td>Domínio</td><td>InCity paga e é dona (salvo acordo)</td><td>DNS para Frank</td></tr>
+            <tr><td>Agendamento</td><td>Manual pelo guia</td><td>Fora da automação do site</td></tr>
+            <tr><td>Social</td><td>YouTube, Facebook, Instagram</td><td>Links para o site</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pt-5">
+        <h2>5. Entregáveis e aceitação</h2>
+        <table>
+          <thead>
+            <tr><th>Entregável</th><th>Aceite quando</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Site no ar em Frank</td><td>URL pública; desktop e telemóvel</td></tr>
+            <tr><td>Páginas principais</td><td>Conteúdo InCity presente</td></tr>
+            <tr><td>Contacto / leads</td><td>Visitante consegue contactar o guia</td></tr>
+            <tr><td>Redes sociais</td><td>URLs estáveis + checklist YT/FB/IG</td></tr>
+            <tr><td>Handover</td><td>Como pedir atualizações no período grátis documentado</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pt-6">
+        <h2>6. Preçário</h2>
+        <div class="price">
+          <div class="box">
+            <div class="label">Projeto (único)</div>
+            <div class="value">€300</div>
+            <div class="note">Website de apresentação + leads, copy básico, go-live em Frank, checklist social.</div>
+          </div>
+          <div class="box">
+            <div class="label">Subscrição</div>
+            <div class="value">€0</div>
+            <div class="note">Sem mensalidade nesta fase.</div>
+          </div>
+          <div class="box">
+            <div class="label">Hosting</div>
+            <div class="value">3 meses grátis</div>
+            <div class="note">A partir do go-live. Depois, termos a acordar se continuar.</div>
+          </div>
+        </div>
+        <div class="callout warn">
+          <strong>Não incluído nos €300:</strong> registo de domínio, taxas de OTAs, anúncios, nem módulos futuros de reserva/pagamento.
+        </div>
+      </section>
+
+      <section id="pt-7">
+        <h2>7. Termos (resumo)</h2>
+        <ul>
+          <li>Padrões reutilizáveis: Inteligente pode reutilizar métodos gerais.</li>
+          <li>Marca, fotos e textos de tours: da InCity.</li>
+          <li>Domínio: se pagar, é dono.</li>
+          <li>Leads/contactos: canais controlados pela InCity.</li>
+          <li>Sem reservas online neste projeto—agendamento manual.</li>
+        </ul>
+      </section>
+
+      <section id="pt-8">
+        <h2>8. Informação necessária da sua parte</h2>
+        <table>
+          <thead>
+            <tr><th>Tema</th><th>Estado</th><th>O que precisamos</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Hosting Frank</td><td><strong>Confirmado</strong></td><td>—</td></tr>
+            <tr><td>Reservas/pagamentos/OTAs</td><td><strong>Fora</strong></td><td>—</td></tr>
+            <tr><td>Preço</td><td><strong>Confirmado</strong></td><td>€300; 3 meses hosting grátis</td></tr>
+            <tr><td>Domínio</td><td><strong>Necessário</strong></td><td>Nome pretendido; quem regista</td></tr>
+            <tr><td>Tours a mostrar</td><td><strong>Necessário</strong></td><td>Lista curta + textos/preços indicativos se públicos</td></tr>
+            <tr><td>Contactos</td><td><strong>Necessário</strong></td><td>WhatsApp, telefone, email; CTA principal</td></tr>
+            <tr><td>Redes</td><td><strong>Necessário</strong></td><td>URLs YouTube, Facebook, Instagram</td></tr>
+            <tr><td>Fotos e bio</td><td><strong>Necessário</strong></td><td>Imagens com direitos + factos do guia</td></tr>
+            <tr><td>Idiomas</td><td><strong>Necessário</strong></td><td>EN só, ou também PT/FR/ES?</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pt-9">
+        <h2>9. Próximos passos</h2>
+        <ol>
+          <li>Confirmar por escrito este âmbito v2 e os €300.</li>
+          <li>Enviar respostas da secção 8.</li>
+          <li>Construção e publicação em Frank.</li>
+          <li>Atualizar links no YouTube / Facebook / Instagram.</li>
+          <li>Aceitação (secção 5); início dos 3 meses de hosting grátis.</li>
+        </ol>
+      </section>
+
+      <section id="pt-10">
+        <h2>10. Opções futuras (não deste projeto)</h2>
+        <p>Reservas online, pagamentos ou plataformas de turismo podem ser orçamentados à parte noutro momento.</p>
+      </section>
+    </div>
+
+    <footer>
+      Inteligente · InCity website proposal v2 · 2026-11-09<br />
+      Supersedes booking-heavy draft v1 for this commercial phase. EN and PT describe the same offer; EN prevails on wording conflicts until a signed agreement says otherwise.
+    </footer>
+  </div>
+</body>
+</html>
