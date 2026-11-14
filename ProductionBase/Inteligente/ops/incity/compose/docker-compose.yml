@@ -1,0 +1,51 @@
+name: incity-site
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: incity-site-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: "${INCITY_PG_PASSWORD}"
+      POSTGRES_DB: postgres
+    volumes:
+      - incity_site_pg:/var/lib/postgresql/data
+    networks: [incity-site-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  odoo:
+    image: filantropia-odoo:19.0
+    container_name: incity-site-odoo
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8073:8069"
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: "${INCITY_PG_PASSWORD}"
+    volumes:
+      - /home/wera/incity-site/odoo.conf:/etc/odoo/odoo.conf:ro
+      - /home/wera/incity-site/addons:/mnt/extra-addons:ro
+      - ../asset-stubs/website/static/src/snippets/s_bento_grid:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_bento_grid:ro
+      - ../asset-stubs/website/static/src/snippets/s_icon_list:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_icon_list:ro
+      - ../asset-stubs/website/static/src/snippets/s_countdown:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_countdown:ro
+      - ../asset-stubs/website/static/src/snippets/s_bento_grid_avatars:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_bento_grid_avatars:ro
+      - ../asset-stubs/website/static/src/snippets/s_splash_intro:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_splash_intro:ro
+      - ../asset-stubs/website/static/src/snippets/s_avatars:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_avatars:ro
+      - ../asset-stubs/website/static/src/snippets/s_age_verification_popup:/usr/lib/python3/dist-packages/odoo/addons/website/static/src/snippets/s_age_verification_popup:ro
+      - ../asset-stubs/website_appointment:/usr/lib/python3/dist-packages/odoo/addons/website_appointment:ro
+      - incity_site_odoo_data:/var/lib/odoo
+    networks: [incity-site-net]
+networks:
+  incity-site-net:
+    driver: bridge
+volumes:
+  incity_site_pg:
+  incity_site_odoo_data:
+    external: true

@@ -1,0 +1,15 @@
+ id |         url          | is_published 
+----+----------------------+--------------
+  5 | /                    | t
+  2 | /                    | t
+  6 | /contactus           | t
+  3 | /contactus           | t
+  1 | /contactus-thank-you | t
+  8 | /intv                | t
+  4 | /privacy             | t
+  9 | /reviews             | t
+  7 | /tours-from-lisbon   | t
+ 10 | /tours-from-sintra   | t
+ 11 | /vasco-da-lama       | t
+(11 rows)
+
