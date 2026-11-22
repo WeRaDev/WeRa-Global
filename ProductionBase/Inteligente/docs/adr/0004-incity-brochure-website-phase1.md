@@ -37,6 +37,8 @@ ADR 0003 (Bókun-class engine + Viator, etc.) remains valid as a **later optiona
 ### Follow-up actions
 - Client proposal: `Resources/Documents/Proposals/InCity-website-proposal-v2.html`
 - Update dossier and backlog HC-023 for brochure delivery
+- **Hosting topology (2026-11-12): Option A isolated stack** on Frank — `/data/incity-site` (ops path may also be `/home/wera/incity-site`), DB `incity_site`, port `127.0.0.1:8073` (see `ops/evidence/incity-frank-host-prep-20261112/`). Restore gated on `CONFIRM DESTRUCTIVE`.
+- **Content Matrix Studio (2026-11):** `inteligente_content_matrix` + `incity_community_shim` on the same stack; copy apply remains manual until client-approved finals.
 - Revisit ADR 0003 only if client later orders booking/OTA work
 
 ## References

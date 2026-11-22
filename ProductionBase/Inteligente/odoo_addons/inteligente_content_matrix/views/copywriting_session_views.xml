@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_copywriting_session_list" model="ir.ui.view">
+        <field name="name">copywriting.session.list</field>
+        <field name="model">copywriting.session</field>
+        <field name="arch" type="xml">
+            <list decoration-info="state == 'paused'"
+                  decoration-muted="state == 'finished'"
+                  decoration-success="state not in ('draft', 'finished', 'paused')">
+                <field name="name"/>
+                <field name="website_id"/>
+                <field name="user_id"/>
+                <field name="state"/>
+                <field name="current_page_id"/>
+                <field name="progress_label" string="Done"/>
+                <field name="progress_ratio" widget="progressbar"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_copywriting_session_search" model="ir.ui.view">
+        <field name="name">copywriting.session.search</field>
+        <field name="model">copywriting.session</field>
+        <field name="arch" type="xml">
+            <search string="Review Sessions">
+                <field name="name"/>
+                <field name="website_id"/>
+                <field name="user_id"/>
+                <field name="state"/>
+                <field name="current_page_id"/>
+                <filter name="filter_my" string="My sessions"
+                        domain="[('user_id', '=', uid)]"/>
+                <filter name="filter_paused" string="Paused"
+                        domain="[('state', '=', 'paused')]"/>
+                <filter name="filter_active" string="In progress"
+                        domain="[('state', 'not in', ('draft', 'finished', 'paused'))]"/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_finished" string="Finished"
+                        domain="[('state', '=', 'finished')]"/>
+                <filter name="filter_resumable" string="Resumable (paused or draft)"
+                        domain="[('state', 'in', ('paused', 'draft'))]"/>
+                <group>
+                    <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                    <filter name="group_website" string="Website" context="{'group_by': 'website_id'}"/>
+                    <filter name="group_user" string="Operator" context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_copywriting_session_form" model="ir.ui.view">
+        <field name="name">copywriting.session.form</field>
+        <field name="model">copywriting.session</field>
+        <field name="arch" type="xml">
+            <form string="Review Session">
+                <header>
+                    <button name="action_start" type="object" string="Start"
+                            invisible="state not in ('draft', 'paused')" class="btn-primary"/>
+                    <button name="action_proceed" type="object" string="Proceed"
+                            invisible="state != 'intro'" class="btn-primary"/>
+                    <button name="action_later" type="object" string="Later"
+                            invisible="state in ('draft', 'finished', 'paused')"/>
+                    <button name="action_resume" type="object" string="Resume"
+                            invisible="state != 'paused'" class="btn-primary"/>
+                    <button name="action_choose_page" type="object" string="Open page"
+                            invisible="state not in ('page_select', 'page_done')" class="btn-primary"/>
+                    <button name="action_start_sections" type="object" string="Start sections"
+                            invisible="state != 'page_intro'" class="btn-primary"/>
+                    <button name="action_next_step" type="object" string="Next"
+                            invisible="state not in ('section_fact', 'section_interpret', 'section_suggest')"
+                            class="btn-primary"/>
+                    <button name="action_accept_suggestion" type="object" string="Accept suggestion"
+                            invisible="state != 'section_decide' or edit_mode" class="btn-primary"/>
+                    <button name="action_enable_edit_mode" type="object" string="Edit final"
+                            invisible="state != 'section_decide' or edit_mode"/>
+                    <button name="action_save_edit" type="object" string="Save edited final"
+                            invisible="state != 'section_decide' or not edit_mode" class="btn-primary"/>
+                    <button name="action_reject_interpretation" type="object" string="Reject interpretation"
+                            invisible="state != 'section_decide'"/>
+                    <button name="action_skip_section" type="object" string="Skip section"
+                            invisible="state not in ('section_fact', 'section_interpret', 'section_suggest', 'section_decide')"
+                            groups="inteligente_content_matrix.group_manager"/>
+                    <button name="action_next_page" type="object" string="Choose another page"
+                            invisible="state != 'page_done'"/>
+                    <button name="action_finish" type="object" string="Finish session"
+                            invisible="state not in ('page_done', 'page_select')" class="btn-secondary"/>
+                    <button name="action_open_matrix_bot_dm" type="object" string="Open Matrix Bot"
+                            class="btn-secondary"
+                            groups="inteligente_content_matrix.group_operator"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,intro,page_select,page_intro,section_fact,section_decide,page_done,finished"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <div class="alert alert-info" role="alert" invisible="state != 'paused'">
+                        Session paused. Resume state:
+                        <field name="resume_state" readonly="1" class="oe_inline"/>
+                        · Progress <field name="progress_label" readonly="1" class="oe_inline"/>.
+                        Click <b>Resume</b> or <b>Start</b> to continue.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="website_id" readonly="state != 'draft'"/>
+                            <field name="user_id" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="page_ids" widget="many2many_tags"
+                                     readonly="state != 'draft'"
+                                     options="{'no_create': True}"
+                                     domain="[('website_id', '=', website_id)]"/>
+                        </group>
+                        <group>
+                            <field name="progress_label"/>
+                            <field name="progress_done" invisible="1"/>
+                            <field name="progress_total" invisible="1"/>
+                            <field name="progress_ratio" widget="progressbar"/>
+                            <field name="date_start" readonly="1"/>
+                            <field name="date_end" readonly="1"/>
+                            <field name="resume_state" invisible="state != 'paused'"/>
+                            <field name="discuss_channel_id" readonly="1"/>
+                            <field name="edit_mode" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <!-- INTRO -->
+                    <group string="Executive summary" invisible="state != 'intro'">
+                        <field name="executive_summary" nolabel="1" colspan="2"/>
+                    </group>
+
+                    <!-- PAGE SELECT -->
+                    <group string="Select page" invisible="state not in ('page_select', 'page_done')">
+                        <field name="current_page_id"
+                               domain="[('website_id', '=', website_id), ('active', '=', True)]"
+                               options="{'no_create': True}"/>
+                    </group>
+
+                    <!-- PAGE INTRO -->
+                    <group string="Page analysis" invisible="state != 'page_intro'">
+                        <field name="current_page_id" readonly="1"/>
+                        <field name="page_analysis_html" nolabel="1" colspan="2"/>
+                    </group>
+                    <group string="Guidelines" invisible="state != 'page_intro'">
+                        <field name="page_guidelines_html" nolabel="1" colspan="2"/>
+                    </group>
+
+                    <!-- SECTION LOOP -->
+                    <group string="Current section"
+                           invisible="state not in ('section_fact', 'section_interpret', 'section_suggest', 'section_decide')">
+                        <field name="current_section_id" readonly="1"/>
+                        <field name="section_name" readonly="1"/>
+                        <field name="section_anchor_key" readonly="1"/>
+                        <field name="section_role" readonly="1"/>
+                    </group>
+
+                    <group string="4.1 Fact (exact content)"
+                           invisible="state not in ('section_fact', 'section_interpret', 'section_suggest', 'section_decide')">
+                        <field name="content_current" nolabel="1" colspan="2" readonly="1"/>
+                    </group>
+                    <group string="4.2 Interpretation"
+                           invisible="state not in ('section_interpret', 'section_suggest', 'section_decide')">
+                        <field name="content_interpretation" nolabel="1" colspan="2"
+                               readonly="state not in ('section_interpret', 'section_decide')"/>
+                    </group>
+                    <group string="4.3 Suggestion"
+                           invisible="state not in ('section_suggest', 'section_decide')">
+                        <field name="content_suggestion" nolabel="1" colspan="2"
+                               readonly="state != 'section_suggest'"/>
+                    </group>
+                    <group string="Final (edit)"
+                           invisible="state != 'section_decide'">
+                        <field name="content_final" nolabel="1" colspan="2"
+                               readonly="not edit_mode"/>
+                        <field name="reject_note" placeholder="Required if rejecting interpretation"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Sections in scope" name="scope">
+                            <field name="scoped_section_ids" readonly="1">
+                                <list decoration-success="status == 'approved'"
+                                      decoration-info="status == 'updated'"
+                                      decoration-muted="status == 'skipped'"
+                                      decoration-warning="status == 'pending_review'"
+                                      decoration-danger="status == 'rejected_interp'">
+                                    <field name="sequence"/>
+                                    <field name="page_id"/>
+                                    <field name="anchor_key"/>
+                                    <field name="name"/>
+                                    <field name="status"/>
+                                    <field name="version"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Events" name="events">
+                            <field name="event_ids" readonly="1">
+                                <list>
+                                    <field name="create_date"/>
+                                    <field name="step"/>
+                                    <field name="section_id"/>
+                                    <field name="user_id"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_copywriting_session" model="ir.actions.act_window">
+        <field name="name">Review Sessions</field>
+        <field name="res_model">copywriting.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_copywriting_session_search"/>
+        <field name="context">{"search_default_filter_my": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a review session for a website matrix, then walk fact → interpretation → suggestion → final.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_copywriting_session_paused" model="ir.actions.act_window">
+        <field name="name">Paused Sessions</field>
+        <field name="res_model">copywriting.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_copywriting_session_search"/>
+        <field name="domain">[("state", "=", "paused")]</field>
+        <field name="context">{"search_default_filter_my": 1}</field>
+    </record>
+</odoo>

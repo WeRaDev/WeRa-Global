@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_copywriting_page_list" model="ir.ui.view">
+        <field name="name">copywriting.page.list</field>
+        <field name="model">copywriting.page</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="website_id"/>
+                <field name="name"/>
+                <field name="url"/>
+                <field name="status"/>
+                <field name="section_count"/>
+                <field name="approved_count"/>
+                <field name="completion_ratio" widget="progressbar"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_copywriting_page_form" model="ir.ui.view">
+        <field name="name">copywriting.page.form</field>
+        <field name="model">copywriting.page</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="website_id"/>
+                            <field name="name"/>
+                            <field name="url"/>
+                            <field name="sequence"/>
+                            <field name="status"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="section_count"/>
+                            <field name="approved_count"/>
+                            <field name="completion_ratio" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Analysis" name="analysis">
+                            <field name="analysis_html"/>
+                        </page>
+                        <page string="Guidelines" name="guidelines">
+                            <field name="guidelines_html"/>
+                        </page>
+                        <page string="Sections" name="sections">
+                            <field name="section_ids">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="anchor_key"/>
+                                    <field name="name"/>
+                                    <field name="role"/>
+                                    <field name="lang"/>
+                                    <field name="status"/>
+                                    <field name="version"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_copywriting_page" model="ir.actions.act_window">
+        <field name="name">Pages</field>
+        <field name="res_model">copywriting.page</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

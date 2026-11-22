@@ -1,0 +1,474 @@
+{
+  "website_code": "incity",
+  "base_url": "https://www.invisiblecity.site",
+  "version": "0.1",
+  "doc": "docs/incity-dom-anchor-map.md",
+  "notes": [
+    "dom_id is HTML id without '#'; null means page-only preview",
+    "Many sections share one dom_id (block-level scroll)",
+    "global-footer applies site-wide; matrix rows currently under Home",
+    "Not yet applied on live site; builder pass required"
+  ],
+  "stats": {
+    "pages": 8,
+    "sections": 69,
+    "sections_with_dom_id": 61,
+    "meta_or_page_only": 8
+  },
+  "pages": [
+    {
+      "url": "/",
+      "sections": [
+        {
+          "anchor_key": "home.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/"
+        },
+        {
+          "anchor_key": "home.hero.h1",
+          "dom_id": "home-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-hero"
+        },
+        {
+          "anchor_key": "home.hero.subhead",
+          "dom_id": "home-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-hero"
+        },
+        {
+          "anchor_key": "home.hero.cta",
+          "dom_id": "home-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-hero"
+        },
+        {
+          "anchor_key": "home.hero.body",
+          "dom_id": "home-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-hero"
+        },
+        {
+          "anchor_key": "home.hero.claim",
+          "dom_id": "home-claim",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-claim"
+        },
+        {
+          "anchor_key": "home.hero.claim_dup",
+          "dom_id": "home-claim",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-claim"
+        },
+        {
+          "anchor_key": "home.block.masters_h2",
+          "dom_id": "home-masters",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-masters"
+        },
+        {
+          "anchor_key": "home.goodfoot.h2_follow",
+          "dom_id": "home-goodfoot",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-goodfoot"
+        },
+        {
+          "anchor_key": "home.goodfoot.body",
+          "dom_id": "home-goodfoot",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-goodfoot"
+        },
+        {
+          "anchor_key": "home.goodfoot.h2_leave",
+          "dom_id": "home-regenerative",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-regenerative"
+        },
+        {
+          "anchor_key": "home.gourmet",
+          "dom_id": "home-regenerative",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-regenerative"
+        },
+        {
+          "anchor_key": "home.cta_row",
+          "dom_id": "home-tours",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-tours"
+        },
+        {
+          "anchor_key": "home.promo.br",
+          "dom_id": "home-promo-popup",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-promo-popup"
+        },
+        {
+          "anchor_key": "home.bio_ctas",
+          "dom_id": "home-bio",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#home-bio"
+        },
+        {
+          "anchor_key": "global.footer.about",
+          "dom_id": "global-footer",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#global-footer"
+        },
+        {
+          "anchor_key": "global.footer.whatsapp",
+          "dom_id": "global-footer",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#global-footer"
+        },
+        {
+          "anchor_key": "global.footer.follow",
+          "dom_id": "global-footer",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#global-footer"
+        },
+        {
+          "anchor_key": "global.footer.odoo_chrome",
+          "dom_id": "global-footer",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/#global-footer"
+        }
+      ]
+    },
+    {
+      "url": "/contactus",
+      "sections": [
+        {
+          "anchor_key": "contact.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/contactus"
+        },
+        {
+          "anchor_key": "contact.h1",
+          "dom_id": "contact-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/contactus#contact-hero"
+        },
+        {
+          "anchor_key": "contact.intro",
+          "dom_id": "contact-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/contactus#contact-hero"
+        },
+        {
+          "anchor_key": "contact.form.cta",
+          "dom_id": "contact-form",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/contactus#contact-form"
+        },
+        {
+          "anchor_key": "contact.trust.h2",
+          "dom_id": "contact-trust",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/contactus#contact-trust"
+        },
+        {
+          "anchor_key": "contact.help",
+          "dom_id": "contact-help",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/contactus#contact-help"
+        },
+        {
+          "anchor_key": "contact.topics",
+          "dom_id": "contact-help",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/contactus#contact-help"
+        }
+      ]
+    },
+    {
+      "url": "/privacy",
+      "sections": [
+        {
+          "anchor_key": "privacy.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/privacy"
+        },
+        {
+          "anchor_key": "privacy.h1",
+          "dom_id": "privacy-body",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/privacy#privacy-body"
+        },
+        {
+          "anchor_key": "privacy.body",
+          "dom_id": "privacy-body",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/privacy#privacy-body"
+        }
+      ]
+    },
+    {
+      "url": "/tours-from-lisbon",
+      "sections": [
+        {
+          "anchor_key": "lisbon.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon"
+        },
+        {
+          "anchor_key": "lisbon.h1",
+          "dom_id": "lisbon-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-hero"
+        },
+        {
+          "anchor_key": "lisbon.intro",
+          "dom_id": "lisbon-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-hero"
+        },
+        {
+          "anchor_key": "lisbon.classic.name",
+          "dom_id": "lisbon-classic",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-classic"
+        },
+        {
+          "anchor_key": "lisbon.classic.duration",
+          "dom_id": "lisbon-classic",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-classic"
+        },
+        {
+          "anchor_key": "lisbon.classic.price",
+          "dom_id": "lisbon-classic",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-classic"
+        },
+        {
+          "anchor_key": "lisbon.classic.stops",
+          "dom_id": "lisbon-classic",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-classic"
+        },
+        {
+          "anchor_key": "lisbon.grand.name",
+          "dom_id": "lisbon-grand",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-grand"
+        },
+        {
+          "anchor_key": "lisbon.grand.price",
+          "dom_id": "lisbon-grand",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-grand"
+        },
+        {
+          "anchor_key": "lisbon.short.name",
+          "dom_id": "lisbon-short",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-short"
+        },
+        {
+          "anchor_key": "lisbon.short.price",
+          "dom_id": "lisbon-short",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-short"
+        },
+        {
+          "anchor_key": "lisbon.cta",
+          "dom_id": "lisbon-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-cta"
+        },
+        {
+          "anchor_key": "lisbon.custom",
+          "dom_id": "lisbon-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-lisbon#lisbon-cta"
+        }
+      ]
+    },
+    {
+      "url": "/tours-from-sintra",
+      "sections": [
+        {
+          "anchor_key": "sintra.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra"
+        },
+        {
+          "anchor_key": "sintra.h1",
+          "dom_id": "sintra-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-hero"
+        },
+        {
+          "anchor_key": "sintra.intro",
+          "dom_id": "sintra-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-hero"
+        },
+        {
+          "anchor_key": "sintra.b1.name",
+          "dom_id": "sintra-short",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-short"
+        },
+        {
+          "anchor_key": "sintra.b1.price",
+          "dom_id": "sintra-short",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-short"
+        },
+        {
+          "anchor_key": "sintra.palace.name",
+          "dom_id": "sintra-palace",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-palace"
+        },
+        {
+          "anchor_key": "sintra.palace.price",
+          "dom_id": "sintra-palace",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-palace"
+        },
+        {
+          "anchor_key": "sintra.b5.name",
+          "dom_id": "sintra-panoramic",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-panoramic"
+        },
+        {
+          "anchor_key": "sintra.b5.price",
+          "dom_id": "sintra-panoramic",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-panoramic"
+        },
+        {
+          "anchor_key": "sintra.goodfoot",
+          "dom_id": "sintra-goodfoot",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-goodfoot"
+        },
+        {
+          "anchor_key": "sintra.cta",
+          "dom_id": "sintra-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/tours-from-sintra#sintra-cta"
+        }
+      ]
+    },
+    {
+      "url": "/intv",
+      "sections": [
+        {
+          "anchor_key": "intv.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/intv"
+        },
+        {
+          "anchor_key": "intv.h1",
+          "dom_id": "intv-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/intv#intv-hero"
+        },
+        {
+          "anchor_key": "intv.intro",
+          "dom_id": "intv-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/intv#intv-hero"
+        },
+        {
+          "anchor_key": "intv.cta_tours",
+          "dom_id": "intv-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/intv#intv-cta"
+        },
+        {
+          "anchor_key": "intv.cta_contact",
+          "dom_id": "intv-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/intv#intv-cta"
+        }
+      ]
+    },
+    {
+      "url": "/reviews",
+      "sections": [
+        {
+          "anchor_key": "reviews.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/reviews"
+        },
+        {
+          "anchor_key": "reviews.h1",
+          "dom_id": "reviews-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/reviews#reviews-hero"
+        },
+        {
+          "anchor_key": "reviews.intro",
+          "dom_id": "reviews-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/reviews#reviews-hero"
+        },
+        {
+          "anchor_key": "reviews.cta",
+          "dom_id": "reviews-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/reviews#reviews-cta"
+        },
+        {
+          "anchor_key": "reviews.source_note",
+          "dom_id": "reviews-sources",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/reviews#reviews-sources"
+        }
+      ]
+    },
+    {
+      "url": "/vasco-da-lama",
+      "sections": [
+        {
+          "anchor_key": "vasco.meta.description",
+          "dom_id": null,
+          "preview_mode": "page",
+          "preview_url": "https://www.invisiblecity.site/vasco-da-lama"
+        },
+        {
+          "anchor_key": "vasco.h1",
+          "dom_id": "vasco-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/vasco-da-lama#vasco-hero"
+        },
+        {
+          "anchor_key": "vasco.subhead",
+          "dom_id": "vasco-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/vasco-da-lama#vasco-hero"
+        },
+        {
+          "anchor_key": "vasco.bio",
+          "dom_id": "vasco-hero",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/vasco-da-lama#vasco-hero"
+        },
+        {
+          "anchor_key": "vasco.goodfoot",
+          "dom_id": "vasco-goodfoot",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/vasco-da-lama#vasco-goodfoot"
+        },
+        {
+          "anchor_key": "vasco.cta",
+          "dom_id": "vasco-cta",
+          "preview_mode": "fragment",
+          "preview_url": "https://www.invisiblecity.site/vasco-da-lama#vasco-cta"
+        }
+      ]
+    }
+  ]
+}

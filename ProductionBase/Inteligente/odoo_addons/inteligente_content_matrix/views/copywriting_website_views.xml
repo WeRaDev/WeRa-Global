@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_copywriting_website_list" model="ir.ui.view">
+        <field name="name">copywriting.website.list</field>
+        <field name="model">copywriting.website</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="base_url"/>
+                <field name="page_count"/>
+                <field name="section_count"/>
+                <field name="approved_count"/>
+                <field name="completion_ratio" widget="progressbar"/>
+                <field name="website_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_copywriting_website_form" model="ir.ui.view">
+        <field name="name">copywriting.website.form</field>
+        <field name="model">copywriting.website</field>
+        <field name="arch" type="xml">
+            <form string="Content Matrix Website">
+                <header>
+                    <button name="action_import_dom_anchor_map" type="object"
+                            string="Import DOM anchor map"
+                            groups="inteligente_content_matrix.group_manager"
+                            confirm="Update section dom_id from module seed map?"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Website name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="base_url"/>
+                            <field name="website_id"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="page_count"/>
+                            <field name="section_count"/>
+                            <field name="approved_count"/>
+                            <field name="completion_ratio" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Executive summary" name="summary">
+                            <field name="executive_summary"/>
+                        </page>
+                        <page string="Pages" name="pages">
+                            <field name="page_ids">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="url"/>
+                                    <field name="status"/>
+                                    <field name="section_count"/>
+                                    <field name="approved_count"/>
+                                    <field name="completion_ratio" widget="progressbar"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_copywriting_website" model="ir.actions.act_window">
+        <field name="name">Websites</field>
+        <field name="res_model">copywriting.website</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

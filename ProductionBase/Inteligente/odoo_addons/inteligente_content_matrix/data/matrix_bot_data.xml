@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="partner_matrix_bot" model="res.partner" forcecreate="1">
+        <field name="name">Content Matrix Bot</field>
+        <field name="email">matrix-bot@invisiblecity.site</field>
+        <field name="active" eval="True"/>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <!-- Internal user so Discuss lists the bot (partner_share=False), like OdooBot -->
+    <record id="user_matrix_bot" model="res.users" context="{'no_reset_password': True, 'no_reset_password_email': True}">
+        <field name="name">Content Matrix Bot</field>
+        <field name="login">matrix_bot</field>
+        <field name="partner_id" ref="partner_matrix_bot"/>
+        <field name="active" eval="True"/>
+        <field name="group_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+        <field name="notification_type">inbox</field>
+    </record>
+</odoo>

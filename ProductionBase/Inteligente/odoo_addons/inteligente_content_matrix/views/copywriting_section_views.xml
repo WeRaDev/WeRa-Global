@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_copywriting_section_list" model="ir.ui.view">
+        <field name="name">copywriting.section.list</field>
+        <field name="model">copywriting.section</field>
+        <field name="arch" type="xml">
+            <list decoration-success="status == 'approved'"
+                  decoration-info="status == 'updated'"
+                  decoration-muted="status == 'skipped'"
+                  decoration-warning="status == 'pending_review'"
+                  decoration-danger="status == 'rejected_interp'">
+                <field name="sequence" widget="handle"/>
+                <field name="website_id"/>
+                <field name="page_id"/>
+                <field name="anchor_key"/>
+                <field name="dom_id" optional="show"/>
+                <field name="name"/>
+                <field name="role"/>
+                <field name="lang"/>
+                <field name="status"/>
+                <field name="version"/>
+                <field name="apply_method"/>
+                <field name="last_session_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_copywriting_section_kanban" model="ir.ui.view">
+        <field name="name">copywriting.section.kanban</field>
+        <field name="model">copywriting.section</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="status" class="o_kanban_small_column" quick_create="false">
+                <field name="name"/>
+                <field name="anchor_key"/>
+                <field name="page_id"/>
+                <field name="website_id"/>
+                <field name="role"/>
+                <field name="status"/>
+                <field name="version"/>
+                <field name="color"/>
+                <field name="last_session_id"/>
+                <progressbar field="status"
+                             colors='{"pending_review": "warning", "approved": "success", "updated": "info", "skipped": "muted", "rejected_interp": "danger", "draft": "muted"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_card oe_kanban_global_click">
+                            <div class="o_kanban_record_top mb-1">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="text-muted">
+                                <field name="anchor_key"/>
+                            </div>
+                            <div>
+                                <field name="page_id"/> · <field name="role"/>
+                            </div>
+                            <div class="o_kanban_record_bottom mt-2">
+                                <div class="oe_kanban_bottom_left">
+                                    v<field name="version"/>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <field name="status" widget="badge"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_copywriting_section_search" model="ir.ui.view">
+        <field name="name">copywriting.section.search</field>
+        <field name="model">copywriting.section</field>
+        <field name="arch" type="xml">
+            <search string="Sections">
+                <field name="name"/>
+                <field name="anchor_key"/>
+                <field name="page_id"/>
+                <field name="website_id"/>
+                <field name="status"/>
+                <field name="role"/>
+                <field name="lang"/>
+                <filter name="filter_pending" string="Pending review"
+                        domain="[('status', '=', 'pending_review')]"/>
+                <filter name="filter_approved" string="Approved"
+                        domain="[('status', '=', 'approved')]"/>
+                <filter name="filter_updated" string="Updated"
+                        domain="[('status', '=', 'updated')]"/>
+                <filter name="filter_rejected" string="Rejected interpretation"
+                        domain="[('status', '=', 'rejected_interp')]"/>
+                <filter name="filter_open" string="Open (not closed)"
+                        domain="[('status', 'not in', ('approved', 'updated', 'skipped'))]"/>
+                <filter name="filter_closed" string="Closed"
+                        domain="[('status', 'in', ('approved', 'updated', 'skipped'))]"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
+                <group>
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="group_page" string="Page" context="{'group_by': 'page_id'}"/>
+                    <filter name="group_website" string="Website" context="{'group_by': 'website_id'}"/>
+                    <filter name="group_role" string="Role" context="{'group_by': 'role'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_copywriting_section_form" model="ir.ui.view">
+        <field name="name">copywriting.section.form</field>
+        <field name="model">copywriting.section</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_accept_suggestion" type="object" string="Accept suggestion" class="btn-primary"/>
+                    <button name="action_set_final_updated" type="object" string="Save final as updated"/>
+                    <field name="status" widget="statusbar" statusbar_visible="pending_review,approved,updated,skipped"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Section name"/></h1>
+                        <h3><field name="anchor_key" placeholder="anchor.key"/></h3>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="page_id"/>
+                            <field name="website_id"/>
+                            <field name="role"/>
+                            <field name="lang"/>
+                            <field name="sequence"/>
+                            <field name="version" readonly="1"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="apply_method"/>
+                            <field name="apply_target"/>
+                            <field name="dom_id" placeholder="home-hero"/>
+                            <field name="last_session_id" readonly="1"/>
+                            <field name="content_hash_current" readonly="1"/>
+                            <field name="content_hash_final" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="4.1 Fact" name="fact">
+                            <field name="content_current" placeholder="Exact content currently on the site"/>
+                        </page>
+                        <page string="4.2 Interpretation" name="interp">
+                            <field name="content_interpretation"/>
+                        </page>
+                        <page string="4.3 Suggestion" name="suggest">
+                            <field name="content_suggestion"/>
+                        </page>
+                        <page string="Final" name="final">
+                            <field name="content_final"/>
+                        </page>
+                        <page string="Versions" name="versions">
+                            <field name="version_ids" readonly="1">
+                                <list>
+                                    <field name="version"/>
+                                    <field name="event"/>
+                                    <field name="status"/>
+                                    <field name="user_id"/>
+                                    <field name="create_date"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_copywriting_section" model="ir.actions.act_window">
+        <field name="name">Sections</field>
+        <field name="res_model">copywriting.section</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_copywriting_section_search"/>
+        <field name="context">{"search_default_filter_open": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No sections yet. Import a matrix seed or create sections under a page.
+            </p>
+        </field>
+    </record>
+</odoo>

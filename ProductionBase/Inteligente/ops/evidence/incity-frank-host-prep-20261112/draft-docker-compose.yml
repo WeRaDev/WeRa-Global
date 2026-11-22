@@ -1,0 +1,50 @@
+# DRAFT — InCity isolated stack (Option A)
+# Target path on Frank: /data/incity-site/compose/docker-compose.yml
+# Do not apply until CONFIRM DESTRUCTIVE.
+# Secrets: generate POSTGRES/Odoo DB password on Frank; store under /data/incity-site/secrets/ (mode 600). Never commit real secrets.
+
+name: incity-site
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: incity-site-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: "${INCITY_PG_PASSWORD}"
+      POSTGRES_DB: postgres
+    volumes:
+      - incity_site_pg:/var/lib/postgresql/data
+    networks: [incity-site-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  odoo:
+    image: filantropia-odoo:19.0
+    container_name: incity-site-odoo
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8073:8069"
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: "${INCITY_PG_PASSWORD}"
+    volumes:
+      - /data/incity-site/odoo.conf:/etc/odoo/odoo.conf:ro
+      - /data/incity-site/addons:/mnt/extra-addons:ro
+      - /data/incity-site/filestore:/var/lib/odoo
+    networks: [incity-site-net]
+
+networks:
+  incity-site-net:
+    driver: bridge
+
+volumes:
+  incity_site_pg:

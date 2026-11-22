@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<menuitem id="menu_content_matrix_root"
+              name="Content Matrix"
+              web_icon="inteligente_content_matrix,static/description/icon.png"
+              action="action_copywriting_website"
+              sequence="45"
+              groups="base.group_user"/>
+
+    <menuitem id="menu_content_matrix_websites"
+              name="Websites"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_website"
+              sequence="10"/>
+
+    <menuitem id="menu_content_matrix_pages"
+              name="Pages"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_page"
+              sequence="20"/>
+
+    <menuitem id="menu_content_matrix_sections"
+              name="Sections"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_section"
+              sequence="30"/>
+
+    <menuitem id="menu_content_matrix_sessions"
+              name="Review Sessions"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_session"
+              sequence="40"/>
+
+    <record id="action_open_matrix_bot" model="ir.actions.server">
+        <field name="name">Chat with Matrix Bot</field>
+        <field name="model_id" ref="model_copywriting_session"/>
+        <field name="state">code</field>
+        <field name="code">action = env["copywriting.session"].action_open_matrix_bot_home()</field>
+    </record>
+
+    <menuitem id="menu_content_matrix_bot"
+              name="Matrix Bot (Discuss)"
+              parent="menu_content_matrix_root"
+              action="action_open_matrix_bot"
+              sequence="42"
+              groups="inteligente_content_matrix.group_operator"/>
+
+    <menuitem id="menu_content_matrix_sessions_paused"
+              name="Paused Sessions"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_session_paused"
+              sequence="45"/>
+
+    <menuitem id="menu_content_matrix_verify"
+              name="Verify Runs"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_verify_run"
+              sequence="50"/>
+
+    <menuitem id="menu_content_matrix_apply"
+              name="Apply Runs"
+              parent="menu_content_matrix_root"
+              action="action_copywriting_apply_run"
+              sequence="60"/>
+
+    <menuitem id="menu_content_matrix_io"
+              name="Import / Export"
+              parent="menu_content_matrix_root"
+              sequence="90"/>
+
+    <menuitem id="menu_content_matrix_import"
+              name="Import Matrix"
+              parent="menu_content_matrix_io"
+              action="action_matrix_import_wizard"
+              sequence="10"/>
+
+    <menuitem id="menu_content_matrix_export"
+              name="Export Matrix"
+              parent="menu_content_matrix_io"
+              action="action_matrix_export_wizard"
+              sequence="20"/>
+</odoo>

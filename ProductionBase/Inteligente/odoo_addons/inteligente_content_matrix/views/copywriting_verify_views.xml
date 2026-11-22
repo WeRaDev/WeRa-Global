@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_copywriting_verify_run_list" model="ir.ui.view">
+        <field name="name">copywriting.verify.run.list</field>
+        <field name="model">copywriting.verify.run</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'ok'"
+                  decoration-warning="state == 'warn'"
+                  decoration-danger="state == 'error'">
+                <field name="name"/>
+                <field name="website_id"/>
+                <field name="date_run"/>
+                <field name="state"/>
+                <field name="count_pages"/>
+                <field name="count_ok"/>
+                <field name="count_drift"/>
+                <field name="count_missing"/>
+                <field name="count_orphan"/>
+                <field name="count_error"/>
+                <field name="user_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_copywriting_verify_run_form" model="ir.ui.view">
+        <field name="name">copywriting.verify.run.form</field>
+        <field name="model">copywriting.verify.run</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_run_verify" type="object" string="Run verify"
+                            class="btn-primary"/>
+                    <button name="action_export_log" type="object" string="Log ready tip"
+                            invisible="not log_text"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,ok,warn,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="website_id" readonly="state != 'draft' and date_run"/>
+                            <field name="page_ids" widget="many2many_tags"
+                                     options="{'no_create': True}"
+                                     domain="[('website_id', '=', website_id)]"/>
+                            <field name="compare_to"/>
+                        </group>
+                        <group>
+                            <field name="user_id" readonly="1"/>
+                            <field name="date_run" readonly="1"/>
+                            <field name="count_pages"/>
+                            <field name="count_ok"/>
+                            <field name="count_drift"/>
+                            <field name="count_missing"/>
+                            <field name="count_orphan"/>
+                            <field name="count_error"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Summary" name="summary">
+                            <field name="summary_html" nolabel="1"/>
+                        </page>
+                        <page string="Lines" name="lines">
+                            <field name="line_ids">
+                                <list decoration-success="result == 'ok'"
+                                      decoration-warning="result == 'drift'"
+                                      decoration-danger="result in ('missing_matrix', 'error')"
+                                      decoration-muted="result == 'orphan_live'">
+                                    <field name="page_id"/>
+                                    <field name="anchor_key"/>
+                                    <field name="result"/>
+                                    <field name="expected_label"/>
+                                    <field name="http_status"/>
+                                    <field name="note"/>
+                                    <field name="url" optional="hide"/>
+                                    <field name="expected_hash" optional="hide"/>
+                                    <field name="live_hash" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Log" name="log">
+                            <field name="log_text" nolabel="1" widget="text"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_copywriting_verify_run" model="ir.actions.act_window">
+        <field name="name">Verify Runs</field>
+        <field name="res_model">copywriting.verify.run</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a verify run, pick website (and optional pages), then Run verify.
+            </p>
+        </field>
+    </record>
+</odoo>

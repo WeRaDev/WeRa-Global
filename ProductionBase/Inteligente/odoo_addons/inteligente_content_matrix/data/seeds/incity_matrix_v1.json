@@ -1,0 +1,333 @@
+{
+  "website": {
+    "code": "incity",
+    "name": "Invisible City Tours",
+    "base_url": "https://www.invisiblecity.site",
+    "executive_summary": "<p>Invisible City Tours is a guide-led Sintra experience brand. Phase-1 site is brochure + lead capture. Copy should be clear English, euro pricing, no platform chrome, and a consistent fact → interpretation → suggestion → final workflow.</p><p>Priority: global footer/chrome, home hero, pricing labels, contact, then tour pages.</p>"
+  },
+  "pages": [
+    {
+      "url": "/",
+      "name": "Home",
+      "sequence": 10,
+      "status": "todo",
+      "analysis_html": "<p>Strong brand idea (story-led Sintra + Goodfoot) undermined by ALL CAPS, typos, duplicate lines, and Odoo footer chrome.</p>",
+      "guidelines_html": "<p>Sentence case; one EN voice; € before amount; CTAs = View tours / WhatsApp; remove Odoo free website.</p>",
+      "sections": [
+        {
+          "anchor_key": "home.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "This is the homepage of the website",
+          "content_interpretation": "Placeholder SEO text; does not describe the offer.",
+          "content_suggestion": "Private Sintra tours from Lisbon and Sintra — story-led guiding, coastal views, optional park regeneration.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.hero.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "Hero title",
+          "content_current": "EASY SINTRA",
+          "content_interpretation": "Vague and shouty; undersells expertise.",
+          "content_suggestion": "Sintra, told properly",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.hero.subhead",
+          "sequence": 20,
+          "role": "subhead",
+          "name": "Hero subhead",
+          "content_current": "ALL ABOUT VISITING PARADISE",
+          "content_interpretation": "Generic tourism cliché in all caps.",
+          "content_suggestion": "Private tours beyond the postcard — history, legend, and landscape.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.hero.cta",
+          "sequence": 30,
+          "role": "cta",
+          "name": "Hero CTA",
+          "content_current": "Go",
+          "content_interpretation": "Non-specific action label.",
+          "content_suggestion": "Explore tours",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.hero.body",
+          "sequence": 40,
+          "role": "body",
+          "name": "Hero body",
+          "content_current": "LET US TAKE YOU DEEP ON OUR SACRED MOUNTAIN, ONCE INTEGRATING THE KNOWLEDGE WE PROVIDE YOU IN OUR TOURS , A DENSE FOG OVER SINTRA WILL CLEAR....",
+          "content_interpretation": "Run-on caps sentence with spacing/punctuation issues; idea is good.",
+          "content_suggestion": "Join us on Sintra's mountain with guides who connect history, legend, and place — so the day makes sense, not just the photos.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.hero.claim",
+          "sequence": 50,
+          "role": "body",
+          "name": "Guide craft claim",
+          "content_current": "THERE ARE GOOD GUIDES! THERE ARE EXCELLENT GUIDES! INVISIBLE CITY MAKE´S IT AS AN ART",
+          "content_interpretation": "Brand claim with bad apostrophe and agreement; all caps.",
+          "content_suggestion": "There are good guides. There are excellent guides. Invisible City Tours treats guiding as a craft.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.hero.claim_dup",
+          "sequence": 55,
+          "role": "body",
+          "name": "Guide craft claim duplicate",
+          "content_current": "There are good guides! There are ecxellent guides! Invisible city makes it as an art!",
+          "content_interpretation": "Duplicate of claim with typo ecxellent; should be removed.",
+          "content_suggestion": "",
+          "status": "pending_review",
+          "apply_method": "manual_checklist",
+          "apply_target": "delete block"
+        },
+        {
+          "anchor_key": "home.block.masters_h2",
+          "sequence": 60,
+          "role": "h2",
+          "name": "Masters heading",
+          "content_current": "ENTERTAINED BY MASTERS / OF ENTERTAINMENT",
+          "content_interpretation": "Split awkward H2.",
+          "content_suggestion": "Entertained by masters of storytelling",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.goodfoot.h2_follow",
+          "sequence": 70,
+          "role": "h2",
+          "name": "Follow the green",
+          "content_current": "FOLOW THE GREEN",
+          "content_interpretation": "Spelling error; good brand line.",
+          "content_suggestion": "Follow the green",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.goodfoot.body",
+          "sequence": 80,
+          "role": "body",
+          "name": "Goodfoot body",
+          "content_current": "SELECTED LANDSCAPES ZERO TO 50 PERCENT OF TOUR TIME USED TO HELP THE PARK REGENARATION",
+          "content_interpretation": "Distinctive Goodfoot offer buried in caps and typo.",
+          "content_suggestion": "Chosen landscapes. From a short contribution up to half your tour time can support regeneration of Sintra Natural Park.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.goodfoot.h2_leave",
+          "sequence": 90,
+          "role": "h2",
+          "name": "Leave the park",
+          "content_current": "LEAVE THE PARK BETTER THEN YOU FOUND IT",
+          "content_interpretation": "Wrong than/then.",
+          "content_suggestion": "Leave the park better than you found it",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.gourmet",
+          "sequence": 100,
+          "role": "h2",
+          "name": "Gourmet pack",
+          "content_current": "TOTALLY GOURMET PACK SOON!",
+          "content_interpretation": "OK intent; tone loud.",
+          "content_suggestion": "Totally Gourmet pack — coming soon",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.cta_row",
+          "sequence": 110,
+          "role": "cta",
+          "name": "Mashed CTA labels",
+          "content_current": "INVISIBLE CLASSICGRANTOURBOOK",
+          "content_interpretation": "Unreadable concatenation of labels.",
+          "content_suggestion": "Classic tour · Grand Tour · Contact to book",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.promo.br",
+          "sequence": 120,
+          "role": "body",
+          "name": "Wrong locale promo",
+          "content_current": "Compre agora e ganhe um desconto de R$ 200 em seu primeiro pedido. Viaje agora",
+          "content_interpretation": "PT-BR + Real on EN euro tourism site; trust risk.",
+          "content_suggestion": "Prefer a multi-stop day? Message us about packs.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "home.bio_ctas",
+          "sequence": 130,
+          "role": "cta",
+          "name": "Bio CTAs",
+          "content_current": "Who is he? Check it GOODFOOT",
+          "content_interpretation": "Weak labels; bio URL may 404.",
+          "content_suggestion": "Meet Vasco · How Goodfoot works",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "global.footer.about",
+          "sequence": 900,
+          "role": "footer",
+          "name": "Footer about",
+          "content_current": "Small team with a lot to do. Vasco is currently on solo creating the videos and performing the tours,",
+          "content_interpretation": "Broken English; incomplete sentence.",
+          "content_suggestion": "Invisible City Tours is a small, guide-led company. Vasco da Lama creates the videos and hosts the tours in person.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "global.footer.whatsapp",
+          "sequence": 910,
+          "role": "cta",
+          "name": "Footer WhatsApp",
+          "content_current": "whatsapp",
+          "content_interpretation": "Needs capitalisation as product name.",
+          "content_suggestion": "WhatsApp",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "global.footer.follow",
+          "sequence": 920,
+          "role": "nav",
+          "name": "Footer follow heading",
+          "content_current": "Siga-nos",
+          "content_interpretation": "Portuguese on EN site chrome.",
+          "content_suggestion": "Follow us",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "global.footer.odoo_chrome",
+          "sequence": 930,
+          "role": "footer",
+          "name": "Odoo free website chrome",
+          "content_current": "Odoo free website",
+          "content_interpretation": "Platform leftover; remove from public.",
+          "content_suggestion": "",
+          "status": "pending_review",
+          "apply_target": "remove block"
+        }
+      ]
+    },
+    {
+      "url": "/contactus",
+      "name": "Contact",
+      "sequence": 20,
+      "status": "todo",
+      "analysis_html": "<p>Contact page mixes PT form copy with EN headings; video topic list needs grammar fixes.</p>",
+      "guidelines_html": "<p>English primary; clear WhatsApp CTA; no caps shouting.</p>",
+      "sections": [
+        {
+          "anchor_key": "contact.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "This is the contact us page of the website",
+          "content_interpretation": "Placeholder SEO.",
+          "content_suggestion": "Contact Invisible City Tours about dates, pickup, and planning your day in Sintra.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "contact.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "Contact H1",
+          "content_current": "CONTACT US",
+          "content_interpretation": "All caps.",
+          "content_suggestion": "Contact us",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "contact.intro",
+          "sequence": 20,
+          "role": "body",
+          "name": "Contact intro",
+          "content_current": "Entre em contato conosco sobre qualquer assunto relacionado à nossa empresa ou aos nossos serviços.",
+          "content_interpretation": "Portuguese default on English brochure site.",
+          "content_suggestion": "Get in touch about tours, timing, pickup points, or planning your day in Sintra.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "contact.form.cta",
+          "sequence": 30,
+          "role": "cta",
+          "name": "Form submit",
+          "content_current": "Enviar mensagem",
+          "content_interpretation": "PT CTA.",
+          "content_suggestion": "Send message",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "contact.trust.h2",
+          "sequence": 40,
+          "role": "h2",
+          "name": "Trust headline",
+          "content_current": "OVER 100.000 TOURISTS FROM OVER 100 COUNTRIES HAVE TRUSTED INVISIBLECITY TOURS",
+          "content_interpretation": "Good proof; caps and EU number style for EN.",
+          "content_suggestion": "More than 100,000 guests from over 100 countries have joined Invisible City Tours",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "contact.help",
+          "sequence": 50,
+          "role": "body",
+          "name": "Help + videos",
+          "content_current": "NEED HELP ONCE VISITING SINTRA? Make your life easier Watch our videos",
+          "content_interpretation": "Missing punctuation; awkward once visiting.",
+          "content_suggestion": "Need help visiting Sintra? Make the day easier. Watch our videos.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "contact.topics",
+          "sequence": 60,
+          "role": "h3",
+          "name": "Video topics",
+          "content_current": "OVERPAYING YOUR TICKETS? SINTRA´BEST SECONDARY ATTRACTIONS WHAT TO ASPECT ONCE VISITING BEST WAYS TO VISIT SINTRA HIDDEN GEMS OF SINTRA",
+          "content_interpretation": "Typos aspect→expect; bad apostrophe; aggressive overpaying.",
+          "content_suggestion": "Paying too much for tickets? · Sintra's best secondary attractions · What to expect · Best ways to visit Sintra · Hidden gems of Sintra",
+          "status": "pending_review"
+        }
+      ]
+    },
+    {
+      "url": "/privacy",
+      "name": "Privacy",
+      "sequence": 90,
+      "status": "todo",
+      "analysis_html": "<p>Title only; body empty — compliance gap for EU tourism site.</p>",
+      "guidelines_html": "<p>GDPR-oriented privacy: controller, contact data, WhatsApp, cookies, rights.</p>",
+      "sections": [
+        {
+          "anchor_key": "privacy.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "This is the privacy policy page of the website",
+          "content_interpretation": "Placeholder.",
+          "content_suggestion": "How Invisible City Tours handles enquiries, messages, and site data.",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "privacy.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "Privacy H1",
+          "content_current": "Privacy Policy",
+          "content_interpretation": "Fine.",
+          "content_suggestion": "Privacy policy",
+          "status": "pending_review"
+        },
+        {
+          "anchor_key": "privacy.body",
+          "sequence": 20,
+          "role": "body",
+          "name": "Privacy body",
+          "content_current": "",
+          "content_interpretation": "Missing policy content.",
+          "content_suggestion": "Invisible City Tours (controller contact via the site contact form / WhatsApp) processes enquiry data to respond to tour requests. We do not sell personal data. You may request access, correction, or deletion. Full policy text to be completed with counsel.",
+          "status": "pending_review"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# DRAFT frank-appliance fragment — copy to SolarCity/ops/frank-appliance/appliances/ after go-live
+id = "incity-site-odoo"
+description = "InCity / Invisible City Tours Odoo 19 community (isolated client stack)"
+plane = "filantropia"
+manager = "compose"
+compose_file = "/data/incity-site/compose/docker-compose.yml"
+compose_service = "odoo"
+container_name = "incity-site-odoo"
+requires_storage = ["data_crypt"]
+requires_fortress = false
+fortress_soft = true
+networks = ["incity-site-net"]
+update_channel = "pin"
+backup_class = "database"
+auto_start = true
+approval_required = false
+
+[[ports]]
+bind = "127.0.0.1"
+host = 8073
+container = 8069
+protocol = "tcp"
+
+[health]
+type = "http"
+url = "http://127.0.0.1:8073/web/login?db=incity_site"
+expect_status = 200
+timeout_s = 5

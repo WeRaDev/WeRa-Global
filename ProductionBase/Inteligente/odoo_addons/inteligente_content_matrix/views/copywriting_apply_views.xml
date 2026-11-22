@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_copywriting_apply_run_list" model="ir.ui.view">
+        <field name="name">copywriting.apply.run.list</field>
+        <field name="model">copywriting.apply.run</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'ok'"
+                  decoration-warning="state == 'warn'"
+                  decoration-danger="state == 'error'">
+                <field name="name"/>
+                <field name="website_id"/>
+                <field name="dry_run"/>
+                <field name="date_run"/>
+                <field name="state"/>
+                <field name="count_total"/>
+                <field name="count_checklist"/>
+                <field name="count_blocked"/>
+                <field name="user_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_copywriting_apply_run_form" model="ir.ui.view">
+        <field name="name">copywriting.apply.run.form</field>
+        <field name="model">copywriting.apply.run</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_build_checklist" type="object"
+                            string="Build checklist (dry-run)" class="btn-primary"/>
+                    <button name="action_run_apply" type="object"
+                            string="Run apply"
+                            class="btn-secondary"
+                            groups="inteligente_content_matrix.group_manager"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,ok,warn,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <div class="alert alert-warning" role="alert">
+                        v1 never rewrites live website HTML. Checklist is the apply path.
+                        Uncheck Dry-run only to mark lines done after manual paste (Manager).
+                    </div>
+                    <group>
+                        <group>
+                            <field name="website_id"/>
+                            <field name="page_ids" widget="many2many_tags"
+                                     options="{'no_create': True}"
+                                     domain="[('website_id', '=', website_id)]"/>
+                            <field name="dry_run"/>
+                            <field name="manager_confirm" invisible="dry_run"/>
+                        </group>
+                        <group>
+                            <field name="user_id" readonly="1"/>
+                            <field name="date_run" readonly="1"/>
+                            <field name="count_total"/>
+                            <field name="count_checklist"/>
+                            <field name="count_blocked"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Checklist" name="checklist">
+                            <field name="checklist_html" nolabel="1"/>
+                        </page>
+                        <page string="Lines" name="lines">
+                            <field name="line_ids">
+                                <list decoration-success="status == 'done'"
+                                      decoration-warning="status == 'todo'"
+                                      decoration-danger="status == 'blocked'">
+                                    <field name="page_id"/>
+                                    <field name="anchor_key"/>
+                                    <field name="apply_method"/>
+                                    <field name="status"/>
+                                    <field name="content_final"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Log" name="log">
+                            <field name="log_text" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_copywriting_apply_run" model="ir.actions.act_window">
+        <field name="name">Apply Runs</field>
+        <field name="res_model">copywriting.apply.run</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Build a manual paste checklist from approved/updated sections.
+            </p>
+        </field>
+    </record>
+</odoo>

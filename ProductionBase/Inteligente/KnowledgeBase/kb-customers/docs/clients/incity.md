@@ -5,11 +5,11 @@ metadata:
   owner_role: Founder/Consultant
   temporal_scope: current
   evidence_status: verified
-  last_reviewed_at: 2026-11-09
-  next_review_due: 2027-02-09
+  last_reviewed_at: 2026-11-22
+  next_review_due: 2027-02-22
   provenance:
     actor: agent-warp
-    source: "Customers/Vasco Da Lama source pack; InCity research pack; founder Shrinking AI notes (2026-09-29); booking research ADR 0003 (2026-10-19); client conversation simplified website scope ADR 0004 (2026-11-09)"
+    source: "Customers/Vasco Da Lama source pack; InCity research pack 01-05; founder Shrinking AI notes (2026-09-29); booking research ADR 0003 (2026-10-19); client conversation simplified website scope ADR 0004 (2026-11-09); live site invisiblecity.site + public OTA/competitor desk refresh (2026-11-18)"
     confidence: medium
     review_status: draft
   sensitivity: internal-only-client-record
@@ -35,8 +35,8 @@ Canonical Inteligente client record for **InCity** (codename), operating publicl
 | Operator / brand face | Vasco Da Lama (also referenced as Vasco Mouradossantos on personal FB context) | verified from client source pack |
 | Business model | Solo-operator private guided day tours (Lisbon corridor: Sintra, Cascais, Cabo da Roca) | verified from reviews/research synthesis |
 | Registered address signal | Cebolais de Cima, Castelo Branco district (admin), while operations are Lisbon/Sintra/Cascais | verified from Facebook page research; geo mismatch is a known SEO risk |
-| Public digital presence | Facebook page `invisiblecitylisboa`; no owned website or public online booking at research time | verified as of source research (2025–2026 pack) |
-| Reputation asset | 100% recommend across ~95 Facebook reviews; stagnant follower growth (~850) | verified from page-insights research |
+| Public digital presence | **Owned brochure site live:** `https://www.invisiblecity.site/` (Frank / ADR 0004). Facebook `invisiblecitylisboa` still active. GetYourGuide **supplier** page exists (Invisible city tours / Vasco Moura dos Santos). No phase-1 instant online booking. | verified site 2026-11; GYG supplier page public 2026; booking scope per ADR 0004 |
+| Reputation asset | Historically ~95 Facebook reviews at 100% recommend; stagnant follower growth (~850) at pack time. OTA review mass still lags high-volume peers. | FB stats point-in-time; re-verify before external claims |
 
 ### Internal-only contacts
 Treat as **internal client CRM data**. Do not publish on Inteligente marketing surfaces without explicit client consent.
@@ -72,11 +72,13 @@ Real delivered product (from reviews and tour resume), not the outdated "costume
 Full structured catalog lives in research: `../../../../Resources/Documents/Research/Clients/InCity/02-tour-catalog-summary.md`.
 
 ### Competitive and website strategy (summary)
-- Core gap: marketed costume/character identity ≠ reviewed private day-trip product.
-- Competitors (Viator, Living Private Tours, Premiere Tours, Mr. Local, etc.) win on transparent pricing, OTA listings, owned websites, and booking friction removal.
-- Recommended site IA: Home, Tours (+ destination landings), About/guide, Testimonials, Contact/booking, multi-language EN/FR/PT/ES; optional vehicles/blog/seasonal pages.
-- Lead-gen priorities: fix Lisbon vs Castelo Branco geo signals; Google Business / TripAdvisor / GetYourGuide presence; WhatsApp + booking form; public "from €X" pricing; review funnel off Facebook-only trust.
-- Detailed strategy: `../../../../Resources/Documents/Research/Clients/InCity/03-competitive-and-website-strategy.md`.
+- Core gap: marketed costume/character identity ≠ reviewed private day-trip product (still visible on some OTA supplier bios).
+- **Market structure (2026 refresh):** Lisbon OTA shelves are Sintra-day-trip heavy. Budget **group** combos often list from ~€24–€50; **private** peers commonly ~€65–€150+/person (tickets often extra) or per-vehicle day fees. InCity resume bands (A1–A3 ~€80–€130/adult) sit in private mid — competitive **if** discoverable.
+- Competitors winning attention: OTA-optimized privates (Picta, SWINGO, Host Experiences, etc.), review machines (Yellow Cab TT, Magik-class), premium care brands (e.g. Yes You Deserve), local Sintra-station operators.
+- **Phase-1 site is live** but copy/verify still shows drift/missing on Home — treat content quality as commercial, not cosmetic.
+- Lead-gen priorities: Google Business NAP (Lisbon corridor ops); three public packages + from-prices; WhatsApp/form SLA; testimonials page; GYG/Viator SKU audit; reviews onto Google/Tripadvisor; EN/FR/ES/PT.
+- Baseline strategy: `../../../../Resources/Documents/Research/Clients/InCity/03-competitive-and-website-strategy.md`.
+- **Refresh (2026-11-18):** `../../../../Resources/Documents/Research/Clients/InCity/05-competitive-marketing-refresh-2026-11.md`.
 
 ### Inteligente engagement history
 1. **Human Center / Shrinking AI (Sept 2026, paid)** — €50 / 60 minutes. Trigger: AI-assisted YouTube content did not produce expected engagement. Intervention: business analysis redirected priority from more YouTube production toward a **website booking path**; deliverables included a business-model canvas and business plan for website construction.
@@ -85,6 +87,15 @@ Full structured catalog lives in research: `../../../../Resources/Documents/Rese
 4. **Current commercial status (2026-10-05)** — **Pipeline Automation Center opportunity** focused on website-admin automation. Not a signed Automation Center engagement. Not Financial Automation.
 5. **Booking-stack research + MVP design (2026-10-19)** — Documented that Odoo alone cannot replace a Bókun-class tour channel manager. **ADR 0003** remains a **deferred optional** booking/OTA path, not current commercial scope.
 6. **Client conversation simplified scope (2026-11-09)** — Phase 1 agreed: **brochure + lead-capture website on Frank**, online; **no** tourism-platform integrations, **no** online bookings, **no** payment channels; YouTube/Facebook/Instagram **links to the website** for leads; guide **schedules manually**. Fee **€300**; **no subscription**; **3 months free hosting**. Proposal: `../../../../Resources/Documents/Proposals/InCity-website-proposal-v2.html`. Architecture: **ADR 0004**.
+7. **Phase-1 site operations (2026-11)** — Public site reachable at **https://www.invisiblecity.site/** (community Odoo on Frank). Content Matrix Studio pilot for fact→final copy workflow; verify tool distinguishes drift (approved not applied) vs missing (matrix/live mismatch).
+8. **Competitive/marketing refresh (2026-11-18)** — Desk refresh of private Sintra corridor pricing, OTA shelf shape, peer brand patterns; see research `05`.
+9. **Content Matrix Studio + Discuss bot (2026-11-22)** — Module `inteligente_content_matrix` 19.0.1.7.2 on `incity_site`: full 8-page matrix seed, live DOM anchors, auth-only Discuss Matrix Bot with combined section cards and Website Edit deep-links. Public copy still unchanged until explicit apply after client review.
+
+### Marketing position (2026-11 working view)
+| Win cell | High customization · mid private price · guide-as-brand (story, languages, optional Goodfoot) |
+| Risk cell | Guests never see InCity because discovery defaults to cheap OTA group Sintra combos |
+| Near-term job | Convert site visitors → WhatsApp/form leads; fix geo/NAP; simplify public SKUs; align OTA bio with private day-trip reality |
+| Not near-term | Heavy custom Odoo booking engine; AI-YouTube-led growth; costume-only brand lead |
 
 ### Phase 1 architecture (ADR 0004 — current)
 | Layer | Choice |
@@ -121,6 +132,7 @@ Closest existing Shrinking AI labels: solo creative/service professional / A3-ad
 - `../../../../Resources/Documents/Research/Clients/InCity/02-tour-catalog-summary.md` — sanitized tour resume summary.
 - `../../../../Resources/Documents/Research/Clients/InCity/03-competitive-and-website-strategy.md` — sanitized competitive + website strategy.
 - `../../../../Resources/Documents/Research/Clients/InCity/04-booking-stack-odoo-vs-bokun.md` — Odoo vs Bókun-class OTA findings.
+- `../../../../Resources/Documents/Research/Clients/InCity/05-competitive-marketing-refresh-2026-11.md` — post go-live competitive + marketing refresh.
 - `../../../../docs/adr/0004-incity-brochure-website-phase1.md` — current phase-1 decision.
 - `../../../../docs/adr/0003-incity-minimum-effort-booking-mvp.md` — deferred booking/OTA path.
 - `../../../../Resources/Documents/Proposals/InCity-website-proposal-v2.html` — client proposal v2.
@@ -134,7 +146,11 @@ Closest existing Shrinking AI labels: solo creative/service professional / A3-ad
 
 ## Open Actions
 - Confirm v2 proposal in writing and collect §8 client inputs (domain, tours, contacts, social URLs, photos), owner: Founder/Consultant.
-- Deliver HC-023 phase-1 brochure website on Frank per ADR 0004 / proposal v2, owner: Founder/Consultant.
+- **HC-023 go-live follow-through:** finish Content Matrix Home/Contact finals, apply checklist, re-verify; ensure RNAAT/contact/WhatsApp visible on site, owner: Founder/Consultant.
+- **Google Business / NAP:** set primary ops geography to Lisbon corridor; link website; enable messaging, owner: Founder/Consultant (+ client).
+- **Public package cut:** publish ≤3 clear packages with from-€ prices on site (map from catalog A1/A3/B*), owner: Founder/Consultant (+ client).
+- **OTA hygiene:** audit GYG (and Viator if any) live products under Invisible City Tours; retitle/descriptions to private day-trip offer; owner: Founder/Consultant (+ client).
 - After go-live, set calendar for end of 3-month free hosting renewal conversation, owner: Founder/Consultant.
+- Instrument lead volume (form/WhatsApp) for 30/60/90 days post content harden, owner: Founder/Consultant.
 - Collect consent pack before any public case write-up, owner: Founder/Consultant, see `../../../../tasks/backlog.md` HC-005.
 - HC-022 automation qualification only if client later expands beyond brochure scope, owner: Founder/Consultant.

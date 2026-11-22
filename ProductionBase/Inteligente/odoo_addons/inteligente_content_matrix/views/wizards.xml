@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_matrix_import_wizard_form" model="ir.ui.view">
+        <field name="name">copywriting.matrix.import.wizard.form</field>
+        <field name="model">copywriting.matrix.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Content Matrix">
+                <group>
+                    <field name="import_format"/>
+                    <field name="data_file" filename="data_filename"/>
+                    <field name="data_filename" invisible="1"/>
+                    <field name="data_text" placeholder="Paste JSON or CSV here"/>
+                </group>
+                <group string="Result" invisible="not result_log">
+                    <field name="result_log" nolabel="1"/>
+                </group>
+                <footer>
+                    <button name="action_import" type="object" string="Import" class="btn-primary"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_matrix_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import Matrix</field>
+        <field name="res_model">copywriting.matrix.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <record id="view_matrix_export_wizard_form" model="ir.ui.view">
+        <field name="name">copywriting.matrix.export.wizard.form</field>
+        <field name="model">copywriting.matrix.export.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Export Content Matrix">
+                <group>
+                    <field name="website_id"/>
+                    <field name="export_format"/>
+                    <field name="status_filter"/>
+                    <field name="data_file" filename="data_filename" readonly="1"/>
+                    <field name="data_filename" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_export" type="object" string="Export" class="btn-primary"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_matrix_export_wizard" model="ir.actions.act_window">
+        <field name="name">Export Matrix</field>
+        <field name="res_model">copywriting.matrix.export.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

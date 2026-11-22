@@ -1,0 +1,500 @@
+{
+  "website": {
+    "code": "incity",
+    "name": "Invisible City Tours",
+    "base_url": "https://www.invisiblecity.site",
+    "executive_summary": "<p>Invisible City Tours is a guide-led private day-trip brand (Lisbon–Cascais–Roca–Sintra). Phase-1 site is brochure + lead capture on Frank.</p><p>Matrix coverage must include all public menu routes: Home, Tours from Lisbon, Tours from Sintra, INTV/stories, Reviews, Vasco/Goodfoot, Contact, Privacy — not only Home/Contact/Privacy.</p><p>Voice: clear EN, sentence case, € pricing, WhatsApp/contact CTAs (no fake instant book in phase 1).</p>"
+  },
+  "pages": [
+    {
+      "url": "/tours-from-lisbon",
+      "name": "Tours from Lisbon",
+      "sequence": 20,
+      "status": "todo",
+      "analysis_html": "<p>Core commercial page: Lisbon-start day trips. Live copy mixes strong product ideas with ALL CAPS, incomplete sentences, €/e inconsistency, and buried CTAs. Competitors win with clear from-prices, inclusions, and book paths. Should be package cards + one custom request path.</p>",
+      "guidelines_html": "<p>Sentence case EN; € before amount; duration + start + from-price above fold; CTAs Contact / WhatsApp; list inclusions/exclusions; max 3–4 public SKUs + custom.</p>",
+      "sections": [
+        {
+          "anchor_key": "lisbon.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "Tours from Lisbon",
+          "content_interpretation": "Title-like meta only; weak SEO for private Sintra day trips.",
+          "content_suggestion": "Private Sintra & coast day trips from Lisbon — Classic, Grand Tour, and short options with a story-led guide.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "Page H1",
+          "content_current": "TOURS FROM LISBON",
+          "content_interpretation": "All caps shout; fine as label but not benefit-led.",
+          "content_suggestion": "Tours from Lisbon",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.intro",
+          "sequence": 20,
+          "role": "body",
+          "name": "Intro body",
+          "content_current": "Start at your Lisbon stay. Coastal road to Cascais, Cabo da Roca, Sintra — private day with guide.",
+          "content_interpretation": "Offer spine is clear; needs cleaner packaging and trust.",
+          "content_suggestion": "We pick you up in Lisbon and shape a private day along the coast and into Sintra — history, viewpoints, and time that fits your group.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.classic.name",
+          "sequence": 30,
+          "role": "h2",
+          "name": "Classic package name",
+          "content_current": "INVISIBLE CLASSIC GRAND TOUR",
+          "content_interpretation": "All caps product name; 'Invisible' brand prefix ok if explained once.",
+          "content_suggestion": "Invisible Classic Grand Tour",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.classic.duration",
+          "sequence": 40,
+          "role": "body",
+          "name": "Classic duration",
+          "content_current": "8 hours",
+          "content_interpretation": "Clear; keep next to price.",
+          "content_suggestion": "8 hours",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.classic.price",
+          "sequence": 50,
+          "role": "body",
+          "name": "Classic price band",
+          "content_current": "120/pax circular · 90/pax CP train end Sintra",
+          "content_interpretation": "Internal price exists; public needs € and what is included.",
+          "content_suggestion": "From €90 / adult (train-end) · From €120 / adult (return to Lisbon area)",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.classic.stops",
+          "sequence": 60,
+          "role": "body",
+          "name": "Classic stops",
+          "content_current": "Cascais / Boca do Inferno / Cabo da Roca / Sintra center / palace park of choice",
+          "content_interpretation": "Good itinerary spine; write as scannable bullets on site.",
+          "content_suggestion": "Cascais & Boca do Inferno · Cabo da Roca · Sintra centre · chosen palace park",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.grand.name",
+          "sequence": 70,
+          "role": "h2",
+          "name": "Grand with palace name",
+          "content_current": "GRAND TOUR WITH HERO INSIDE PALACE",
+          "content_interpretation": "Hero/actor language may confuse; reviews praise guide craft not costume alone.",
+          "content_suggestion": "Grand Tour — guided palace interior",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.grand.price",
+          "sequence": 80,
+          "role": "body",
+          "name": "Grand price",
+          "content_current": "130/pax full · 100/pax train-end",
+          "content_interpretation": "Needs € and ticket clarity (palace entry usually guest-paid unless stated).",
+          "content_suggestion": "From €100 / adult (train-end) · From €130 / adult (full loop) — palace tickets as agreed",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.short.name",
+          "sequence": 90,
+          "role": "h2",
+          "name": "Short package",
+          "content_current": "INVISIBLE CLASSIC SHORT",
+          "content_interpretation": "Useful 6h SKU for time-poor guests.",
+          "content_suggestion": "Invisible Classic Short (6 hours)",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.short.price",
+          "sequence": 100,
+          "role": "body",
+          "name": "Short price",
+          "content_current": "100e/adult · 80e/adult variants",
+          "content_interpretation": "e vs € inconsistency.",
+          "content_suggestion": "From €80–€100 / adult",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.cta",
+          "sequence": 110,
+          "role": "cta",
+          "name": "Primary CTA",
+          "content_current": "BOOK / CONTACT",
+          "content_interpretation": "Phase-1 has no instant book — CTA must match manual scheduling.",
+          "content_suggestion": "Ask about dates on WhatsApp",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "lisbon.custom",
+          "sequence": 120,
+          "role": "body",
+          "name": "Custom request",
+          "content_current": "Custom itineraries on request",
+          "content_interpretation": "Important for solo operator; keep visible.",
+          "content_suggestion": "Prefer a custom day? Tell us your dates, group size, and must-sees.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        }
+      ]
+    },
+    {
+      "url": "/tours-from-sintra",
+      "name": "Tours from Sintra",
+      "sequence": 30,
+      "status": "todo",
+      "analysis_html": "<p>Sintra-start SKUs are a real differentiator vs Lisbon-only OTA buses. Page should emphasise station pickup, shorter products, and palace specials without dumping every internal code.</p>",
+      "guidelines_html": "<p>Lead with meeting point (Sintra station); show 3 hero products; € pricing; link to Lisbon-start page for full-day coast+Sintra.</p>",
+      "sections": [
+        {
+          "anchor_key": "sintra.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "Tours from Sintra",
+          "content_interpretation": "Insufficient SEO description.",
+          "content_suggestion": "Private tours starting in Sintra — palace specials, panoramas, and Goodfoot days with a local guide.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "Page H1",
+          "content_current": "TOURS FROM SINTRA",
+          "content_interpretation": "All caps; functional.",
+          "content_suggestion": "Tours from Sintra",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.intro",
+          "sequence": 20,
+          "role": "body",
+          "name": "Intro",
+          "content_current": "Meet at Sintra station or Sintra pickup. Shorter palace and park days without full Lisbon transfer.",
+          "content_interpretation": "Clear job-to-be-done for guests already on CP train.",
+          "content_suggestion": "Already in Sintra? Start at the station and spend your hours on palaces, parks, and viewpoints — private, not a packed coach.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.b1.name",
+          "sequence": 30,
+          "role": "h2",
+          "name": "B1 Twin Peaks / National",
+          "content_current": "TV short / Twin Peaks special · National Palace",
+          "content_interpretation": "Nickname may need EN gloss; price competitive.",
+          "content_suggestion": "Sintra short — panoramic + National Palace (~3h)",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.b1.price",
+          "sequence": 40,
+          "role": "body",
+          "name": "B1 price",
+          "content_current": "70e/passenger min 2",
+          "content_interpretation": "Needs € and min group.",
+          "content_suggestion": "From €70 / adult · minimum 2 guests",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.palace.name",
+          "sequence": 50,
+          "role": "h2",
+          "name": "Palace specials",
+          "content_current": "Pena / Regaleira / Montserrat specials 4h",
+          "content_interpretation": "Three parallel SKUs; public page can group as one family.",
+          "content_suggestion": "Palace park specials (Pena, Regaleira, or Monserrate) — about 4 hours",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.palace.price",
+          "sequence": 60,
+          "role": "body",
+          "name": "Palace specials price",
+          "content_current": "100e/adult",
+          "content_interpretation": "State tickets separate unless included.",
+          "content_suggestion": "From €100 / adult · monument tickets as agreed",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.b5.name",
+          "sequence": 70,
+          "role": "h2",
+          "name": "Panoramic park",
+          "content_current": "Panoramic through the park",
+          "content_interpretation": "Coast/park circuit differentiator.",
+          "content_suggestion": "Panoramic park & coast circuit (~4h)",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.b5.price",
+          "sequence": 80,
+          "role": "body",
+          "name": "B5 price",
+          "content_current": "140e/adult",
+          "content_interpretation": "Premium vs short palace — justify with route.",
+          "content_suggestion": "From €140 / adult",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.goodfoot",
+          "sequence": 90,
+          "role": "h2",
+          "name": "Goodfoot from Sintra",
+          "content_current": "Goodfoot Tour 6h · 60/adult symbolic",
+          "content_interpretation": "Strong brand line; explain what guest actually does.",
+          "content_suggestion": "Goodfoot day (about 6h) — monuments plus regenerative park time · from €60 / adult",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "sintra.cta",
+          "sequence": 100,
+          "role": "cta",
+          "name": "CTA",
+          "content_current": "Contact to plan your Sintra start",
+          "content_interpretation": "Match phase-1 ops.",
+          "content_suggestion": "Message us to plan a Sintra-start day",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        }
+      ]
+    },
+    {
+      "url": "/intv",
+      "name": "INTV / videos",
+      "sequence": 40,
+      "status": "todo",
+      "analysis_html": "<p>Video/lab page (INTV / DeepSintra curiosities). Risk: AI/YouTube experiment outranks bookable offer. Use as proof/story depth with clear path back to tours and contact.</p>",
+      "guidelines_html": "<p>Frame videos as 'stories behind the tours'; always pair with Explore tours / WhatsApp CTAs; avoid unfinished lab jargon as primary H1.</p>",
+      "sections": [
+        {
+          "anchor_key": "intv.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "INTV",
+          "content_interpretation": "Opaque acronym for guests.",
+          "content_suggestion": "Stories and films from Sintra — context for Invisible City Tours' private days.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "intv.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "H1",
+          "content_current": "INTV",
+          "content_interpretation": "Brand-internal name; guests need plain language.",
+          "content_suggestion": "Stories from the mountain",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "intv.intro",
+          "sequence": 20,
+          "role": "body",
+          "name": "Intro",
+          "content_current": "Videos and curiosities about Sintra history, legend, and place.",
+          "content_interpretation": "OK intent; connect to booking funnel.",
+          "content_suggestion": "Short films and notes on Sintra's history and landscape — the same material we draw on when we guide.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "intv.cta_tours",
+          "sequence": 30,
+          "role": "cta",
+          "name": "CTA to tours",
+          "content_current": "See tours",
+          "content_interpretation": "Must be prominent so video page is not a dead end.",
+          "content_suggestion": "Explore tours",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "intv.cta_contact",
+          "sequence": 40,
+          "role": "cta",
+          "name": "CTA contact",
+          "content_current": "Talk to us",
+          "content_interpretation": "Phase-1 primary conversion.",
+          "content_suggestion": "Ask about a private day",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        }
+      ]
+    },
+    {
+      "url": "/reviews",
+      "name": "Reviews",
+      "sequence": 50,
+      "status": "todo",
+      "analysis_html": "<p>Trust page. Should harvest multilingual proof with consent, not only Facebook embeds. Weak intro reduces conversion from Home CTAs.</p>",
+      "guidelines_html": "<p>Short EN intro; 6–12 curated quotes with language tags; link out to Facebook/Google; CTA after proof.</p>",
+      "sections": [
+        {
+          "anchor_key": "reviews.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "Reviews",
+          "content_interpretation": "No benefit statement.",
+          "content_suggestion": "Guest reviews of Invisible City Tours — private Sintra and coast days.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "reviews.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "H1",
+          "content_current": "REVIEWS",
+          "content_interpretation": "All caps label.",
+          "content_suggestion": "What guests say",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "reviews.intro",
+          "sequence": 20,
+          "role": "body",
+          "name": "Intro",
+          "content_current": "Recommendations from travellers who spent a day with us.",
+          "content_interpretation": "Keep humble and specific.",
+          "content_suggestion": "Notes from couples and small groups who joined a private day in Sintra and along the coast.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "reviews.cta",
+          "sequence": 30,
+          "role": "cta",
+          "name": "CTA after proof",
+          "content_current": "Travel with us",
+          "content_interpretation": "Convert trust to lead.",
+          "content_suggestion": "Plan your day",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "reviews.source_note",
+          "sequence": 40,
+          "role": "body",
+          "name": "Source note",
+          "content_current": "More reviews on Facebook",
+          "content_interpretation": "OK; add Google when GBP fixed.",
+          "content_suggestion": "Read more on our Facebook page — and ask us how to leave a Google review after your tour.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        }
+      ]
+    },
+    {
+      "url": "/vasco-da-lama",
+      "name": "Vasco da Lama / Goodfoot",
+      "sequence": 60,
+      "status": "todo",
+      "analysis_html": "<p>About/guide + regenerative tourism page. Strong differentiator if concrete and liability-safe. Avoid unfinished lab tone; show who guides and what Goodfoot means in hours.</p>",
+      "guidelines_html": "<p>First person or clear third person; photo of guide; Goodfoot = optional time share for park care; CTA to tours.</p>",
+      "sections": [
+        {
+          "anchor_key": "vasco.meta.description",
+          "sequence": 5,
+          "role": "meta",
+          "name": "Meta description",
+          "content_current": "Vasco da Lama",
+          "content_interpretation": "Name only; add role.",
+          "content_suggestion": "Meet Vasco da Lama — guide behind Invisible City Tours and the Goodfoot idea.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "vasco.h1",
+          "sequence": 10,
+          "role": "h1",
+          "name": "H1",
+          "content_current": "VASCO DA LAMA",
+          "content_interpretation": "Name as H1 is fine if subtitle explains role.",
+          "content_suggestion": "Vasco da Lama",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "vasco.subhead",
+          "sequence": 20,
+          "role": "subhead",
+          "name": "Subhead",
+          "content_current": "Guide · storyteller · Goodfoot",
+          "content_interpretation": "Good triad.",
+          "content_suggestion": "Guide, storyteller, and the person behind Goodfoot",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "vasco.bio",
+          "sequence": 30,
+          "role": "body",
+          "name": "Bio",
+          "content_current": "Vasco hosts private days in Sintra and the coast, creates videos, and develops regenerative tour time in the park.",
+          "content_interpretation": "Aligns with footer about; keep concrete.",
+          "content_suggestion": "Vasco guides private days around Sintra and the Atlantic edge, films stories from the mountain, and offers optional Goodfoot time to leave the park better than we found it.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "vasco.goodfoot",
+          "sequence": 40,
+          "role": "body",
+          "name": "Goodfoot explanation",
+          "content_current": "Part of the tour can support park regeneration — from a short contribution up to a larger share of the day.",
+          "content_interpretation": "Must stay honest about what guests actually do.",
+          "content_suggestion": "On Goodfoot options, part of your day can support care for Sintra Natural Park — we agree the share in advance, from a short contribution up to a larger part of the itinerary.",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        },
+        {
+          "anchor_key": "vasco.cta",
+          "sequence": 50,
+          "role": "cta",
+          "name": "CTA",
+          "content_current": "Join a tour",
+          "content_interpretation": "Back to commercial pages.",
+          "content_suggestion": "See tours from Lisbon or Sintra",
+          "status": "pending_review",
+          "apply_method": "manual_checklist"
+        }
+      ]
+    }
+  ]
+}
